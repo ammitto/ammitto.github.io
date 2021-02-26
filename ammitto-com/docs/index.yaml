@@ -1,4 +1,4 @@
-title: ammitto -- Cross-platform trust store
+title: ammitto -- Sanction search for people and organizations from published sources
 redirectFrom: []
 media: []
 contents:
@@ -12,14 +12,13 @@ contents:
           - type: section_header
             content:
               - type: text
-                text: What is ammitto?
+                text: What is Ammitto?
           - type: paragraph
             content:
               - type: text
                 text: >-
-                  ammitto is an open-source framework providing a cross-platform
-                  trust store and generalized platform for cryptographic
-                  implementation.
+                  Retrieve sanctioned people and organizations from various
+                  reputed published sources.
       - type: section
         attrs:
           id: features
@@ -28,58 +27,4 @@ contents:
             content:
               - type: text
                 text: Features
-          - type: bullet_list
-            content:
-              - type: list_item
-                content:
-                  - type: paragraph
-                    content:
-                      - type: text
-                        text: First-class support for Threshold Cryptography (TC)
-              - type: list_item
-                content:
-                  - type: paragraph
-                    content:
-                      - type: text
-                        text: Hardware Security Module (HSM) / SmartCard support
-              - type: list_item
-                content:
-                  - type: paragraph
-                    content:
-                      - type: text
-                        text: >-
-                          Plugins for leveraging existing crypto libraries
-                          (OpenSSL, Botan)
-              - type: list_item
-                content:
-                  - type: paragraph
-                    content:
-                      - type: text
-                        text: >-
-                          Extensible architecture for future cryptographic
-                          families
-              - type: list_item
-                content:
-                  - type: paragraph
-                    content:
-                      - type: text
-                        text: >-
-                          Interoperable with other languages via a stable
-                          Foreign Function Interface (FFI)
-              - type: list_item
-                content:
-                  - type: paragraph
-                    content:
-                      - type: text
-                        text: >-
-                          Allows decoupling of dependencies between
-                          cryptographic design, implementation, distribution,
-                          and adoption
-              - type: list_item
-                content:
-                  - type: paragraph
-                    content:
-                      - type: text
-                        text: >-
-                          Platform-independent compartmentalized key storage
-                          with support for various formats and backends
+          - type: paragraph
