@@ -30,7 +30,7 @@ contents:
           - type: paragraph
             content:
               - type: text
-                text: Currently supports data feeds from
+                text: 'Currently supports data services from:'
           - type: bullet_list
             content:
               - type: list_item
