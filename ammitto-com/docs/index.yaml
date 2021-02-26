@@ -28,3 +28,32 @@ contents:
               - type: text
                 text: Features
           - type: paragraph
+            content:
+              - type: text
+                text: Currently supports data feeds from
+          - type: bullet_list
+            content:
+              - type: list_item
+                content:
+                  - type: paragraph
+                    content:
+                      - type: text
+                        text: World Bank
+              - type: list_item
+                content:
+                  - type: paragraph
+                    content:
+                      - type: text
+                        text: United Nations
+              - type: list_item
+                content:
+                  - type: paragraph
+                    content:
+                      - type: text
+                        text: European Union
+              - type: list_item
+                content:
+                  - type: paragraph
+                    content:
+                      - type: text
+                        text: United States
