@@ -9,3 +9,9 @@ _site
 vendor
 .DS_Store
 Gemfile.lock
+
+# TypeScript build cache
+*.tsbuildinfo
+
+# Vite SSG temp directory
+.vite-ssg-temp

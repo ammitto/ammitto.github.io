@@ -1,36 +1,156 @@
-= Ammitto Open Project Site
+= Ammitto Website
+
+image:https://img.shields.io/github/license/ammitto/ammitto.github.io.svg[License]
 
 == Introduction
 
-This is the Ammitto project site,
-part of Ribose Open Project network,
-located at https://www.Ammitto.org.
+This is the Ammitto sanctions database website, located at https://www.ammitto.org.
 
-It is a https://jekyllrb.com[Jekyll]-based site
-created with the Open Project Jekyll theme.
+It is a https://vuejs.org[Vue.js 3] application built with https://vitejs.dev[Vite] and https://vite-ssg.com[Vite SSG] for static site generation.
 
-Refer to their respective docs for details.
+== Features
 
-
-== Content management
-
+* **Sanctions Search Database** - Search across 55,000+ sanctioned entities from 15 sources
+* **Ontology Browser** - Explore the Ammitto knowledge graph schema
+* **Lightweight Search** - Client-side FlexSearch with ~8MB index (vs 69MB full data)
+* **Dark Mode** - Full dark mode support
+* **Responsive Design** - Mobile-first design with Tailwind CSS
 
 == Development
 
-=== Getting started
+=== Prerequisites
 
-* Ensure you have reasonable Ruby version
-* Run `bundle` from within site directory to install Ruby dependencies
+* Node.js 20+
+* npm
 
-=== Serving site preview
+=== Getting Started
 
-* Run `jekyll serve` from within site directory
+[source,shell]
+----
+# Install dependencies
+npm install
 
+# Start development server
+npm run dev
 
-== Workflow
+# Build for production
+npm run build
 
-. Ensure tests pass
-. Create your feature branch (`git checkout -b my-new-feature`)
-. Commit your changes (`git commit -am 'Add some feature'`)
-. Push to the branch (`git push origin my-new-feature`)
-. Make a pull request
+# Preview production build
+npm run preview
+----
+
+=== Project Structure
+
+[source]
+----
+src/
+├── components/          # Vue components
+│   ├── atoms/          # Basic UI elements
+│   ├── molecules/      # Composite components
+│   └── organisms/      # Complex components
+├── composables/        # Vue composables
+│   ├── useSearchIndex.ts    # Lightweight search
+│   ├── useOntologyData.ts   # Ontology browser
+│   └── useSanctionsData.ts  # Full data loading
+├── views/              # Page components
+│   ├── SearchPage.vue       # Main search interface
+│   ├── OntologyBrowserPage.vue  # Schema explorer
+│   └── ...
+├── router/             # Vue Router configuration
+└── assets/             # Static assets
+----
+
+=== API Data
+
+The website loads data from `public/api/v1/`:
+
+[cols="1,2"]
+|===
+| File | Description
+
+| `search-index.json` | Lightweight search index (~8MB, 46K entities)
+| `facets/*.json` | Filter facet counts
+| `ontology/classes.jsonld` | Ontology class definitions
+| `ontology/properties.jsonld` | Ontology property definitions
+| `ontology/hierarchy.json` | Class hierarchy tree
+| `node/entity/{source}/{id}.jsonld` | Individual entity nodes
+| `all.jsonld` | Complete knowledge graph (69MB)
+|===
+
+=== Deployment
+
+The site is automatically deployed to GitHub Pages via GitHub Actions.
+
+The deployment workflow:
+
+. Checks out the website repository
+. Checks out the ammitto gem repository
+. Clones all 15 data-* repositories
+. Runs `ammitto harmonize --scan` to generate API data
+. Builds the Vue.js application with Vite
+. Deploys to GitHub Pages
+
+To trigger a deployment:
+
+[source,shell]
+----
+git push origin main
+----
+
+Or manually via GitHub Actions workflow dispatch.
+
+== Architecture
+
+....
+┌─────────────────────────────────────────────────────────────────┐
+│                    Ammitto Website                               │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  SearchPage.vue                                                  │
+│       │                                                          │
+│       ▼                                                          │
+│  useSearchIndex.ts ──► FlexSearch ──► search-index.json (~8MB)  │
+│       │                                                          │
+│       │ (on demand)                                              │
+│       ▼                                                          │
+│  loadFullEntity() ──► node/entity/{source}/{id}.jsonld          │
+│                                                                  │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  OntologyBrowserPage.vue                                         │
+│       │                                                          │
+│       ▼                                                          │
+│  useOntologyData.ts ──► ontology/*.jsonld                        │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+....
+
+== Data Sources
+
+The website displays data from 15 sanctions sources:
+
+[cols="1,1"]
+|===
+| Code | Authority
+
+| au | Australia (DFAT)
+| ca | Canada (SEFO)
+| ch | Switzerland (SECO)
+| cn | China (MOFCOM)
+| eu | European Union
+| eu_vessels | EU Vessels
+| jp | Japan (MOFA)
+| nz | New Zealand (MFAT)
+| ru | Russia (MID)
+| tr | Turkey
+| uk | United Kingdom (OFSI)
+| un | United Nations
+| un_vessels | UN Vessels
+| us | United States (OFAC)
+| wb | World Bank
+|===
+
+== License
+
+The website is available as open source under the terms of the BSD-2-Clause License.
