@@ -38,7 +38,7 @@ onMounted(() => {
           Sanctions Summary
         </h3>
         <p class="text-light-muted dark:text-dark-muted mb-4">
-          Total entries: {{ stats?.totals?.entries?.toLocaleString() || '—' }}
+          Total entries: {{ stats?.total_entries?.toLocaleString() || '—' }}
         </p>
         <RouterLink to="/search" class="btn-primary">
           Search Sanctions

@@ -1,13 +1,27 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import HeroSection from '@/components/organisms/HeroSection.vue'
 import FeatureCard from '@/components/molecules/FeatureCard.vue'
-import { sources, stats } from '@/config'
+import { sources } from '@/config'
 import { useScrollAnimation } from '@/composables/useScrollAnimation'
 
 useScrollAnimation()
 
 const searchQuery = ref('')
+const entityCount = ref(0)
+
+// Load stats from API
+onMounted(async () => {
+  try {
+    const response = await fetch('/api/v1/stats.json')
+    if (response.ok) {
+      const stats = await response.json()
+      entityCount.value = stats.total_entities || 0
+    }
+  } catch (e) {
+    console.error('Failed to load stats:', e)
+  }
+})
 
 const features = [
   {
@@ -72,7 +86,7 @@ const features = [
         </h2>
         <p class="text-center text-light-muted dark:text-dark-muted mb-12 max-w-2xl mx-auto">
           We aggregate sanctions data from {{ sources.length }} official sources worldwide,
-          currently covering {{ stats.entities.toLocaleString() }} entities.
+          currently covering {{ entityCount.toLocaleString() }} entities.
         </p>
         <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
           <RouterLink

@@ -1,0 +1,51 @@
+{
+  "@context": "https://www.ammitto.org/ontology/context.jsonld",
+  "@graph": [
+    {
+      "@context": "https://www.ammitto.org/ontology/context.jsonld",
+      "@id": "https://www.ammitto.org/authority/eu",
+      "@type": "Authority",
+      "name": "European Union",
+      "countryCode": "EU"
+    },
+    {
+      "@context": "https://www.ammitto.org/ontology/context.jsonld",
+      "@id": "https://www.ammitto.org/regime/unknown",
+      "@type": "SanctionRegime",
+      "name": "Unknown",
+      "code": "UNKNOWN"
+    },
+    {
+      "id": "https://www.ammitto.org/entity/eu/unknown",
+      "entity_type": "organization",
+      "@context": "https://www.ammitto.org/ontology/context.jsonld"
+    },
+    {
+      "id": "https://www.ammitto.org/entry/eu/consolidated-list/unknown",
+      "entity_id": "https://www.ammitto.org/entity/eu/unknown",
+      "authority": {
+        "@id": "https://www.ammitto.org/authority/eu"
+      },
+      "regime": {
+        "@id": "https://www.ammitto.org/regime/unknown"
+      },
+      "effects": [
+        {
+          "effect_type": "asset_freeze",
+          "scope": "full"
+        }
+      ],
+      "period": {
+        "is_indefinite": true
+      },
+      "status": "active",
+      "raw_source_data": {
+        "source_format": "xml",
+        "source_specific_fields": {
+          "eu:subjectTypeCode": "enterprise"
+        }
+      },
+      "@context": "https://www.ammitto.org/ontology/context.jsonld"
+    }
+  ]
+}

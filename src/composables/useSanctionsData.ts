@@ -1,7 +1,7 @@
 import { ref, computed } from 'vue'
 import FlexSearch from 'flexsearch'
 
-// Entity interface matching JSON-LD structure
+// Entity interface matching internal format
 export interface SanctionEntity {
   id: string
   names: Array<{
@@ -24,38 +24,42 @@ export interface SanctionEntity {
   }>
 }
 
-// JSON-LD graph entity
+// Actual JSON-LD graph entity format from API
 interface JsonLdEntity {
-  '@id': string
-  '@type': string
-  entityType: string
+  id: string
+  entity_type: string
   names: Array<{
-    '@type': string
-    fullName: string
-    isPrimary: boolean
+    full_name: string
+    script?: string
+    is_primary: boolean
   }>
-  sourceReferences?: Array<{
-    '@type': string
-    sourceCode: string
-    referenceNumber: string
+  source_references?: Array<{
+    source_code: string
+    reference_number: string
   }>
-  source?: string
-  sourceReference?: string
   country?: string
-  birthDate?: string
-  birthInfo?: Array<{
+  birth_info?: Array<{
     date?: string
+    year?: string
     country?: string
+    circa?: boolean
   }>
   remarks?: string
   contact?: string
   addresses?: Array<{
-    '@type': string
     street?: string
     city?: string
     state?: string
     country?: string
-    postalCode?: string
+    country_code?: string
+    postal_code?: string
+  }>
+  nationalities?: Array<string | { country_code?: string; country?: string }>
+  identifications?: Array<{
+    type?: string
+    document_type?: string
+    value?: string
+    identification?: string
   }>
 }
 
@@ -65,10 +69,13 @@ interface JsonLdResponse {
 }
 
 interface StatsResponse {
-  exported_at: string
+  generated_at: string
   sources: Record<string, { entities: number; entries: number }>
-  totals: { entities: number; entries: number }
-  entityTypes?: Record<string, number>
+  total_entities: number
+  total_entries: number
+  total_instruments?: number
+  total_regimes?: number
+  total_authorities?: number
 }
 
 // Cache for loaded data
@@ -79,7 +86,6 @@ const stats = ref<StatsResponse | null>(null)
 const statsLoading = ref(false)
 
 // FlexSearch index for fast text search
-// Using Index (simpler) instead of Document for better TypeScript support
 const searchIndex = new FlexSearch.Index({
   tokenize: 'forward',
   cache: true,
@@ -94,30 +100,37 @@ const API_BASE = import.meta.env.BASE_URL || '/'
 // All available sources
 const ALL_SOURCES = [
   'eu', 'un', 'us', 'wb', 'uk', 'au', 'ca', 'ch', 'cn',
-  'ru', 'tr', 'nz', 'jp', 'eu_vessels', 'un_vessels'
+  'ru', 'tr', 'nz', 'jp', 'eu-vessels', 'un-vessels'
 ]
 
 /**
  * Transform JSON-LD entity to internal format
  */
-function transformEntity(entity: JsonLdEntity): SanctionEntity {
-  // Get source from sourceReferences or fallback to source property
-  const sourceRef = entity.sourceReferences?.[0]
-  const source = sourceRef?.sourceCode || entity.source?.toLowerCase() || 'unknown'
-  const refNumber = sourceRef?.referenceNumber || entity.sourceReference
+function transformEntity(entity: JsonLdEntity, sourceCode: string): SanctionEntity {
+  // Get source from sourceReferences or use passed sourceCode
+  const sourceRef = entity.source_references?.[0]
+  const source = sourceRef?.source_code || sourceCode
+  const refNumber = sourceRef?.reference_number
 
-  // Get country from addresses or birthInfo
+  // Get country from addresses, birthInfo, or nationalities
   const country = entity.country ||
     entity.addresses?.[0]?.country ||
-    entity.birthInfo?.[0]?.country
+    entity.birth_info?.[0]?.country ||
+    (typeof entity.nationalities?.[0] === 'string' ? entity.nationalities[0] : entity.nationalities?.[0]?.country)
 
   // Get birth date from birthInfo
-  const birthDate = entity.birthDate || entity.birthInfo?.[0]?.date
+  const birthDate = entity.birth_info?.[0]?.date || entity.birth_info?.[0]?.year
+
+  // Transform names to internal format
+  const names = entity.names?.map(n => ({
+    fullName: n.full_name,
+    isPrimary: n.is_primary,
+  })) || []
 
   return {
-    id: entity['@id'],
-    names: entity.names || [],
-    entityType: entity.entityType as SanctionEntity['entityType'],
+    id: entity.id,
+    names,
+    entityType: entity.entity_type as SanctionEntity['entityType'],
     source,
     sourceReference: refNumber,
     country,
@@ -129,13 +142,13 @@ function transformEntity(entity: JsonLdEntity): SanctionEntity {
       city: addr.city,
       state: addr.state,
       country: addr.country,
-      postalCode: addr.postalCode,
+      postalCode: addr.postal_code,
     })),
   }
 }
 
 /**
- * Load stats from API (small file, load immediately)
+ * Load stats from API
  */
 async function loadStats(): Promise<StatsResponse | null> {
   if (stats.value) return stats.value
@@ -179,7 +192,6 @@ async function loadSourceEntities(source: string): Promise<SanctionEntity[]> {
 
   // Check if already loading
   if (loadingStates.value.get(cacheKey)) {
-    // Wait for current load to complete
     return new Promise((resolve) => {
       const checkInterval = setInterval(() => {
         if (!loadingStates.value.get(cacheKey)) {
@@ -202,11 +214,8 @@ async function loadSourceEntities(source: string): Promise<SanctionEntity[]> {
 
     const data: JsonLdResponse = await response.json()
 
-    // Filter only entities (not SanctionEntry)
-    const entityTypes = ['PersonEntity', 'OrganizationEntity', 'VesselEntity', 'AircraftEntity']
-    const entities = data['@graph']
-      .filter(item => entityTypes.includes(item['@type']))
-      .map(transformEntity)
+    // Transform all entities in the graph
+    const entities = (data['@graph'] || []).map(e => transformEntity(e, source))
 
     sourceDataCache.value.set(cacheKey, entities)
 
@@ -233,17 +242,15 @@ async function loadSources(sources: string[]): Promise<SanctionEntity[]> {
 }
 
 /**
- * Load all entities (only if needed)
+ * Load all entities
  */
 async function loadAllEntities(): Promise<SanctionEntity[]> {
-  // Load any sources not yet loaded
   const sourcesToLoad = ALL_SOURCES.filter(s => !sourceDataCache.value.has(s))
 
   if (sourcesToLoad.length > 0) {
     await loadSources(sourcesToLoad)
   }
 
-  // Combine all loaded entities
   const allEntities: SanctionEntity[] = []
   for (const source of ALL_SOURCES) {
     const entities = sourceDataCache.value.get(source)
@@ -272,18 +279,12 @@ function getLoadedEntities(): SanctionEntity[] {
 function buildSearchText(entity: SanctionEntity): string {
   const parts: string[] = []
 
-  // Add all names
   for (const name of entity.names) {
     parts.push(name.fullName)
   }
 
-  // Add country
   if (entity.country) parts.push(entity.country)
-
-  // Add source reference
   if (entity.sourceReference) parts.push(entity.sourceReference)
-
-  // Add remarks (truncated to avoid huge index)
   if (entity.remarks) parts.push(entity.remarks.slice(0, 500))
 
   return parts.join(' ')
@@ -302,46 +303,35 @@ function indexEntities(entities: SanctionEntity[]): void {
 }
 
 /**
- * Search entities by query using FlexSearch with fallback to simple text search
+ * Search entities by query
  */
 function searchEntities(entities: SanctionEntity[], query: string): SanctionEntity[] {
   const searchTerm = query.trim()
 
   if (!searchTerm) return entities
 
-  // First try FlexSearch index
   const results = searchIndex.search(searchTerm, 1000) as number[]
 
-  // Build a set of matched entity IDs from FlexSearch
   const matchedIds = new Set<string>()
   for (const idx of results) {
     const entityId = entityIdList.get(idx)
     if (entityId) matchedIds.add(entityId)
   }
 
-  // If we have FlexSearch matches, use them
   if (matchedIds.size > 0) {
     return entities.filter(e => matchedIds.has(e.id))
   }
 
-  // Fallback: simple text search on passed entities
-  // This handles cases where entities haven't been indexed yet (e.g., in tests)
+  // Fallback: simple text search
   const lowerQuery = searchTerm.toLowerCase()
   return entities.filter(entity => {
-    // Search in all names
     for (const name of entity.names) {
       if (name.fullName.toLowerCase().includes(lowerQuery)) {
         return true
       }
     }
-    // Search in country
-    if (entity.country?.toLowerCase().includes(lowerQuery)) {
-      return true
-    }
-    // Search in source reference
-    if (entity.sourceReference?.toLowerCase().includes(lowerQuery)) {
-      return true
-    }
+    if (entity.country?.toLowerCase().includes(lowerQuery)) return true
+    if (entity.sourceReference?.toLowerCase().includes(lowerQuery)) return true
     return false
   })
 }
@@ -358,14 +348,12 @@ function filterEntities(
 ): SanctionEntity[] {
   let result = entities
 
-  // Filter by source
   if (filters.sources && filters.sources.length > 0) {
     result = result.filter(e =>
       filters.sources!.includes(e.source.toLowerCase())
     )
   }
 
-  // Filter by entity type
   if (filters.entityTypes && filters.entityTypes.length > 0) {
     result = result.filter(e =>
       filters.entityTypes!.includes(e.entityType)
@@ -376,10 +364,9 @@ function filterEntities(
 }
 
 /**
- * Composable for accessing sanctions data with lazy loading
+ * Composable for accessing sanctions data
  */
 export function useSanctionsData() {
-  // Computed from loaded data
   const entities = computed(() => getLoadedEntities())
 
   const isLoading = computed(() => {
@@ -398,13 +385,12 @@ export function useSanctionsData() {
 
   const entityCount = computed(() => {
     if (stats.value) {
-      return stats.value.totals.entities
+      return stats.value.total_entities
     }
     return entities.value.length
   })
 
   const sourceCounts = computed(() => {
-    // Use stats if available (more accurate)
     if (stats.value) {
       const counts: Record<string, number> = {}
       for (const [source, data] of Object.entries(stats.value.sources)) {
@@ -413,7 +399,6 @@ export function useSanctionsData() {
       return counts
     }
 
-    // Fall back to counting loaded entities
     const counts: Record<string, number> = {}
     for (const entity of entities.value) {
       const source = entity.source.toLowerCase()
@@ -439,13 +424,11 @@ export function useSanctionsData() {
     entityTypeCounts,
     stats,
     statsLoading,
-    // Data loading functions
     loadStats,
     loadAllEntities,
     loadSourceEntities,
     loadSources,
     isSourceLoaded,
-    // Utility functions
     searchEntities,
     filterEntities,
     getLoadedEntities,

@@ -24,6 +24,49 @@ const browseOptions = [
     color: '#8b5cf6',
   },
 ]
+
+const dataObjects = [
+  {
+    title: 'Legal Instruments',
+    description: 'Laws, regulations, and legal documents that provide the basis for sanctions.',
+    icon: '📜',
+    link: '/browse/legal-instruments',
+    color: '#3b82f6',
+    count: '6 laws',
+  },
+  {
+    title: 'Sanction Groups',
+    description: 'Collections of sanctions announced together in a single announcement.',
+    icon: '📁',
+    link: '/browse/groups',
+    color: '#ec4899',
+    count: '17 groups',
+  },
+  {
+    title: 'Announcements',
+    description: 'Official announcements from sanctioning authorities.',
+    icon: '📢',
+    link: '/browse/announcements',
+    color: '#06b6d4',
+    count: '17 announcements',
+  },
+  {
+    title: 'Document Types',
+    description: 'Types of official documents used in sanctions announcements.',
+    icon: '📄',
+    link: '/browse/document-types',
+    color: '#f97316',
+    count: '7 types',
+  },
+  {
+    title: 'Organizations',
+    description: 'Government bodies, ministries, and agencies involved in sanctions.',
+    icon: '🏛️',
+    link: '/browse/organizations',
+    color: '#84cc16',
+    count: '8 orgs',
+  },
+]
 </script>
 
 <template>
@@ -34,9 +77,10 @@ const browseOptions = [
       </h1>
       <p class="text-light-muted dark:text-dark-muted mb-8 max-w-3xl">
         Explore sanctions data by category. Use the options below to browse
-        entities, sanctions, and actions.
+        entities, sanctions, legal instruments, and more.
       </p>
 
+      <!-- Primary Browse Options -->
       <div class="grid md:grid-cols-3 gap-6 mb-12">
         <RouterLink
           v-for="option in browseOptions"
@@ -59,6 +103,40 @@ const browseOptions = [
         </RouterLink>
       </div>
 
+      <!-- Data Objects Section -->
+      <section class="mb-12">
+        <h2 class="text-2xl font-semibold mb-4 text-light-text dark:text-dark-text">
+          Legal & Group Data
+        </h2>
+        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <RouterLink
+            v-for="obj in dataObjects"
+            :key="obj.link"
+            :to="obj.link"
+            class="glass-card p-6 hover:border-brand-primary/50 transition-all group"
+          >
+            <div class="flex items-start justify-between mb-4">
+              <div
+                class="w-12 h-12 rounded-lg flex items-center justify-center text-2xl"
+                :style="{ backgroundColor: obj.color + '20' }"
+              >
+                {{ obj.icon }}
+              </div>
+              <span class="text-xs px-2 py-1 rounded-full bg-light-bg dark:bg-dark-bg text-light-muted dark:text-dark-muted">
+                {{ obj.count }}
+              </span>
+            </div>
+            <h3 class="font-semibold text-lg mb-2 text-light-text dark:text-dark-text group-hover:text-brand-primary transition-colors">
+              {{ obj.title }}
+            </h3>
+            <p class="text-light-muted dark:text-dark-muted text-sm">
+              {{ obj.description }}
+            </p>
+          </RouterLink>
+        </div>
+      </section>
+
+      <!-- Browse by Source -->
       <section class="mb-12">
         <h2 class="text-2xl font-semibold mb-4 text-light-text dark:text-dark-text">
           Browse by Source
@@ -83,6 +161,7 @@ const browseOptions = [
         </div>
       </section>
 
+      <!-- Quick Links -->
       <section>
         <h2 class="text-2xl font-semibold mb-4 text-light-text dark:text-dark-text">
           Quick Links

@@ -1,7 +1,0 @@
-{
-  "@context": "https://www.ammitto.org/ontology/context.jsonld",
-  "@id": "https://www.ammitto.org/regime/au_vessels",
-  "@type": "SanctionRegime",
-  "name": "Russia Vessels (Autonomous)",
-  "code": "AU_VESSELS"
-}

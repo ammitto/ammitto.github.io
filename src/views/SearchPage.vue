@@ -88,6 +88,7 @@ watch([searchQuery, filters], () => {
 // Transform SearchEntity format for EntityCard
 const entityAdapter = (entity: SearchEntity) => ({
   id: entity.id,
+  ref: entity.ref, // Short reference for clean URLs
   names: entity.names,
   entityType: entity.type,
   source: entity.authority || 'unknown',
@@ -99,8 +100,8 @@ const entityAdapter = (entity: SearchEntity) => ({
 
 // Filtered results with debounced search
 const filteredEntities = computed(() => {
-  // Get search results
-  let results = search(debouncedQuery.value, 10000) // Get many results for filtering
+  // Get search results - use very high limit to include all entities for filtering
+  let results = search(debouncedQuery.value, 100000) // Get all results for filtering
 
   // Apply filters
   results = filter(results, {

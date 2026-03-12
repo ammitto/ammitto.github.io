@@ -48,6 +48,14 @@ const currentYear = new Date().getFullYear()
             </li>
             <li>
               <RouterLink
+                to="/license"
+                class="text-sm text-light-muted dark:text-dark-muted hover:text-brand-primary transition-colors"
+              >
+                License
+              </RouterLink>
+            </li>
+            <li>
+              <RouterLink
                 to="/api"
                 class="text-sm text-light-muted dark:text-dark-muted hover:text-brand-primary transition-colors"
               >
@@ -56,18 +64,10 @@ const currentYear = new Date().getFullYear()
             </li>
             <li>
               <RouterLink
-                to="/schema"
+                to="/ontology"
                 class="text-sm text-light-muted dark:text-dark-muted hover:text-brand-primary transition-colors"
               >
-                Schema
-              </RouterLink>
-            </li>
-            <li>
-              <RouterLink
-                to="/ruby"
-                class="text-sm text-light-muted dark:text-dark-muted hover:text-brand-primary transition-colors"
-              >
-                Ruby Gem
+                Ontology
               </RouterLink>
             </li>
           </ul>

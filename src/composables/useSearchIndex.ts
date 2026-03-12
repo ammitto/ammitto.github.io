@@ -63,12 +63,20 @@ const statusFacets = ref<FacetItem[]>([])
 // Base URL for API
 const API_BASE = import.meta.env.BASE_URL || '/'
 
+// Check if running in browser
+const isBrowser = typeof window !== 'undefined'
+
 /**
  * Load the lightweight search index
  * This is much faster than loading all source JSON-LD files
  */
 async function loadSearchIndex(): Promise<void> {
   if (isLoaded.value || isLoading.value) return
+
+  // Skip during SSR/build - data will be loaded client-side
+  if (!isBrowser) {
+    return
+  }
 
   isLoading.value = true
   error.value = null
@@ -119,6 +127,9 @@ async function loadSearchIndex(): Promise<void> {
  * Load facet data from API
  */
 async function loadFacets(): Promise<void> {
+  // Skip during SSR/build
+  if (!isBrowser) return
+
   try {
     const [authRes, regRes, typeRes, countryRes, statusRes] = await Promise.all([
       fetch(`${API_BASE}api/v1/facets/authorities.json`),
@@ -232,9 +243,19 @@ function getEntityByRef(ref: string): SearchEntity | undefined {
 
 /**
  * Load full entity data from node file
+ * @param idOrRef - Either a ref (uk/aqd0087) or full IRI (https://www.ammitto.org/entity/uk/aqd0087)
  */
-async function loadFullEntity(ref: string): Promise<Record<string, unknown> | null> {
+async function loadFullEntity(idOrRef: string): Promise<Record<string, unknown> | null> {
+  // Skip during SSR/build
+  if (!isBrowser) return null
+
   try {
+    // Extract ref from full IRI if needed, or use as-is if already a ref
+    let ref = idOrRef
+    if (idOrRef.startsWith('https://www.ammitto.org/entity/')) {
+      ref = idOrRef.replace('https://www.ammitto.org/entity/', '')
+    }
+
     const response = await fetch(`${API_BASE}api/v1/node/entity/${ref}.jsonld`)
 
     if (!response.ok) {
@@ -243,7 +264,7 @@ async function loadFullEntity(ref: string): Promise<Record<string, unknown> | nu
 
     return await response.json()
   } catch (e) {
-    console.error(`Failed to load entity ${ref}:`, e)
+    console.error(`Failed to load entity ${idOrRef}:`, e)
     return null
   }
 }

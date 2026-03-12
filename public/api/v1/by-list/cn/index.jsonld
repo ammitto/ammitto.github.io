@@ -1,0 +1,11 @@
+{
+  "@context": "https://www.ammitto.org/ontology/context.jsonld",
+  "@type": "Index",
+  "slice": "by-list",
+  "source": "cn",
+  "available": [
+    "https://www.ammitto.org/list/cn/anti-sanction-list",
+    "https://www.ammitto.org/list/cn/import-export-control-list",
+    "https://www.ammitto.org/list/cn/unreliable-entity-list"
+  ]
+}

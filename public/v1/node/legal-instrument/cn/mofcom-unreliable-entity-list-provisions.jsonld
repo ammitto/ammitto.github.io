@@ -1,0 +1,12 @@
+{
+  "@context": "https://www.ammitto.org/ontology/context.jsonld",
+  "@id": "https://www.ammitto.org/legal-instrument/cn/mofcom-unreliable-entity-list-provisions",
+  "@type": "LegalInstrument",
+  "identifier": "mofcom-unreliable-entity-list-provisions",
+  "articles": [
+    "第二条",
+    "第八条",
+    "第十条"
+  ],
+  "citationType": "legal_basis"
+}
