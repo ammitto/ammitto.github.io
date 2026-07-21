@@ -39,14 +39,20 @@ const setFilter = (type: string | null) => {
   page.value = 1
 }
 
-const entityAdapter = (entity: any) => ({
-  id: entity.id,
-  names: entity.names.map((n: any) => n.fullName),
-  entityType: entity.entityType,
-  source: entity.source,
-  status: 'active' as const,
-  country: entity.country,
-})
+const entityAdapter = (entity: any) => {
+  // Extract ref from full URI (e.g., "https://www.ammitto.org/entity/cn/CN-ACT1" -> "cn/CN-ACT1")
+  const ref = entity.id.replace('https://www.ammitto.org/entity/', '')
+
+  return {
+    id: entity.id,
+    ref,
+    names: entity.names.map((n: any) => n.fullName),
+    entityType: entity.entityType,
+    source: entity.source,
+    status: 'active' as const,
+    country: entity.country,
+  }
+}
 </script>
 
 <template>

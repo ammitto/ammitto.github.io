@@ -34,7 +34,7 @@ onMounted(() => {
           </div>
           <div>
             <div class="text-2xl font-bold text-brand-primary">
-              {{ stats?.totals?.entities?.toLocaleString() || '—' }}
+              {{ stats?.total_entities?.toLocaleString() || '—' }}
             </div>
             <div class="text-sm text-light-muted dark:text-dark-muted">
               Total Entities
@@ -42,7 +42,7 @@ onMounted(() => {
           </div>
           <div>
             <div class="text-2xl font-bold text-brand-primary">
-              {{ stats?.totals?.entries?.toLocaleString() || '—' }}
+              {{ stats?.total_entries?.toLocaleString() || '—' }}
             </div>
             <div class="text-sm text-light-muted dark:text-dark-muted">
               Total Entries
@@ -73,8 +73,8 @@ onMounted(() => {
         </h2>
         <p class="text-light-muted dark:text-dark-muted">
           Data is synchronized daily from official government sources. The last update was:
-          <span v-if="stats?.exported_at" class="font-medium text-light-text dark:text-dark-text">
-            {{ new Date(stats.exported_at).toLocaleString() }}
+          <span v-if="stats?.generated_at" class="font-medium text-light-text dark:text-dark-text">
+            {{ new Date(stats.generated_at).toLocaleString() }}
           </span>
         </p>
         <p class="text-light-muted dark:text-dark-muted mt-2">

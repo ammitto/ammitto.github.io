@@ -62,6 +62,12 @@
     "RawSourceData": {
       "@id": "ammitto:RawSourceData"
     },
+    "LegalInstrument": {
+      "@id": "ammitto:LegalInstrument"
+    },
+    "Index": {
+      "@id": "ammitto:Index"
+    },
 
     "id": "@id",
     "type": "@type",
@@ -166,6 +172,21 @@
     "rawSourceData": {
       "@id": "ammitto:hasRawSourceData",
       "@type": "@id"
+    },
+    "hasSanctionEntry": {
+      "@id": "ammitto:hasSanctionEntry",
+      "@type": "@id",
+      "@container": "@set"
+    },
+    "legalBases": {
+      "@id": "ammitto:hasLegalBasis",
+      "@type": "@id",
+      "@container": "@set"
+    },
+    "nodes": {
+      "@id": "ammitto:hasNode",
+      "@type": "@id",
+      "@container": "@set"
     },
 
     "name": {

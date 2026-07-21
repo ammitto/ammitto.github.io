@@ -1,0 +1,50 @@
+{
+  "@context": "https://www.ammitto.org/ontology/context.jsonld",
+  "@graph": [
+    {
+      "@context": "https://www.ammitto.org/ontology/context.jsonld",
+      "@id": "https://www.ammitto.org/regime/un",
+      "@type": "SanctionRegime",
+      "name": "UN Security Council - UN Security Council",
+      "code": "UN"
+    },
+    {
+      "id": "https://www.ammitto.org/entity/un_vessels/unknown",
+      "entity_type": "vessel",
+      "names": [
+        {
+          "full_name": "KOTI",
+          "is_primary": true
+        }
+      ],
+      "source_references": [
+        {
+          "source_code": "un_vessels"
+        }
+      ],
+      "@context": "https://www.ammitto.org/ontology/context.jsonld"
+    },
+    {
+      "id": "https://www.ammitto.org/entry/un_vessels/unknown/unknown",
+      "entity_id": "https://www.ammitto.org/entity/un_vessels/unknown",
+      "regime": {
+        "@id": "https://www.ammitto.org/regime/un"
+      },
+      "effects": [
+        {
+          "effect_type": "asset_freeze",
+          "scope": "full"
+        },
+        {
+          "effect_type": "transport_sanction",
+          "scope": "full"
+        }
+      ],
+      "period": {
+        "is_indefinite": true
+      },
+      "status": "active",
+      "@context": "https://www.ammitto.org/ontology/context.jsonld"
+    }
+  ]
+}

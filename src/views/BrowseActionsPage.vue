@@ -37,7 +37,7 @@ onMounted(() => {
           Actions & Updates
         </h3>
         <p class="text-light-muted dark:text-dark-muted mb-4">
-          Last data export: {{ stats?.exported_at ? new Date(stats.exported_at).toLocaleString() : '—' }}
+          Last data export: {{ stats?.generated_at ? new Date(stats.generated_at).toLocaleString() : '—' }}
         </p>
       </div>
 

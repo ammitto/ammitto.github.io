@@ -62,8 +62,17 @@ const isLoading = ref(false)
 const isLoaded = ref(false)
 const error = ref<string | null>(null)
 
+// Check if running in browser
+const isBrowser = typeof window !== 'undefined'
+
 // Base URL for API
-const API_BASE = import.meta.env.BASE_URL || '/'
+function getApiBase(): string {
+  if (isBrowser) {
+    return import.meta.env.BASE_URL || '/'
+  }
+  // During SSG build, use the file system path
+  return '/'
+}
 
 /**
  * Load ontology data from API
@@ -71,10 +80,18 @@ const API_BASE = import.meta.env.BASE_URL || '/'
 async function loadOntology(): Promise<void> {
   if (isLoaded.value || isLoading.value) return
 
+  // Skip during SSR/build - data will be loaded client-side
+  if (!isBrowser) {
+    isLoading.value = false
+    return
+  }
+
   isLoading.value = true
   error.value = null
 
   try {
+    const API_BASE = getApiBase()
+
     // Load all ontology files in parallel
     const [classesRes, propertiesRes, hierarchyRes] = await Promise.all([
       fetch(`${API_BASE}api/v1/ontology/classes.jsonld`),
@@ -207,7 +224,10 @@ const flattenedHierarchy = computed(() => {
  * Load example entity
  */
 async function loadExample(type: 'person' | 'organization' | 'vessel'): Promise<Record<string, unknown> | null> {
+  if (!isBrowser) return null
+
   try {
+    const API_BASE = getApiBase()
     const response = await fetch(`${API_BASE}api/v1/ontology/examples/${type}.jsonld`)
 
     if (!response.ok) {

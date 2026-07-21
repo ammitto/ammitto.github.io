@@ -1,70 +1,17 @@
 {
-  "generated_at": "2026-02-25T23:02:59Z",
+  "generated_at": "2026-03-03T09:20:09Z",
   "sources": {
-    "au": {
-      "entities": 3811,
-      "entries": 3811
-    },
-    "ca": {
-      "entities": 5205,
-      "entries": 5205
-    },
-    "ch": {
-      "entities": 8254,
-      "entries": 8254
-    },
     "cn": {
-      "entities": 47,
-      "entries": 47
-    },
-    "eu": {
-      "entities": 11720,
-      "entries": 11720
-    },
-    "eu_vessels": {
-      "entities": 597,
-      "entries": 597
-    },
-    "jp": {
-      "entities": 1495,
-      "entries": 1495
-    },
-    "nz": {
-      "entities": 2058,
-      "entries": 2058
-    },
-    "ru": {
-      "entities": 1995,
-      "entries": 1995
-    },
-    "tr": {
-      "entities": 275,
-      "entries": 275
-    },
-    "uk": {
-      "entities": 6035,
-      "entries": 6035
-    },
-    "un": {
-      "entities": 1876,
-      "entries": 1876
-    },
-    "un_vessels": {
-      "entities": 32,
-      "entries": 32
-    },
-    "us": {
-      "entities": 444,
-      "entries": 444
-    },
-    "wb": {
-      "entities": 2740,
-      "entries": 2740
+      "entities": 323,
+      "entries": 323
     }
   },
-  "total_entities": 46584,
-  "total_entries": 46584,
-  "total_instruments": 0,
-  "total_regimes": 101,
-  "total_authorities": 10
+  "total_entities": 323,
+  "total_entries": 323,
+  "total_instruments": 6,
+  "total_regimes": 3,
+  "total_authorities": 1,
+  "total_groups": 29,
+  "total_document_types": 7,
+  "total_organizations": 8
 }

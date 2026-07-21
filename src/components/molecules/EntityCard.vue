@@ -6,6 +6,7 @@ import { sources, entityTypes } from '@/config'
 
 interface Entity {
   id: string
+  ref?: string // Short reference for clean URLs (e.g., "cn/CN-ACT1 Federal")
   names: string[]
   entityType: string
   source: string
@@ -27,7 +28,9 @@ const sourceInfo = computed(() => sources.find(s => s.code === props.entity.sour
 const typeInfo = computed(() => entityTypes.find(t => t.code === props.entity.entityType))
 
 const goToEntity = () => {
-  router.push({ name: 'entity', params: { id: props.entity.id } })
+  // Use path-based routing to avoid URL encoding issues with slashes
+  // Results in /entity/uk/aqd0087 instead of /entity/uk%2Faqd0087
+  router.push(`/entity/${props.entity.ref}`)
 }
 </script>
 

@@ -1,23 +1,32 @@
 <script setup lang="ts">
-import { siteConfig } from '@/config'
+// Full logo with icon and text - references external SVG
 </script>
 
 <template>
   <RouterLink
     to="/"
-    class="flex items-center gap-2 font-bold text-xl text-light-text dark:text-dark-text hover:text-brand-primary dark:hover:text-brand-primary transition-colors"
+    class="flex items-center hover:opacity-80 transition-opacity logo-link"
   >
-    <svg class="w-8 h-8" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="16" cy="16" r="14" stroke="currentColor" stroke-width="2" class="text-brand-primary"/>
-      <path
-        d="M10 16c0-3.314 2.686-6 6-6s6 2.686 6 6-2.686 6-6 6"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        class="text-brand-primary"
-      />
-      <circle cx="16" cy="16" r="2" fill="currentColor" class="text-brand-primary"/>
-    </svg>
-    <span>{{ siteConfig.name }}</span>
+    <img
+      src="/assets/ammitto-logo_full.svg"
+      alt="Ammitto"
+      class="h-10 w-auto logo-img"
+    />
   </RouterLink>
 </template>
+
+<style scoped>
+.logo-link {
+  height: 40px;
+}
+
+.logo-img {
+  height: 40px;
+  width: auto;
+}
+
+/* Dark mode: invert the text color to lighter blue */
+.dark .logo-img {
+  filter: brightness(1.3) saturate(0.9);
+}
+</style>

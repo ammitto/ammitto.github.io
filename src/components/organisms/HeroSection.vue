@@ -1,11 +1,17 @@
 <script setup lang="ts">
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import SearchInput from '@/components/atoms/SearchInput.vue'
 import Badge from '@/components/atoms/Badge.vue'
-import { siteConfig, sources, stats } from '@/config'
+import { siteConfig, sources } from '@/config'
 
 const router = useRouter()
-const searchQuery = defineModel<string>('searchQuery', { default: '' })
+const searchQuery = ref('')
+
+// Stats loaded from API
+const entityCount = ref(0)
+const sourceCount = ref(15)
+const typeCount = ref(0)
 
 const handleSearch = () => {
   if (searchQuery.value.trim()) {
@@ -14,6 +20,33 @@ const handleSearch = () => {
     router.push({ name: 'search' })
   }
 }
+
+onMounted(async () => {
+  try {
+    // Load from search index for entity count
+    const searchResponse = await fetch('/api/v1/search-index.json')
+    if (searchResponse.ok) {
+      const data = await searchResponse.json()
+      entityCount.value = data.metadata?.totalEntities || data.entities.length
+    }
+
+    // Load from stats for source count
+    const statsResponse = await fetch('/api/v1/stats.json')
+    if (statsResponse.ok) {
+      const stats = await statsResponse.json()
+      sourceCount.value = Object.keys(stats.sources || {}).length
+    }
+
+    // Load type facets for type count
+    const typesResponse = await fetch('/api/v1/facets/types.json')
+    if (typesResponse.ok) {
+      const types = await typesResponse.json()
+      typeCount.value = types.facets?.length || 0
+    }
+  } catch (e) {
+    console.error('Failed to load stats:', e)
+  }
+})
 </script>
 
 <template>
@@ -45,16 +78,16 @@ const handleSearch = () => {
 
         <div class="flex flex-wrap justify-center gap-8">
           <div class="text-center">
-            <div class="text-3xl font-bold text-brand-primary">{{ stats.entities.toLocaleString() }}</div>
+            <div class="text-3xl font-bold text-brand-primary">{{ entityCount.toLocaleString() }}</div>
             <div class="text-sm text-light-muted dark:text-dark-muted">Entities</div>
           </div>
           <div class="text-center">
-            <div class="text-3xl font-bold text-brand-primary">{{ stats.sources }}</div>
+            <div class="text-3xl font-bold text-brand-primary">{{ sourceCount }}</div>
             <div class="text-sm text-light-muted dark:text-dark-muted">Sources</div>
           </div>
           <div class="text-center">
-            <div class="text-3xl font-bold text-brand-primary">{{ stats.countries }}</div>
-            <div class="text-sm text-light-muted dark:text-dark-muted">Countries</div>
+            <div class="text-3xl font-bold text-brand-primary">{{ typeCount }}</div>
+            <div class="text-sm text-light-muted dark:text-dark-muted">Types</div>
           </div>
         </div>
       </div>

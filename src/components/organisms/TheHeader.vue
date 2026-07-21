@@ -14,6 +14,7 @@ const navItems = [
   { name: 'Ontology', path: '/ontology', nameRoute: 'ontology' },
   { name: 'API', path: '/api', nameRoute: 'api' },
   { name: 'About', path: '/about', nameRoute: 'about' },
+  { name: 'License', path: '/license', nameRoute: 'license' },
 ]
 
 const isActive = (item: typeof navItems[0]) => {

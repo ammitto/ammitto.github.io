@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 
 /**
- * Build script to convert harmonized YAML data to JSON-LD format
- * for the Ammitto frontend.
+ * Build script to copy pre-generated API data from data-cn to public directory.
+ *
+ * The Ruby harmonization process generates all API files in data-cn/api/.
+ * This script copies them to the Vite public directory for serving.
  *
  * Usage: node scripts/build-api-data.js
  */
@@ -10,247 +12,92 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import yaml from 'yaml';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Paths
-const DATA_DIR = path.resolve(__dirname, '../../data');
+const DATA_CN_API_DIR = path.resolve(__dirname, '../../data-cn/api/v1');
 const PUBLIC_DIR = path.resolve(__dirname, '../public');
-const API_DIR = path.join(PUBLIC_DIR, 'api/v1');
-
-// Source mappings
-const SOURCES = {
-  eu: {
-    file: 'eu_sanctions_list.yaml',
-    code: 'eu',
-    name: 'European Union'
-  },
-  un: {
-    file: 'un_sanctions_list.yaml',
-    code: 'un',
-    name: 'United Nations'
-  },
-  us: {
-    file: 'us_govt_sanctions_list.yaml',
-    code: 'us',
-    name: 'United States'
-  },
-  wb: {
-    file: 'world_bank_sanctions_list.yaml',
-    code: 'wb',
-    name: 'World Bank'
-  }
-};
+const PUBLIC_API_DIR = path.join(PUBLIC_DIR, 'api/v1');
 
 /**
- * Convert entity type to JSON-LD @type
+ * Recursively copy directory
  */
-function getEntityType(entityType) {
-  const typeMap = {
-    person: 'PersonEntity',
-    organization: 'OrganizationEntity',
-    vessel: 'VesselEntity',
-    aircraft: 'AircraftEntity',
-    entity: 'OrganizationEntity',
-    individual: 'PersonEntity',
-  };
-  return typeMap[entityType?.toLowerCase()] || 'OrganizationEntity';
-}
+function copyDir(src, dest) {
+  fs.mkdirSync(dest, { recursive: true });
 
-/**
- * Normalize entity type
- */
-function normalizeEntityType(entityType) {
-  const typeMap = {
-    person: 'person',
-    organization: 'organization',
-    vessel: 'vessel',
-    aircraft: 'aircraft',
-    entity: 'organization',
-    individual: 'person',
-  };
-  return typeMap[entityType?.toLowerCase()] || 'organization';
-}
+  const entries = fs.readdirSync(src, { withFileTypes: true });
 
-/**
- * Convert YAML entity to JSON-LD format
- */
-function convertEntity(entity, index, sourceCode) {
-  const names = Array.isArray(entity.names)
-    ? entity.names.map((name, i) => ({
-        fullName: typeof name === 'string' ? name : name.fullName || name,
-        isPrimary: i === 0
-      }))
-    : [{ fullName: entity.names || 'Unknown', isPrimary: true }];
+  for (const entry of entries) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
 
-  const jsonld = {
-    '@id': `${sourceCode}-entity-${String(index).padStart(5, '0')}`,
-    '@type': getEntityType(entity.entity_type),
-    entityType: normalizeEntityType(entity.entity_type),
-    names
-  };
-
-  // Source reference
-  if (entity.ref_number) {
-    jsonld.sourceReferences = [{
-      sourceCode: sourceCode,
-      referenceNumber: entity.ref_number
-    }];
-  }
-
-  // Birth info
-  if (entity.birthdate || entity.country) {
-    jsonld.birthInfo = [{
-      date: entity.birthdate,
-      country: entity.country
-    }];
-  }
-
-  // Addresses
-  if (entity.address && Array.isArray(entity.address)) {
-    jsonld.addresses = entity.address.map(addr => ({
-      street: addr.street,
-      city: addr.city,
-      state: addr.state,
-      country: addr.country || entity.country,
-      postalCode: addr.zip
-    }));
-  }
-
-  // Remarks
-  if (entity.remark) {
-    jsonld.remarks = entity.remark;
-  }
-
-  // Contact
-  if (entity.contact) {
-    jsonld.contact = entity.contact;
-  }
-
-  return jsonld;
-}
-
-/**
- * Process a source file and generate JSON-LD
- */
-function processSource(sourceKey) {
-  const source = SOURCES[sourceKey];
-  const filePath = path.join(DATA_DIR, 'processed', source.file);
-
-  if (!fs.existsSync(filePath)) {
-    console.log(`  Skipping ${sourceKey}: file not found`);
-    return null;
-  }
-
-  console.log(`  Processing ${source.name}...`);
-
-  try {
-    const content = fs.readFileSync(filePath, 'utf8');
-    const data = yaml.parse(content, {
-      strict: false,
-      prettyErrors: false
-    });
-
-    if (!Array.isArray(data)) {
-      console.log(`  Skipping ${sourceKey}: invalid format`);
-      return null;
+    if (entry.isDirectory()) {
+      copyDir(srcPath, destPath);
+    } else if (entry.isFile()) {
+      fs.copyFileSync(srcPath, destPath);
     }
-
-    // Convert entities
-    const entities = data
-      .map((entity, index) => convertEntity(entity, index, source.code))
-      .filter(e => e);
-
-    // Count by entity type
-    const typeCounts = {};
-    entities.forEach(e => {
-      typeCounts[e.entityType] = (typeCounts[e.entityType] || 0) + 1;
-    });
-
-    // Create JSON-LD output
-    const jsonld = {
-      '@context': '/schemas/context.jsonld',
-      '@graph': entities
-    };
-
-    // Write output
-    const outputPath = path.join(API_DIR, 'sources', `${source.code}.jsonld`);
-    fs.writeFileSync(outputPath, JSON.stringify(jsonld, null, 2));
-    console.log(`    Wrote ${entities.length} entities to ${outputPath}`);
-
-    return {
-      code: source.code,
-      name: source.name,
-      entities: entities.length,
-      typeCounts
-    };
-  } catch (error) {
-    console.log(`  Error processing ${sourceKey}: ${error.message}`);
-    return null;
   }
+}
+
+/**
+ * Count files in directory recursively
+ */
+function countFiles(dir) {
+  let count = 0;
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      count += countFiles(fullPath);
+    } else if (entry.isFile()) {
+      count++;
+    }
+  }
+
+  return count;
 }
 
 /**
  * Main build function
  */
 function build() {
-  console.log('Building API data from harmonized YAML...\n');
+  console.log('Copying API data from data-cn to public directory...\n');
 
-  // Ensure directories exist
-  fs.mkdirSync(path.join(API_DIR, 'sources'), { recursive: true });
-  fs.mkdirSync(path.join(PUBLIC_DIR, 'schemas'), { recursive: true });
-
-  // Copy ontology
-  const ontologySrc = path.join(DATA_DIR, 'ontology', 'context.jsonld');
-  const ontologyDest = path.join(PUBLIC_DIR, 'schemas', 'context.jsonld');
-  if (fs.existsSync(ontologySrc)) {
-    fs.copyFileSync(ontologySrc, ontologyDest);
-    console.log('Copied ontology to public/schemas/\n');
+  // Check source exists
+  if (!fs.existsSync(DATA_CN_API_DIR)) {
+    console.error(`ERROR: Source directory not found: ${DATA_CN_API_DIR}`);
+    console.error('Run "bundle exec rake regenerate" in data-cn first.');
+    process.exit(1);
   }
 
-  // Process each source
-  const stats = {
-    exported_at: new Date().toISOString(),
-    sources: {},
-    totals: {
-      entities: 0,
-      entries: 0
-    },
-    entityTypes: {
-      person: 0,
-      organization: 0,
-      vessel: 0,
-      aircraft: 0
-    }
-  };
+  // Clean destination
+  if (fs.existsSync(PUBLIC_API_DIR)) {
+    fs.rmSync(PUBLIC_API_DIR, { recursive: true });
+  }
 
-  Object.keys(SOURCES).forEach(sourceKey => {
-    const result = processSource(sourceKey);
-    if (result) {
-      stats.sources[result.code] = {
-        entities: result.entities,
-        entries: result.entities
-      };
-      stats.totals.entities += result.entities;
-      stats.totals.entries += result.entities;
+  // Copy all files
+  console.log(`Source: ${DATA_CN_API_DIR}`);
+  console.log(`Destination: ${PUBLIC_API_DIR}\n`);
 
-      // Aggregate type counts
-      Object.entries(result.typeCounts).forEach(([type, count]) => {
-        stats.entityTypes[type] = (stats.entityTypes[type] || 0) + count;
-      });
-    }
-  });
+  copyDir(DATA_CN_API_DIR, PUBLIC_API_DIR);
 
-  // Write stats
-  const statsPath = path.join(API_DIR, 'stats.json');
-  fs.writeFileSync(statsPath, JSON.stringify(stats, null, 2));
-  console.log(`\nWrote stats to ${statsPath}`);
+  // Report stats
+  const fileCount = countFiles(PUBLIC_API_DIR);
 
+  // Read search index to get entity count
+  const searchIndexPath = path.join(PUBLIC_API_DIR, 'search-index.json');
+  let entityCount = 0;
+  if (fs.existsSync(searchIndexPath)) {
+    const searchIndex = JSON.parse(fs.readFileSync(searchIndexPath, 'utf8'));
+    entityCount = searchIndex.metadata?.totalEntities || searchIndex.entities?.length || 0;
+  }
+
+  console.log(`Copied ${fileCount} files`);
+  console.log(`Total entities: ${entityCount}`);
   console.log('\nBuild complete!');
-  console.log(`Total entities: ${stats.totals.entities}`);
-  console.log('Entity types:', stats.entityTypes);
 }
 
 // Run build

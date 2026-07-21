@@ -18,7 +18,7 @@ export const sources = [
     color: '#009edb',
   },
   {
-    code: 'un_vessels',
+    code: 'un-vessels',
     name: 'UN Vessels',
     fullName: 'UN Security Council Vessel List',
     country: 'UN',
@@ -78,7 +78,7 @@ export const sources = [
     color: '#003399',
   },
   {
-    code: 'eu_vessels',
+    code: 'eu-vessels',
     name: 'EU Vessels',
     fullName: 'EU Sanctions Vessel List',
     country: 'EU',
@@ -173,29 +173,3 @@ export const statuses = [
   { code: 'terminated', name: 'Terminated', color: '#6b7280' },
   { code: 'expired', name: 'Expired', color: '#6b7280' },
 ] as const
-
-export const stats = {
-  entities: 55908,
-  sources: 15,
-  countries: 190,
-  dailyUpdates: true,
-  // Actual data counts from export
-  sampleTotal: 55908,
-  sampleBySource: {
-    eu: 23440,
-    un: 3752,
-    us: 888,
-    wb: 5480,
-    uk: 12070,
-    au: 5544,
-    ca: 0,
-    ch: 0,
-    cn: 0,
-    ru: 0,
-    tr: 550,
-    nz: 0,
-    jp: 2990,
-    eu_vessels: 1194,
-    un_vessels: 0,
-  },
-}
