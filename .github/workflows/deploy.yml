@@ -31,15 +31,35 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ammitto/ammitto
+          # Pinned to the last known-good commit on main. The current main
+          # (1629e2e, "[WIP] Fix production harmonize pipeline") crashes
+          # harmonize with an undefined variable `r` in
+          # lib/ammitto/cli/harmonize_command.rb, which would fail this
+          # workflow at the harmonize step. Known limitation of the pin:
+          # this commit predates the per-source sources/<code>.jsonld
+          # aggregates (and harmonize health gates) that the WIP commit
+          # introduces; the live API serves those aggregates, so the
+          # "Restore per-source aggregates" step below keeps them available
+          # from the committed api/v1 snapshot. Remove the pin (and that
+          # step) once main's harmonize is fixed.
+          ref: 8203303c5f250cc8372cb91465ac51d3bd34b766
           path: ammitto-gem
 
       - name: Checkout data repositories
         run: |
-          # Clone all data-* repositories
+          # Clone all data-* repositories in parallel. Wait on each PID and
+          # fail the step if any clone failed, so a partial dataset is never
+          # harmonized and deployed (a bare `wait` always exits 0).
+          pids=()
           for repo in data-au data-ca data-ch data-cn data-eu data-eu-vessels data-jp data-nz data-ru data-tr data-uk data-un data-un-vessels data-us data-wb; do
-            git clone --depth 1 https://github.com/ammitto/${repo}.git ${repo} &
+            git clone --depth 1 "https://github.com/ammitto/${repo}.git" "${repo}" &
+            pids+=("$!")
           done
-          wait
+          status=0
+          for pid in "${pids[@]}"; do
+            wait "$pid" || status=1
+          done
+          exit "$status"
 
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
@@ -64,14 +84,59 @@ jobs:
       - name: Run harmonization
         working-directory: ammitto-gem
         run: |
+          # Remove the committed public/api/v1 snapshot first: harmonize only
+          # creates/overwrites files, so without this, stale committed files
+          # would survive into the deployed artifact next to fresh output.
+          rm -rf ../public/api/v1
           bundle exec ruby exe/ammitto harmonize --scan --verbose \
             --sources-dir .. \
             --output-dir ../public/api/v1
+
+      - name: Restore per-source aggregates
+        run: |
+          # The pinned gem predates the per-source sources/<code>.jsonld
+          # aggregates that the live API serves (and the site fetches).
+          # Restore them from the committed api/v1 snapshot (generated
+          # 2026-03-02 by the newer pipeline, slightly fresher than the
+          # live site's Feb-26 data) so those endpoints keep working.
+          # Remove this step together with the pin once main's harmonize
+          # is fixed and generates them itself.
+          cp -R api/v1/sources public/api/v1/sources
+
+      - name: Verify harmonized output
+        run: |
+          # The pinned gem has no output health gates, so guard here: fail
+          # the run instead of deploying an empty or incomplete API tree.
+          test -s public/api/v1/search-index.json
+          test -d public/api/v1/node
+          test -s public/api/v1/all.jsonld
+          count=$(find public/api/v1 -type f | wc -l)
+          echo "Harmonized output contains ${count} files"
+          test "$count" -ge 100
+          # Guard against a partial harmonize (one source succeeding while
+          # the rest fail can still exceed the file floor): stats.json must
+          # contain every expected source (a source with zero harmonized
+          # entities gets no stats key), report a sane entity total, and the
+          # restored per-source aggregates must all be present.
+          for src in au ca ch cn eu eu_vessels jp nz ru tr uk un un_vessels us wb; do
+            jq -e --arg s "$src" '.sources | has($s)' public/api/v1/stats.json > /dev/null \
+              || { echo "Source missing from stats.json: ${src}"; exit 1; }
+          done
+          entities_count=$(jq '.total_entities' public/api/v1/stats.json)
+          echo "Total entities: ${entities_count}"
+          test "$entities_count" -ge 1000
+          aggregate_count=$(ls public/api/v1/sources/*.jsonld | wc -l)
+          echo "Per-source aggregates: ${aggregate_count}"
+          test "$aggregate_count" -ge 15
 
       - name: Build Vue.js app with Vite
         run: npm run build
         env:
           NODE_ENV: production
+          # The harmonize step above has already populated public/api/v1 with
+          # fresh multi-source data; stop build:api from clobbering it with
+          # the stale CN-only copy from data-cn.
+          SKIP_API_DATA: '1'
 
       - name: Setup Pages
         id: pages

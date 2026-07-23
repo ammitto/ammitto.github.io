@@ -7,6 +7,14 @@
  * This script copies them to the Vite public directory for serving.
  *
  * Usage: node scripts/build-api-data.js
+ *
+ * Environment variables:
+ *   SKIP_API_DATA      - when set (and not "0"/"false"), skip entirely and
+ *                        leave public/api/v1 untouched. CI sets this because
+ *                        the harmonize step has already populated the
+ *                        directory with fresh multi-source data.
+ *   AMMITTO_DATA_CN_DIR - explicit path to the data-cn checkout (repo root,
+ *                        containing api/v1). Overrides auto-detection.
  */
 
 import fs from 'fs';
@@ -17,9 +25,38 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Paths
-const DATA_CN_API_DIR = path.resolve(__dirname, '../../data-cn/api/v1');
 const PUBLIC_DIR = path.resolve(__dirname, '../public');
 const PUBLIC_API_DIR = path.join(PUBLIC_DIR, 'api/v1');
+
+/**
+ * Locate the data-cn api/v1 tree. Candidates, in priority order:
+ *   1. $AMMITTO_DATA_CN_DIR/api/v1 (explicit override)
+ *   2. <repo>/data-cn/api/v1       (CI layout: data repos are cloned into
+ *                                   the workspace, inside the website checkout)
+ *   3. <repo>/../data-cn/api/v1    (legacy local layout: data repos are
+ *                                   siblings of the website checkout)
+ * Returns the first candidate that exists, or null.
+ */
+function resolveDataCnApiDir() {
+  const candidates = [];
+  if (process.env.AMMITTO_DATA_CN_DIR) {
+    candidates.push(path.join(process.env.AMMITTO_DATA_CN_DIR, 'api/v1'));
+  }
+  candidates.push(path.resolve(__dirname, '../data-cn/api/v1'));
+  candidates.push(path.resolve(__dirname, '../../data-cn/api/v1'));
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  console.log('No data-cn API directory found. Checked:');
+  for (const candidate of candidates) {
+    console.log(`  - ${candidate}`);
+  }
+  return null;
+}
 
 /**
  * Recursively copy directory
@@ -64,13 +101,18 @@ function countFiles(dir) {
  * Main build function
  */
 function build() {
+  const skip = process.env.SKIP_API_DATA;
+  if (skip && skip !== '0' && skip !== 'false') {
+    console.log('SKIP_API_DATA is set: skipping API data copy, leaving existing public/api/v1 in place.');
+    return;
+  }
+
   console.log('Copying API data from data-cn to public directory...\n');
 
-  // Check source exists
-  if (!fs.existsSync(DATA_CN_API_DIR)) {
-    console.error(`ERROR: Source directory not found: ${DATA_CN_API_DIR}`);
-    console.error('Run "bundle exec rake regenerate" in data-cn first.');
-    process.exit(1);
+  const dataCnApiDir = resolveDataCnApiDir();
+  if (!dataCnApiDir) {
+    console.log('Skipping API data copy: no data-cn source available; using existing public/api/v1 content.');
+    return;
   }
 
   // Clean destination
@@ -79,10 +121,10 @@ function build() {
   }
 
   // Copy all files
-  console.log(`Source: ${DATA_CN_API_DIR}`);
+  console.log(`Source: ${dataCnApiDir}`);
   console.log(`Destination: ${PUBLIC_API_DIR}\n`);
 
-  copyDir(DATA_CN_API_DIR, PUBLIC_API_DIR);
+  copyDir(dataCnApiDir, PUBLIC_API_DIR);
 
   // Report stats
   const fileCount = countFiles(PUBLIC_API_DIR);
