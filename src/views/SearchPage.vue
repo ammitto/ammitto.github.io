@@ -43,10 +43,13 @@ const {
   filter,
 } = useSearchIndex()
 
-// Query params arrive as string | null | (string | null)[]; keep only
-// string entries and drop duplicates so null/empty forms (?type) never
-// leak into filters or back into the canonicalized URL.
-const queryList = (value: LocationQueryValue | LocationQueryValue[]) =>
+// Query params arrive as string | null | (string | null)[] — or
+// undefined when absent; keep only non-empty string entries and drop
+// duplicates so null/empty forms (?type) never leak into filters or
+// back into the canonicalized URL.
+const queryList = (
+  value: LocationQueryValue | LocationQueryValue[] | undefined,
+) =>
   [...new Set(
     (Array.isArray(value) ? value : [value])
       .filter((v): v is string => typeof v === 'string' && v !== ''),
