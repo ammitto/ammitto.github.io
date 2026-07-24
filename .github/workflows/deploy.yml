@@ -23,6 +23,12 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        # Explicit bash adds -o pipefail, so a failing producer in a
+        # pipeline (find | wc, jq | ...) fails its step instead of being
+        # masked by the consumer's exit code.
+        shell: bash
     steps:
       - name: Checkout website
         uses: actions/checkout@v4
@@ -65,12 +71,10 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.3'
+          # bundler-cache runs bundle install (and caches it), so no
+          # separate install step is needed.
           bundler-cache: true
           working-directory: ammitto-gem
-
-      - name: Install ammitto gem dependencies
-        working-directory: ammitto-gem
-        run: bundle install --jobs 4 --retry 3
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -100,34 +104,81 @@ jobs:
           # 2026-03-02 by the newer pipeline, slightly fresher than the
           # live site's Feb-26 data) so those endpoints keep working.
           # Remove this step together with the pin once main's harmonize
-          # is fixed and generates them itself.
+          # is fixed and generates them itself. If the destination already
+          # exists, harmonize has started generating the aggregates: fail
+          # loudly rather than nest or overwrite fresh output with the
+          # stale snapshot.
+          if [ -e public/api/v1/sources ]; then
+            echo "public/api/v1/sources already exists: harmonize now generates per-source aggregates; remove this step together with the gem pin."
+            exit 1
+          fi
           cp -R api/v1/sources public/api/v1/sources
 
       - name: Verify harmonized output
         run: |
           # The pinned gem has no output health gates, so guard here: fail
           # the run instead of deploying an empty or incomplete API tree.
-          test -s public/api/v1/search-index.json
-          test -d public/api/v1/node
-          test -s public/api/v1/all.jsonld
+          command -v jq > /dev/null \
+            || { echo "jq is required for verification"; exit 1; }
+          jq -e . public/api/v1/stats.json > /dev/null \
+            || { echo "stats.json is missing or not valid JSON"; exit 1; }
+          test -s public/api/v1/search-index.json \
+            || { echo "search-index.json is missing or empty"; exit 1; }
+          jq -e '(.entities | type == "array") and (.entities | length > 0)' \
+            public/api/v1/search-index.json > /dev/null \
+            || { echo "search-index.json has no entities array"; exit 1; }
+          test -s public/api/v1/all.jsonld \
+            || { echo "all.jsonld is missing or empty"; exit 1; }
           count=$(find public/api/v1 -type f | wc -l)
           echo "Harmonized output contains ${count} files"
-          test "$count" -ge 100
-          # Guard against a partial harmonize (one source succeeding while
-          # the rest fail can still exceed the file floor): stats.json must
-          # contain every expected source (a source with zero harmonized
-          # entities gets no stats key), report a sane entity total, and the
-          # restored per-source aggregates must all be present.
-          for src in au ca ch cn eu eu_vessels jp nz ru tr uk un un_vessels us wb; do
-            jq -e --arg s "$src" '.sources | has($s)' public/api/v1/stats.json > /dev/null \
-              || { echo "Source missing from stats.json: ${src}"; exit 1; }
+          test "$count" -ge 100 \
+            || { echo "File count ${count} is below the floor of 100"; exit 1; }
+          # Static endpoints the site fetches at runtime must all exist.
+          for facet in authorities countries regimes statuses types; do
+            test -s "public/api/v1/facets/${facet}.json" \
+              || { echo "Missing facet file: facets/${facet}.json"; exit 1; }
           done
-          entities_count=$(jq '.total_entities' public/api/v1/stats.json)
+          for f in classes.jsonld properties.jsonld hierarchy.json; do
+            test -s "public/api/v1/ontology/${f}" \
+              || { echo "Missing ontology file: ontology/${f}"; exit 1; }
+          done
+          for kind in entity entry legal-instrument regime authority group document-type organization; do
+            test -s "public/api/v1/node/${kind}/index.jsonld" \
+              || { echo "Missing node index: node/${kind}/index.jsonld"; exit 1; }
+          done
+          # Guard against a partial harmonize: the pinned gem swallows
+          # per-file transformation errors and still reports success, so a
+          # file-count floor alone cannot catch one. Require every source
+          # to reach at least half of its last known-good entity count from
+          # the committed api/v1 snapshot, and every restored per-source
+          # aggregate to be present and valid JSON.
+          for src in au ca ch cn eu eu_vessels jp nz ru tr uk un un_vessels us wb; do
+            # The committed baseline must be a number (a missing one would
+            # silently disable this source's floor); the harmonized count
+            # defaults a missing source key to 0 so it fails the floor
+            # below with an accurate message instead.
+            expected=$(jq -er --arg s "$src" \
+              '.sources[$s].entities | select(type == "number") | floor' \
+              api/v1/stats.json) \
+              || { echo "Invalid committed entity count for ${src}"; exit 1; }
+            actual=$(jq -er --arg s "$src" \
+              '.sources[$s].entities // 0 | select(type == "number") | floor' \
+              public/api/v1/stats.json) \
+              || { echo "Invalid harmonized entity count for ${src}"; exit 1; }
+            floor=$((expected / 2))
+            if [ "$actual" -lt "$floor" ]; then
+              echo "Source ${src}: harmonized ${actual} entities, floor is ${floor} (half of committed ${expected})"
+              exit 1
+            fi
+            jq -e . "public/api/v1/sources/${src}.jsonld" > /dev/null \
+              || { echo "Missing or invalid aggregate: sources/${src}.jsonld"; exit 1; }
+          done
+          entities_count=$(jq -er '.total_entities | select(type == "number") | floor' \
+            public/api/v1/stats.json) \
+            || { echo "Invalid total_entities in stats.json"; exit 1; }
           echo "Total entities: ${entities_count}"
-          test "$entities_count" -ge 1000
-          aggregate_count=$(ls public/api/v1/sources/*.jsonld | wc -l)
-          echo "Per-source aggregates: ${aggregate_count}"
-          test "$aggregate_count" -ge 15
+          test "$entities_count" -ge 1000 \
+            || { echo "Total entities ${entities_count} is below the floor of 1000"; exit 1; }
 
       - name: Build Vue.js app with Vite
         run: npm run build

@@ -3,18 +3,20 @@
 /**
  * Build script to copy pre-generated API data from data-cn to public directory.
  *
- * The Ruby harmonization process generates all API files in data-cn/api/.
+ * The Ruby harmonization process generates all API files in data-cn/api/v1/.
  * This script copies them to the Vite public directory for serving.
  *
  * Usage: node scripts/build-api-data.js
  *
  * Environment variables:
- *   SKIP_API_DATA      - when set (and not "0"/"false"), skip entirely and
- *                        leave public/api/v1 untouched. CI sets this because
+ *   SKIP_API_DATA      - when set (and not "0"/"false"), skip the copy and
+ *                        leave public/api/v1 in place. CI sets this because
  *                        the harmonize step has already populated the
- *                        directory with fresh multi-source data.
+ *                        directory with fresh multi-source data. Fails if
+ *                        public/api/v1 is missing or empty.
  *   AMMITTO_DATA_CN_DIR - explicit path to the data-cn checkout (repo root,
- *                        containing api/v1). Overrides auto-detection.
+ *                        containing api/v1). Replaces auto-detection; fails
+ *                        if the tree is missing rather than falling back.
  */
 
 import fs from 'fs';
@@ -29,21 +31,35 @@ const PUBLIC_DIR = path.resolve(__dirname, '../public');
 const PUBLIC_API_DIR = path.join(PUBLIC_DIR, 'api/v1');
 
 /**
- * Locate the data-cn api/v1 tree. Candidates, in priority order:
- *   1. $AMMITTO_DATA_CN_DIR/api/v1 (explicit override)
- *   2. <repo>/data-cn/api/v1       (CI layout: data repos are cloned into
- *                                   the workspace, inside the website checkout)
- *   3. <repo>/../data-cn/api/v1    (legacy local layout: data repos are
- *                                   siblings of the website checkout)
+ * Locate the data-cn api/v1 tree.
+ *
+ * When $AMMITTO_DATA_CN_DIR is set it is the only candidate: a missing tree
+ * there is a configuration error, not a reason to fall back to other data.
+ * Otherwise, auto-detect:
+ *   1. <repo>/data-cn/api/v1     (CI layout: data repos are cloned into
+ *                                 the workspace, inside the website checkout)
+ *   2. <repo>/../data-cn/api/v1  (legacy local layout: data repos are
+ *                                 siblings of the website checkout)
  * Returns the first candidate that exists, or null.
  */
 function resolveDataCnApiDir() {
-  const candidates = [];
-  if (process.env.AMMITTO_DATA_CN_DIR) {
-    candidates.push(path.join(process.env.AMMITTO_DATA_CN_DIR, 'api/v1'));
+  if ('AMMITTO_DATA_CN_DIR' in process.env) {
+    if (!process.env.AMMITTO_DATA_CN_DIR) {
+      console.error('ERROR: AMMITTO_DATA_CN_DIR is set but empty.');
+      process.exit(1);
+    }
+    const override = path.join(process.env.AMMITTO_DATA_CN_DIR, 'api/v1');
+    if (!fs.existsSync(override)) {
+      console.error(`ERROR: AMMITTO_DATA_CN_DIR is set but ${override} does not exist.`);
+      process.exit(1);
+    }
+    return override;
   }
-  candidates.push(path.resolve(__dirname, '../data-cn/api/v1'));
-  candidates.push(path.resolve(__dirname, '../../data-cn/api/v1'));
+
+  const candidates = [
+    path.resolve(__dirname, '../data-cn/api/v1'),
+    path.resolve(__dirname, '../../data-cn/api/v1'),
+  ];
 
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) {
@@ -98,22 +114,43 @@ function countFiles(dir) {
 }
 
 /**
+ * Guard for the skip paths: the build is about to proceed without copying
+ * API data, so the existing public/api/v1 tree must actually be usable.
+ */
+function requireExistingApiData(reason) {
+  if (!fs.existsSync(PUBLIC_API_DIR) || countFiles(PUBLIC_API_DIR) === 0) {
+    console.error(`ERROR: ${reason}, but ${PUBLIC_API_DIR} is missing or empty.`);
+    console.error('The site would build without API data.');
+    process.exit(1);
+  }
+}
+
+/**
  * Main build function
  */
 function build() {
   const skip = process.env.SKIP_API_DATA;
   if (skip && skip !== '0' && skip !== 'false') {
+    requireExistingApiData('SKIP_API_DATA is set');
     console.log('SKIP_API_DATA is set: skipping API data copy, leaving existing public/api/v1 in place.');
     return;
   }
 
-  console.log('Copying API data from data-cn to public directory...\n');
-
   const dataCnApiDir = resolveDataCnApiDir();
   if (!dataCnApiDir) {
+    requireExistingApiData('no data-cn source available');
     console.log('Skipping API data copy: no data-cn source available; using existing public/api/v1 content.');
     return;
   }
+
+  // Validate the source before deleting the destination: an empty or
+  // partial data-cn tree must not replace existing content.
+  if (!fs.existsSync(path.join(dataCnApiDir, 'search-index.json'))) {
+    console.error(`ERROR: ${dataCnApiDir} has no search-index.json; refusing to replace ${PUBLIC_API_DIR} with a partial API tree.`);
+    process.exit(1);
+  }
+
+  console.log('Copying API data from data-cn to public directory...\n');
 
   // Clean destination
   if (fs.existsSync(PUBLIC_API_DIR)) {
