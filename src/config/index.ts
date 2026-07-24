@@ -164,17 +164,19 @@ export const sources = [
  * carry (the site previously linked /search?source=eu-vessels while the
  * data plane uses underscore codes). Maps legacy form -> canonical code.
  */
-const LEGACY_SOURCE_CODES: Record<string, string> = {
-  'eu-vessels': 'eu_vessels',
-  'un-vessels': 'un_vessels',
-}
+const LEGACY_SOURCE_CODES = new Map([
+  ['eu-vessels', 'eu_vessels'],
+  ['un-vessels', 'un_vessels'],
+])
 
 /**
  * Normalize a source code from an external input (e.g. URL query params),
- * mapping legacy hyphenated forms to the canonical underscore codes.
+ * mapping legacy hyphenated forms to the canonical underscore codes. A Map
+ * keeps URL-controlled keys like __proto__ from hitting inherited object
+ * properties.
  */
 export function normalizeSourceCode(code: string): string {
-  return LEGACY_SOURCE_CODES[code] ?? code
+  return LEGACY_SOURCE_CODES.get(code) ?? code
 }
 
 export const entityTypes = [

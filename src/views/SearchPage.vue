@@ -49,14 +49,14 @@ const {
 const queryList = (value: LocationQueryValue | LocationQueryValue[]) =>
   [...new Set(
     (Array.isArray(value) ? value : [value])
-      .filter((v): v is string => typeof v === 'string'),
+      .filter((v): v is string => typeof v === 'string' && v !== ''),
   )]
 
 // Load data on mount
 onMounted(async () => {
   // Initialize from URL params
   const { q, source, type, status } = route.query
-  const firstQuery = queryList(q).find((v) => v !== '')
+  const [firstQuery] = queryList(q)
   if (firstQuery) searchQuery.value = firstQuery
   if (source) {
     // Normalize legacy hyphenated codes (eu-vessels -> eu_vessels) so old
