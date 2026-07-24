@@ -148,10 +148,15 @@ jobs:
           done
           # Guard against a partial harmonize: the pinned gem swallows
           # per-file transformation errors and still reports success, so a
-          # file-count floor alone cannot catch one. Require every source
-          # to reach at least half of its last known-good entity count from
-          # the committed api/v1 snapshot, and every restored per-source
-          # aggregate to be present and valid JSON.
+          # file-count floor alone cannot catch one. Floor every source at
+          # a QUARTER of its committed-snapshot count: the snapshot is the
+          # only baseline that exists for all 15 sources (their repo
+          # layouts differ and several keep no processed/ YAML), but its
+          # counts drift and at least one (au) is double-counted at ~2x
+          # the repo's actual data — a quarter-floor still catches a true
+          # collapse. Tighten to half once the pin is lifted and the
+          # snapshot is regenerated. Every restored per-source aggregate
+          # must be present and valid JSON.
           for src in au ca ch cn eu eu_vessels jp nz ru tr uk un un_vessels us wb; do
             # The committed baseline must be a number (a missing one would
             # silently disable this source's floor); the harmonized count
@@ -165,9 +170,10 @@ jobs:
               '.sources[$s].entities // 0 | select(type == "number") | floor' \
               public/api/v1/stats.json) \
               || { echo "Invalid harmonized entity count for ${src}"; exit 1; }
-            floor=$((expected / 2))
+            floor=$((expected / 4))
             if [ "$actual" -lt "$floor" ]; then
-              echo "Source ${src}: harmonized ${actual} entities, floor is ${floor} (half of committed ${expected})"
+              echo "Source ${src}: harmonized ${actual} entities, floor is" \
+                "${floor} (quarter of committed ${expected})"
               exit 1
             fi
             jq -e . "public/api/v1/sources/${src}.jsonld" > /dev/null \
