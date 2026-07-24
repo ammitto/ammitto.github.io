@@ -18,7 +18,7 @@ export const sources = [
     color: '#009edb',
   },
   {
-    code: 'un-vessels',
+    code: 'un_vessels',
     name: 'UN Vessels',
     fullName: 'UN Security Council Vessel List',
     country: 'UN',
@@ -78,7 +78,7 @@ export const sources = [
     color: '#003399',
   },
   {
-    code: 'eu-vessels',
+    code: 'eu_vessels',
     name: 'EU Vessels',
     fullName: 'EU Sanctions Vessel List',
     country: 'EU',
@@ -158,6 +158,24 @@ export const sources = [
     color: '#002244',
   },
 ] as const
+
+/**
+ * Legacy hyphenated source codes that older URLs and bookmarks may still
+ * carry (the site previously linked /search?source=eu-vessels while the
+ * data plane uses underscore codes). Maps legacy form -> canonical code.
+ */
+const LEGACY_SOURCE_CODES: Record<string, string> = {
+  'eu-vessels': 'eu_vessels',
+  'un-vessels': 'un_vessels',
+}
+
+/**
+ * Normalize a source code from an external input (e.g. URL query params),
+ * mapping legacy hyphenated forms to the canonical underscore codes.
+ */
+export function normalizeSourceCode(code: string): string {
+  return LEGACY_SOURCE_CODES[code] ?? code
+}
 
 export const entityTypes = [
   { code: 'person', name: 'Person', color: '#f59e0b', icon: '👤' },

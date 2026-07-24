@@ -171,14 +171,14 @@ function getAuthorityName(code) {
     'ch': 'Switzerland',
     'cn': 'China',
     'eu': 'European Union',
-    'eu-vessels': 'EU Vessels',
+    'eu_vessels': 'EU Vessels',
     'jp': 'Japan',
     'nz': 'New Zealand',
     'ru': 'Russia',
     'tr': 'Turkey',
     'uk': 'United Kingdom',
     'un': 'United Nations',
-    'un-vessels': 'UN Vessels',
+    'un_vessels': 'UN Vessels',
     'us': 'United States',
     'wb': 'World Bank'
   }

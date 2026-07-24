@@ -7,6 +7,7 @@ import EntityCard from '@/components/molecules/EntityCard.vue'
 import SearchFilters from '@/components/organisms/SearchFilters.vue'
 import { useScrollAnimation } from '@/composables/useScrollAnimation'
 import { useSearchIndex, type SearchEntity } from '@/composables/useSearchIndex'
+import { normalizeSourceCode } from '@/config'
 
 // Initialize scroll animations
 useScrollAnimation()
@@ -49,7 +50,10 @@ onMounted(async () => {
   if (q) searchQuery.value = q as string
   if (source) {
     const src = Array.isArray(source) ? source : [source]
-    filters.value.sources = src as string[]
+    // Normalize legacy hyphenated codes (eu-vessels -> eu_vessels) so old
+    // bookmarks keep filtering; the filters watcher below then canonicalizes
+    // the URL via router.replace.
+    filters.value.sources = (src as string[]).map(normalizeSourceCode)
   }
   if (type) {
     const typ = Array.isArray(type) ? type : [type]
