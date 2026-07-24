@@ -52,8 +52,13 @@ onMounted(async () => {
     const src = Array.isArray(source) ? source : [source]
     // Normalize legacy hyphenated codes (eu-vessels -> eu_vessels) so old
     // bookmarks keep filtering; the filters watcher below then canonicalizes
-    // the URL via router.replace.
-    filters.value.sources = (src as string[]).map(normalizeSourceCode)
+    // the URL via router.replace. Query values can carry null entries and
+    // normalization can collapse mixed forms into duplicates, so keep only
+    // strings and de-duplicate.
+    filters.value.sources = [...new Set(
+      src.filter((s): s is string => typeof s === 'string')
+        .map(normalizeSourceCode),
+    )]
   }
   if (type) {
     const typ = Array.isArray(type) ? type : [type]
