@@ -37,18 +37,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ammitto/ammitto
-          # Pinned to the last known-good commit on main. The current main
-          # (1629e2e, "[WIP] Fix production harmonize pipeline") crashes
-          # harmonize with an undefined variable `r` in
-          # lib/ammitto/cli/harmonize_command.rb, which would fail this
-          # workflow at the harmonize step. Known limitation of the pin:
-          # this commit predates the per-source sources/<code>.jsonld
-          # aggregates (and harmonize health gates) that the WIP commit
-          # introduces; the live API serves those aggregates, so the
-          # "Restore per-source aggregates" step below keeps them available
-          # from the committed api/v1 snapshot. Remove the pin (and that
-          # step) once main's harmonize is fixed.
-          ref: 8203303c5f250cc8372cb91465ac51d3bd34b766
+          # Pinned to the post-#18 merge of main (PRs #18-#23: working
+          # harmonize with health gates, validation facade, ontology
+          # fixes). Pin-to-SHA stays the policy — tracking floating main
+          # is a pending policy decision.
+          ref: a4b0eb5a18eaa9ba85692a4bca2817b5b73fc079
           path: ammitto-gem
 
       - name: Checkout data repositories
@@ -92,43 +85,45 @@ jobs:
           # creates/overwrites files, so without this, stale committed files
           # would survive into the deployed artifact next to fresh output.
           rm -rf ../public/api/v1
-          bundle exec ruby exe/ammitto harmonize --scan --verbose \
+          # --combine emits the aggregated all.jsonld (downloaded by the
+          # client library) and its all.ttl Turtle rendering; the gem
+          # gates both behind the flag and defaults it off.
+          bundle exec ruby exe/ammitto harmonize --scan --verbose --combine \
             --sources-dir .. \
             --output-dir ../public/api/v1
 
-      - name: Restore per-source aggregates
-        run: |
-          # The pinned gem predates the per-source sources/<code>.jsonld
-          # aggregates that the live API serves (and the site fetches).
-          # Restore them from the committed api/v1 snapshot (generated
-          # 2026-03-02 by the newer pipeline, slightly fresher than the
-          # live site's Feb-26 data) so those endpoints keep working.
-          # Remove this step together with the pin once main's harmonize
-          # is fixed and generates them itself. If the destination already
-          # exists, harmonize has started generating the aggregates: fail
-          # loudly rather than nest or overwrite fresh output with the
-          # stale snapshot.
-          if [ -e public/api/v1/sources ]; then
-            echo "public/api/v1/sources already exists: harmonize now generates per-source aggregates; remove this step together with the gem pin."
-            exit 1
-          fi
-          cp -R api/v1/sources public/api/v1/sources
-
       - name: Verify harmonized output
         run: |
-          # The pinned gem has no output health gates, so guard here: fail
-          # the run instead of deploying an empty or incomplete API tree.
+          # Independent workflow-side gate. The gem enforces its own health
+          # gates (nonzero exit on per-file transform errors, source errors,
+          # zero entities, missing aggregates), but those cannot catch
+          # partial-source loss — a source that "succeeds" with far fewer
+          # entities than reality. Entity floors live in
+          # .github/harmonize-thresholds.json (derivation documented there);
+          # regenerate them from a reviewed fresh harmonize when sources
+          # legitimately shrink or grow.
+          thresholds=.github/harmonize-thresholds.json
           command -v jq > /dev/null \
             || { echo "jq is required for verification"; exit 1; }
-          jq -e . public/api/v1/stats.json > /dev/null \
-            || { echo "stats.json is missing or not valid JSON"; exit 1; }
-          test -s public/api/v1/search-index.json \
-            || { echo "search-index.json is missing or empty"; exit 1; }
-          jq -e '(.entities | type == "array") and (.entities | length > 0)' \
+          # Slurp (-s) so empty files and multi-document streams fail: a
+          # bare `jq -e .` exits 0 on both, and a multi-document file
+          # would make the per-source jq lookups below emit MULTILINE
+          # values that break [ -lt ] into a silent pass.
+          jq -es 'length == 1 and (.[0] | type == "object")' "$thresholds" > /dev/null \
+            || { echo "threshold manifest ${thresholds} is missing, invalid, or not a single JSON object"; exit 1; }
+          jq -es 'length == 1 and (.[0] | type == "object")' public/api/v1/stats.json > /dev/null \
+            || { echo "stats.json is missing, invalid, or not a single JSON object"; exit 1; }
+          jq -es 'length == 1 and (.[0] | (.entities | type == "array") and (.entities | length > 0))' \
             public/api/v1/search-index.json > /dev/null \
-            || { echo "search-index.json has no entities array"; exit 1; }
-          test -s public/api/v1/all.jsonld \
-            || { echo "all.jsonld is missing or empty"; exit 1; }
+            || { echo "search-index.json is not a single JSON object with a non-empty entities array"; exit 1; }
+          # The client library downloads all.jsonld: require one JSON
+          # object with a non-empty @graph, not just a non-empty file
+          # (~59 MB; the slurp parse costs a few seconds).
+          jq -es 'length == 1 and (.[0] | type == "object" and (.["@graph"] | type == "array" and length > 0))' \
+            public/api/v1/all.jsonld > /dev/null \
+            || { echo "all.jsonld is not a single JSON-LD object with a non-empty @graph"; exit 1; }
+          test -s public/api/v1/all.ttl \
+            || { echo "all.ttl is missing or empty"; exit 1; }
           count=$(find public/api/v1 -type f | wc -l)
           echo "Harmonized output contains ${count} files"
           test "$count" -ge 100 \
@@ -146,45 +141,61 @@ jobs:
             test -s "public/api/v1/node/${kind}/index.jsonld" \
               || { echo "Missing node index: node/${kind}/index.jsonld"; exit 1; }
           done
-          # Guard against a partial harmonize: the pinned gem swallows
-          # per-file transformation errors and still reports success, so a
-          # file-count floor alone cannot catch one. Floor every source at
-          # a QUARTER of its committed-snapshot count: the snapshot is the
-          # only baseline that exists for all 15 sources (their repo
-          # layouts differ and several keep no processed/ YAML), but its
-          # counts drift and at least one (au) is double-counted at ~2x
-          # the repo's actual data — a quarter-floor still catches a true
-          # collapse. Tighten to half once the pin is lifted and the
-          # snapshot is regenerated. Every restored per-source aggregate
-          # must be present and valid JSON.
+          # Large-loss regression gate: floor every source's harmonized
+          # entity count at its manifest floor. The source list is
+          # hardcoded here so a manifest edit that drops a key fails the
+          # floor lookup loudly instead of silently disabling that
+          # source's gate. Counts and floors must be plain non-negative
+          # integers within 1e8 (floors strictly positive — zero or
+          # negative would disable the gate; the bound keeps jq from
+          # emitting exponent notation that [ -lt ] cannot parse); the
+          # digits-only case guard makes the shell comparisons fail
+          # closed even if a jq quirk lets a non-integer through. The
+          # harmonized count defaults a missing source key to 0 so it
+          # fails the floor below with an accurate message instead.
+          # Every generated per-source aggregate must be a single JSON
+          # object with a non-empty @graph (a zero-byte file passes a
+          # bare `jq -e .`).
           for src in au ca ch cn eu eu_vessels jp nz ru tr uk un un_vessels us wb; do
-            # The committed baseline must be a number (a missing one would
-            # silently disable this source's floor); the harmonized count
-            # defaults a missing source key to 0 so it fails the floor
-            # below with an accurate message instead.
-            expected=$(jq -er --arg s "$src" \
-              '.sources[$s].entities | select(type == "number") | floor' \
-              api/v1/stats.json) \
-              || { echo "Invalid committed entity count for ${src}"; exit 1; }
+            floor=$(jq -er --arg s "$src" \
+              '.source_floors[$s] | select(type == "number" and . == floor and . > 0 and . <= 100000000)' \
+              "$thresholds") \
+              || { echo "Missing or invalid floor for ${src} in ${thresholds}"; exit 1; }
+            case "$floor" in (''|*[!0-9]*)
+              echo "Non-integer floor for ${src}: ${floor}"; exit 1;;
+            esac
             actual=$(jq -er --arg s "$src" \
-              '.sources[$s].entities // 0 | select(type == "number") | floor' \
+              '.sources[$s].entities // 0 | select(type == "number" and . == floor and . >= 0 and . <= 100000000)' \
               public/api/v1/stats.json) \
               || { echo "Invalid harmonized entity count for ${src}"; exit 1; }
-            floor=$((expected / 4))
+            case "$actual" in (''|*[!0-9]*)
+              echo "Non-integer entity count for ${src}: ${actual}"; exit 1;;
+            esac
             if [ "$actual" -lt "$floor" ]; then
-              echo "Source ${src}: harmonized ${actual} entities, floor is" \
-                "${floor} (quarter of committed ${expected})"
+              echo "Source ${src}: harmonized ${actual} entities, floor is ${floor}"
               exit 1
             fi
-            jq -e . "public/api/v1/sources/${src}.jsonld" > /dev/null \
+            jq -es 'length == 1 and (.[0] | type == "object" and (.["@graph"] | type == "array" and length > 0))' \
+              "public/api/v1/sources/${src}.jsonld" > /dev/null \
               || { echo "Missing or invalid aggregate: sources/${src}.jsonld"; exit 1; }
           done
-          entities_count=$(jq -er '.total_entities | select(type == "number") | floor' \
+          total_floor=$(jq -er \
+            '.total_entities_floor | select(type == "number" and . == floor and . > 0 and . <= 100000000)' \
+            "$thresholds") \
+            || { echo "Missing or invalid total_entities_floor in ${thresholds}"; exit 1; }
+          case "$total_floor" in (''|*[!0-9]*)
+            echo "Non-integer total_entities_floor: ${total_floor}"; exit 1;;
+          esac
+          entities_count=$(jq -er \
+            '.total_entities | select(type == "number" and . == floor and . >= 0 and . <= 100000000)' \
             public/api/v1/stats.json) \
             || { echo "Invalid total_entities in stats.json"; exit 1; }
-          echo "Total entities: ${entities_count}"
-          test "$entities_count" -ge 1000 \
-            || { echo "Total entities ${entities_count} is below the floor of 1000"; exit 1; }
+          case "$entities_count" in (''|*[!0-9]*)
+            echo "Non-integer total_entities: ${entities_count}"; exit 1;;
+          esac
+          echo "Total entities: ${entities_count} (floor ${total_floor})"
+          test "$entities_count" -ge "$total_floor" \
+            || { echo "Total entities ${entities_count} is below the floor of ${total_floor}"; exit 1; }
 
       - name: Build Vue.js app with Vite
         run: npm run build
