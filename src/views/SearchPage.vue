@@ -61,17 +61,16 @@ onMounted(async () => {
   const { q, source, type, status } = route.query
   const [firstQuery] = queryList(q)
   if (firstQuery) searchQuery.value = firstQuery
-  if (source) {
-    // Normalize legacy hyphenated codes (eu-vessels -> eu_vessels) so old
-    // bookmarks keep filtering; the filters watcher below then canonicalizes
-    // the URL via router.replace. De-duplicate after normalization so mixed
-    // legacy/canonical forms collapse to one entry.
-    filters.value.sources = [...new Set(
-      queryList(source).map(normalizeSourceCode),
-    )]
-  }
-  if (type) filters.value.entityTypes = queryList(type)
-  if (status) filters.value.statuses = queryList(status)
+  // Parse unconditionally: null/empty scalar forms (?source) must also
+  // reach the filters so the watcher below canonicalizes them away.
+  // Normalize legacy hyphenated codes (eu-vessels -> eu_vessels) so old
+  // bookmarks keep filtering; de-duplicate after normalization so mixed
+  // legacy/canonical forms collapse to one entry.
+  filters.value.sources = [...new Set(
+    queryList(source).map(normalizeSourceCode),
+  )]
+  filters.value.entityTypes = queryList(type)
+  filters.value.statuses = queryList(status)
 
   // Load search index and facets
   await Promise.all([loadSearchIndex(), loadFacets()])
