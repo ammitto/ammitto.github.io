@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter, type LocationQueryValue } from 'vue-router'
 import SearchInput from '@/components/atoms/SearchInput.vue'
 import Badge from '@/components/atoms/Badge.vue'
 import EntityCard from '@/components/molecules/EntityCard.vue'
@@ -43,31 +43,32 @@ const {
   filter,
 } = useSearchIndex()
 
+// Query params arrive as string | null | (string | null)[]; keep only
+// string entries and drop duplicates so null/empty forms (?type) never
+// leak into filters or back into the canonicalized URL.
+const queryList = (value: LocationQueryValue | LocationQueryValue[]) =>
+  [...new Set(
+    (Array.isArray(value) ? value : [value])
+      .filter((v): v is string => typeof v === 'string'),
+  )]
+
 // Load data on mount
 onMounted(async () => {
   // Initialize from URL params
   const { q, source, type, status } = route.query
-  if (q) searchQuery.value = q as string
+  const firstQuery = queryList(q).find((v) => v !== '')
+  if (firstQuery) searchQuery.value = firstQuery
   if (source) {
-    const src = Array.isArray(source) ? source : [source]
     // Normalize legacy hyphenated codes (eu-vessels -> eu_vessels) so old
     // bookmarks keep filtering; the filters watcher below then canonicalizes
-    // the URL via router.replace. Query values can carry null entries and
-    // normalization can collapse mixed forms into duplicates, so keep only
-    // strings and de-duplicate.
+    // the URL via router.replace. De-duplicate after normalization so mixed
+    // legacy/canonical forms collapse to one entry.
     filters.value.sources = [...new Set(
-      src.filter((s): s is string => typeof s === 'string')
-        .map(normalizeSourceCode),
+      queryList(source).map(normalizeSourceCode),
     )]
   }
-  if (type) {
-    const typ = Array.isArray(type) ? type : [type]
-    filters.value.entityTypes = typ as string[]
-  }
-  if (status) {
-    const stat = Array.isArray(status) ? status : [status]
-    filters.value.statuses = stat as string[]
-  }
+  if (type) filters.value.entityTypes = queryList(type)
+  if (status) filters.value.statuses = queryList(status)
 
   // Load search index and facets
   await Promise.all([loadSearchIndex(), loadFacets()])
