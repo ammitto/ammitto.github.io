@@ -37,17 +37,20 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ammitto/ammitto
-          # Pinned to the last known-good commit on main. The current main
-          # (1629e2e, "[WIP] Fix production harmonize pipeline") crashes
-          # harmonize with an undefined variable `r` in
-          # lib/ammitto/cli/harmonize_command.rb, which would fail this
-          # workflow at the harmonize step. Known limitation of the pin:
-          # this commit predates the per-source sources/<code>.jsonld
-          # aggregates (and harmonize health gates) that the WIP commit
-          # introduces; the live API serves those aggregates, so the
-          # "Restore per-source aggregates" step below keeps them available
-          # from the committed api/v1 snapshot. Remove the pin (and that
-          # step) once main's harmonize is fixed.
+          # Transitional pin, superseded inside this stack. It was taken
+          # when main was 1629e2e ("[WIP] Fix production harmonize
+          # pipeline"), whose harmonize crashed on an undefined variable
+          # `r`. That work landed as ammitto/ammitto#18 on 2026-07-24, and
+          # main is now 541b0cf — eight merged PRs later, #18 through #25
+          # on first-parent history — so this pin has none of: harmonize
+          # health gates, --allow-empty, per-source sources/<code>.jsonld
+          # aggregates, the exporter filename clamp, or harmonize
+          # input-directory discovery.
+          # The repin to 541b0cf and the removal of the aggregate-restore
+          # step below both live in the follow-up PR of this stack; the
+          # pin stays here only so the CI-workspace fix reviews on its
+          # own. Merging this PR without that follow-up deploys a pre-#18
+          # gem's output.
           ref: 8203303c5f250cc8372cb91465ac51d3bd34b766
           path: ammitto-gem
 
@@ -99,19 +102,81 @@ jobs:
       - name: Restore per-source aggregates
         run: |
           # The pinned gem predates the per-source sources/<code>.jsonld
-          # aggregates that the live API serves (and the site fetches).
-          # Restore them from the committed api/v1 snapshot (generated
-          # 2026-03-02 by the newer pipeline, slightly fresher than the
-          # live site's Feb-26 data) so those endpoints keep working.
-          # Remove this step together with the pin once main's harmonize
-          # is fixed and generates them itself. If the destination already
-          # exists, harmonize has started generating the aggregates: fail
-          # loudly rather than nest or overwrite fresh output with the
-          # stale snapshot.
+          # aggregates that the live API serves (and the site fetches),
+          # so restore them from the committed api/v1 snapshot. Remove
+          # this step together with the pin once the gem generates them
+          # itself. If the destination already exists, harmonize has
+          # started generating the aggregates: fail loudly rather than
+          # nest or overwrite fresh output with the stale snapshot.
           if [ -e public/api/v1/sources ]; then
             echo "public/api/v1/sources already exists: harmonize now generates per-source aggregates; remove this step together with the gem pin."
             exit 1
           fi
+          # Validate the snapshot before publishing it. BrowseEntitiesPage
+          # loads these aggregates through useSanctionsData, whose
+          # JsonLdEntity contract reads a bare `id` plus snake_case fields
+          # (entity_type, names[].full_name, source_references[]) — the
+          # pre-revamp schema this snapshot is written in. Do NOT gate on
+          # JSON-LD node shape here: 96550 of the snapshot's 96731 nodes
+          # carry `id` rather than `@id`, so an @id/@type assertion would
+          # reject the only schema this consumer can actually read.
+          # Measured 2026-07-29 across all 15 files: those 96550 bare ids
+          # are ALL distinct, only 24 nodes in total resolve to a
+          # `/unknown` placeholder, and 93102 of 93423 name objects carry
+          # a non-blank full_name. The records are real, named and
+          # distinctly identified.
+          # What IS wrong is coverage. Three aggregates collapsed to a
+          # single entity each against the counts stats.json claims —
+          # eu 1 of 11720, ru 1 of 1995, un_vessels 1 of 32 — so
+          # restoring them unchecked would serve a near-empty EU list as
+          # live data. The two gates below are therefore: a
+          # schema-agnostic identifier check (@id or id, non-blank), and
+          # a coverage floor at a quarter of the committed count. The
+          # twelve healthy files clear that floor with room (the tightest
+          # is ch at 8255 against 4797); the three collapsed ones fail it.
+          # Both candidates are tested independently rather than with
+          # `.["@id"] // .id`: that alternative yields on false/null only,
+          # so a numeric or whitespace @id would mask a perfectly usable
+          # `id` and fail a file this gate should pass. The coverage
+          # counter anchors on the whole entity IRI instead of searching
+          # for "/entity/" anywhere in the string, so a value such as
+          # "garbage/entry/x/entity/y" cannot pad the count, and it
+          # excludes whitespace from every path component so an id like
+          # "https://x/entity/ / " is not counted as a real entity.
+          command -v jq > /dev/null \
+            || { echo "jq is required to validate the aggregate snapshot"; exit 1; }
+          for src in api/v1/sources/*.jsonld; do
+            code=$(basename "$src" .jsonld)
+            jq -es 'length == 1 and (.[0] | type == "object"
+                      and (.["@graph"] | type == "array" and length > 0
+                        and all(type == "object"
+                          and ([.["@id"], .id]
+                                 | map(select(type == "string" and test("\\S")))
+                                 | length > 0))))' \
+              "$src" > /dev/null \
+              || { echo "${src}: not a single JSON object, or nodes carry no usable identifier under @id or id"; exit 1; }
+            distinct=$(jq -es \
+              '.[0]["@graph"]
+                 | map([.["@id"], .id]
+                         | map(select(type == "string"
+                                      and test("^https?://[^/[:space:]]+/entity/[^/[:space:]]+/[^/[:space:]]+$")))
+                         | .[0] | select(. != null))
+                 | unique | length' "$src") \
+              || { echo "${src}: cannot count distinct entity ids"; exit 1; }
+            committed=$(jq -er --arg s "$code" \
+              '.sources[$s].entities | select(type == "number" and . == floor and . > 0)' \
+              api/v1/stats.json) \
+              || { echo "${code}: no committed entity count to check the snapshot against"; exit 1; }
+            # Clamp to 1: integer division turns any committed count below
+            # 4 into a floor of 0, which a fully collapsed aggregate would
+            # pass. Every source must contribute at least one entity.
+            floor=$(( committed / 4 ))
+            [ "$floor" -ge 1 ] || floor=1
+            if [ "$distinct" -lt "$floor" ]; then
+              echo "${src}: holds ${distinct} distinct entity ids against a committed ${committed} (floor ${floor}); refusing to publish a collapsed aggregate"
+              exit 1
+            fi
+          done
           cp -R api/v1/sources public/api/v1/sources
 
       - name: Verify harmonized output
