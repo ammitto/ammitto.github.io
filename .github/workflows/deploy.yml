@@ -102,6 +102,15 @@ jobs:
           # .github/harmonize-thresholds.json (derivation documented there);
           # regenerate them from a reviewed fresh harmonize when sources
           # legitimately shrink or grow.
+          # UNREACHABLE AT THE CURRENT PIN. ca, ru, un and un_vessels hold
+          # no harmonizable input, and the gem's own zero-entity gate exits
+          # 1 on them unless the run passes --allow-empty, which the
+          # harmonize step above deliberately does not. So this step is
+          # never reached until either those data repos are restored or the
+          # workflow opts them out. The floors below were also measured on
+          # 541b0cf plus three unmerged gem branches, so a run against the
+          # pinned SHA alone would publish the placeholder ids those
+          # branches remove. Both are why the deploy stays red.
           thresholds=.github/harmonize-thresholds.json
           command -v jq > /dev/null \
             || { echo "jq is required for verification"; exit 1; }
@@ -175,7 +184,27 @@ jobs:
           # fails the floor below with an accurate message instead.
           # Every generated per-source aggregate must be a single JSON
           # object with a non-empty @graph (a zero-byte file passes a
-          # bare `jq -e .`).
+          # bare `jq -e .`) whose nodes each carry a non-blank identifier.
+          # The identifier is accepted under @id OR a bare `id`, and no
+          # @type is required: the gem's serializer emits @id/@type, but
+          # BrowseEntitiesPage reads these files through
+          # useSanctionsData's JsonLdEntity contract, which wants a bare
+          # `id` and snake_case fields. Asserting JSON-LD node shape here
+          # would certify output that page cannot render.
+          # So the gate below asserts the CONSUMER contract, not the
+          # producer's: every node must be safe for transformEntity to
+          # walk, every entity node must expose a bare `id`, and at least
+          # one must expose a `names[].full_name`. At the current pin the
+          # gem emits `@id`/`entityType`/
+          # `names[].fullName` and this WILL fail — deliberately. That
+          # failure is the schema mismatch itself, and it is better named
+          # here than shipped as a silently empty /browse/entities page.
+          # Resolving it (teach useSanctionsData both schemas, or change
+          # what the gem writes) is a maintainer decision this PR does
+          # not take.
+          # Identifier candidates are tested independently rather than
+          # with `.["@id"] // .id`: that alternative yields on false/null
+          # only, so a numeric or whitespace @id would mask a usable `id`.
           for src in au ca ch cn eu eu_vessels jp nz ru tr uk un un_vessels us wb; do
             floor=$(jq -er --arg s "$src" \
               '.source_floors[$s] | select(type == "number" and . == floor and . > 0 and . <= 100000000)' \
@@ -195,9 +224,62 @@ jobs:
               echo "Source ${src}: harmonized ${actual} entities, floor is ${floor}"
               exit 1
             fi
-            jq -es 'length == 1 and (.[0] | type == "object" and (.["@graph"] | type == "array" and length > 0))' \
+            jq -es 'length == 1 and (.[0] | type == "object"
+                      and (.["@graph"] | type == "array" and length > 0
+                        and all(type == "object"
+                          and ([.["@id"], .id]
+                                 | map(select(type == "string" and test("\\S")))
+                                 | length > 0))))' \
               "public/api/v1/sources/${src}.jsonld" > /dev/null \
               || { echo "Missing or invalid aggregate: sources/${src}.jsonld"; exit 1; }
+            # Three rules, in the consumer's terms.
+            # (a) Crash safety, over EVERY node: transformEntity is mapped
+            #     across the whole @graph without filtering, and it walks
+            #     both `entity.names?.map(n => n.full_name)` and
+            #     `entity.addresses?.map(a => a.street)`. Each throws a
+            #     TypeError if its value is a non-array non-null, or if it
+            #     is an array holding a null; loadSourceEntities turns any
+            #     throw into [] for the ENTIRE source, so one bad record
+            #     silently empties a whole list. Both keys must therefore
+            #     be absent/null, or an array with no null element, on
+            #     every node rather than only on the ones that look like
+            #     entities. String or number elements are safe (property
+            #     access on them just yields undefined) and are allowed.
+            # (b) Identity, universal over candidates: candidates are
+            #     selected WITHOUT relying on the id, so a node that
+            #     presents as an entity but carries a broken one cannot
+            #     slip past the quantifier. Schema is all-or-nothing per
+            #     file, so every candidate needs a bare `id` matching the
+            #     entity IRI shape, whitespace excluded from every path
+            #     component.
+            # (c) Names, existential: at least one candidate must carry a
+            #     usable names[].full_name. Only availability is relaxed
+            #     here — shape safety stays universal under (a). A handful
+            #     of genuinely nameless records is data quality, not a
+            #     schema failure: the March snapshot's ~24 placeholder
+            #     entities are exactly that, and gating on "every" would
+            #     reject twelve otherwise-healthy files.
+            jq -es 'def walkable: type == "null"
+                                  or (type == "array"
+                                      and all(type != "null"));
+                    .[0]["@graph"] as $g
+                      | ($g | all(type == "object"
+                                  and (.names | walkable)
+                                  and (.addresses | walkable)))
+                        and ($g
+                             | map(select(has("entity_type") or has("entityType")
+                                          or ([.["@id"], .id]
+                                                | any(type == "string"
+                                                      and test("/entity/")))))
+                             | length > 0
+                               and all(.id | type == "string"
+                                       and test("^https?://[^/[:space:]]+/entity/[^/[:space:]]+/[^/[:space:]]+$"))
+                               and any(.names | type == "array"
+                                       and any(type == "object"
+                                               and (.full_name | type == "string"
+                                                    and test("\\S")))))' \
+              "public/api/v1/sources/${src}.jsonld" > /dev/null \
+              || { echo "sources/${src}.jsonld does not match the useSanctionsData contract: every node must be an object whose names AND addresses are absent, null, or an array holding no null; every entity node needs a bare id; at least one needs a names[].full_name. /browse/entities would render it empty"; exit 1; }
           done
           total_floor=$(jq -er \
             '.total_entities_floor | select(type == "number" and . == floor and . > 0 and . <= 100000000)' \
