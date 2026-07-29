@@ -44,15 +44,20 @@ const {
 } = useSearchIndex()
 
 // Query params arrive as string | null | (string | null)[] — or
-// undefined when absent; keep only non-empty string entries and drop
-// duplicates so null/empty forms (?type) never leak into filters or
-// back into the canonicalized URL.
+// undefined when absent; keep only non-blank string entries and drop
+// duplicates so null, empty and whitespace-only forms (?type, ?type=%20)
+// never leak into filters or back into the canonicalized URL. Trimming
+// precedes the blank test and the dedup: " " is truthy, so untrimmed it
+// would become a filter value matching no facet code, emptying the
+// result set while staying in the URL.
 const queryList = (
   value: LocationQueryValue | LocationQueryValue[] | undefined,
 ) =>
   [...new Set(
     (Array.isArray(value) ? value : [value])
-      .filter((v): v is string => typeof v === 'string' && v !== ''),
+      .filter((v): v is string => typeof v === 'string')
+      .map((v) => v.trim())
+      .filter((v) => v !== ''),
   )]
 
 // Load data on mount
@@ -138,11 +143,15 @@ const loadMore = () => {
   loadedCount.value += PAGE_SIZE
 }
 
-// Count per category for filter badges (use facets when available)
+// Count per category for filter badges (use facets when available).
+// Null-prototype accumulators: the keys are facet codes read straight out
+// of api/v1/facets/*.json, so on a plain {} a code of `__proto__` would
+// assign to the prototype rather than create an own property — the count
+// vanishes and reads return Object.prototype.
 const counts = computed(() => {
-  const sourceCountsMap: Record<string, number> = {}
-  const typeCountsMap: Record<string, number> = {}
-  const statusCountsMap: Record<string, number> = {}
+  const sourceCountsMap: Record<string, number> = Object.create(null)
+  const typeCountsMap: Record<string, number> = Object.create(null)
+  const statusCountsMap: Record<string, number> = Object.create(null)
 
   // Use facets for source counts (more accurate)
   for (const facet of authorityFacets.value) {
