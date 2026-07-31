@@ -72,11 +72,19 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # 22.18+: tests/ is TypeScript run through Node's own type
+          # stripping and its built-in test runner, which is how the
+          # normalizer is covered without adding a test dependency.
+          node-version: '22'
           cache: 'npm'
 
       - name: Install website dependencies
         run: npm ci
+
+      - name: Run unit tests
+        # vue-tsc and the production build never execute the fetch-boundary
+        # normalizer; this is the only check that does.
+        run: npm run test:unit
 
       - name: Run harmonization
         working-directory: ammitto-gem
@@ -185,23 +193,17 @@ jobs:
           # Every generated per-source aggregate must be a single JSON
           # object with a non-empty @graph (a zero-byte file passes a
           # bare `jq -e .`) whose nodes each carry a non-blank identifier.
-          # The identifier is accepted under @id OR a bare `id`, and no
-          # @type is required: the gem's serializer emits @id/@type, but
-          # BrowseEntitiesPage reads these files through
-          # useSanctionsData's JsonLdEntity contract, which wants a bare
-          # `id` and snake_case fields. Asserting JSON-LD node shape here
-          # would certify output that page cannot render.
-          # So the gate below asserts the CONSUMER contract, not the
-          # producer's: every node must be safe for transformEntity to
-          # walk, every entity node must expose a bare `id`, and at least
-          # one must expose a `names[].full_name`. At the current pin the
-          # gem emits `@id`/`entityType`/
-          # `names[].fullName` and this WILL fail — deliberately. That
-          # failure is the schema mismatch itself, and it is better named
-          # here than shipped as a silently empty /browse/entities page.
-          # Resolving it (teach useSanctionsData both schemas, or change
-          # what the gem writes) is a maintainer decision this PR does
-          # not take.
+          # The gate asserts the PRODUCER contract: @id plus camelCase
+          # property names, which is what the gem's context, its generated
+          # ontology, its Turtle rendering and this repo's own
+          # public/schemas/context.jsonld all declare. The site reaches that
+          # vocabulary through src/utils/normalizeNode.ts at the fetch
+          # boundary, so the published bytes no longer have to carry the
+          # site's internal snake_case field names.
+          # (An earlier revision asserted the consumer contract instead —
+          # bare `id`, names[].full_name — and failed deliberately to name
+          # the mismatch. The mismatch is now resolved in the normalizer,
+          # so the gate follows the producer.)
           # Identifier candidates are tested independently rather than
           # with `.["@id"] // .id`: that alternative yields on false/null
           # only, so a numeric or whitespace @id would mask a usable `id`.
@@ -232,54 +234,130 @@ jobs:
                                  | length > 0))))' \
               "public/api/v1/sources/${src}.jsonld" > /dev/null \
               || { echo "Missing or invalid aggregate: sources/${src}.jsonld"; exit 1; }
-            # Three rules, in the consumer's terms.
-            # (a) Crash safety, over EVERY node: transformEntity is mapped
-            #     across the whole @graph without filtering, and it walks
-            #     both `entity.names?.map(n => n.full_name)` and
+            # Four rules, in the producer's terms.
+            # (a) Crash safety, over EVERY node: normalizeGraph converts
+            #     the whole @graph and transformEntity then walks both
+            #     `entity.names?.map(n => n.full_name)` and
             #     `entity.addresses?.map(a => a.street)`. Each throws a
             #     TypeError if its value is a non-array non-null, or if it
             #     is an array holding a null; loadSourceEntities turns any
             #     throw into [] for the ENTIRE source, so one bad record
-            #     silently empties a whole list. Both keys must therefore
-            #     be absent/null, or an array with no null element, on
-            #     every node rather than only on the ones that look like
-            #     entities. String or number elements are safe (property
-            #     access on them just yields undefined) and are allowed.
+            #     silently empties a whole list. Normalizing does not
+            #     change that: it preserves array-ness and null elements.
+            #     Both keys must therefore be absent/null, or an array
+            #     with no null element, on every node rather than only on
+            #     the ones that look like entities. String or number
+            #     elements are safe (property access on them just yields
+            #     undefined) and are allowed.
             # (b) Identity, universal over candidates: candidates are
             #     selected WITHOUT relying on the id, so a node that
             #     presents as an entity but carries a broken one cannot
             #     slip past the quantifier. Schema is all-or-nothing per
-            #     file, so every candidate needs a bare `id` matching the
+            #     file, so every candidate needs an @id matching the
             #     entity IRI shape, whitespace excluded from every path
             #     component.
             # (c) Names, existential: at least one candidate must carry a
-            #     usable names[].full_name. Only availability is relaxed
+            #     usable names[].fullName. Only availability is relaxed
             #     here — shape safety stays universal under (a). A handful
             #     of genuinely nameless records is data quality, not a
-            #     schema failure: the March snapshot's ~24 placeholder
-            #     entities are exactly that, and gating on "every" would
-            #     reject twelve otherwise-healthy files.
+            #     schema failure, and gating on "every" would reject
+            #     otherwise-healthy files.
+            # (d) The entity->entry edge, the field whose omission blanked
+            #     /entity/:id. Universal, not existential: harmonize only
+            #     ingests a pair when both halves exist, and the ingest
+            #     derives the edge from entry.entityId for the sources whose
+            #     transformer does not set it, so EVERY entity node must
+            #     carry at least one entry IRI. Each IRI must match the
+            #     entry IRI shape AND name a SanctionEntry node present in
+            #     this same aggregate whose entityId points back at the
+            #     entity, so a dangling reference — which the site turns
+            #     into a 404 and a silently missing sanctions section —
+            #     fails here instead. Indexing only typed SanctionEntry
+            #     nodes keyed by "<entry IRI> <entityId>" means a stray
+            #     object whose @id merely contains "/entry/" cannot satisfy
+            #     a reference. Same-file resolution is correct because
+            #     entity and entry IRIs are source-namespaced and harmonize
+            #     ingests the pair together; no transformer emits a
+            #     cross-source edge.
             jq -es 'def walkable: type == "null"
                                   or (type == "array"
                                       and all(type != "null"));
+                    # Node IRIs must carry the published base literally
+                    # (json_ld_graph_exporter.rb BASE_URI) and exactly the
+                    # segment count the exporter writes — entity/{src}/{id},
+                    # entry/{src}/{list}/{id}. The tail must be plain,
+                    # non-empty, single-slash segments: another host, an
+                    # empty segment (//), a percent escape, a backslash, a
+                    # query, a fragment, whitespace, or a "."/".." segment
+                    # all name a file the published tree does not contain,
+                    # because the site turns the tail straight into the
+                    # api/v1/node/** path it fetches.
+                    def segment: "[^/?#%\\\\[:space:]]+";
+                    def node_iri($kind; $depth):
+                      type == "string"
+                      and test("^https://www\\.ammitto\\.org/\($kind)"
+                               + ("/" + segment) * $depth + "$")
+                      and (test("(^|/)\\.{1,2}(/|$)") | not);
+                    def entry_iri: node_iri("entry"; 3);
+                    def entity_iri: node_iri("entity"; 2);
                     .[0]["@graph"] as $g
+                      | ($g | map(select(type == "object"
+                                         and .["@type"] == "SanctionEntry"))) as $typed_entries
+                      | ($g | map(select(type == "object"
+                                         and (.["@type"] | type == "string")
+                                         and (. as $n | ["Entity", "PersonEntity", "OrganizationEntity",
+                                                         "VesselEntity", "AircraftEntity"]
+                                              | any(. == $n["@type"]))))) as $typed_entities
+                      | ($g | map(select(type == "object" and (.["@id"] | type == "string")))
+                            | map(.["@id"])) as $all_ids
+                      | ($typed_entries
+                         | map(select((.["@id"] | type == "string")
+                                      and (.entityId | type == "string"))
+                               | {key: .["@id"], value: .entityId})
+                         | from_entries) as $entry_owner
+                      | ($typed_entities
+                         | map(select(.["@id"] | type == "string")
+                               | {key: .["@id"],
+                                  value: (.hasSanctionEntry
+                                          | if type == "array" then . else [] end)})
+                         | from_entries) as $edges
                       | ($g | all(type == "object"
                                   and (.names | walkable)
                                   and (.addresses | walkable)))
-                        and ($g
-                             | map(select(has("entity_type") or has("entityType")
-                                          or ([.["@id"], .id]
-                                                | any(type == "string"
-                                                      and test("/entity/")))))
+                        # Global @id uniqueness first: every index below is
+                        # built with from_entries, which is last-wins, so a
+                        # duplicate id would otherwise hide a second node.
+                        and ($all_ids | length == ($all_ids | unique | length))
+                        # (e) Every typed entry is well formed and
+                        #     reciprocated: its entityId names an entity in
+                        #     this file whose hasSanctionEntry lists it back.
+                        #     Selecting by @type rather than by a well-formed
+                        #     id means a malformed node cannot be filtered
+                        #     quietly out of the check, and reciprocity
+                        #     catches the inverse of a dangling reference —
+                        #     a real entry the entity forgot to link, which
+                        #     is silent loss on /entity/:id.
+                        and ($typed_entries
+                             | all((.["@id"] | entry_iri)
+                                   and (.entityId | entity_iri)
+                                   and (.["@id"] as $iri
+                                        | .entityId as $owner
+                                        | ($edges[$owner] // []) | any(. == $iri))))
+                        and ($typed_entities
                              | length > 0
-                               and all(.id | type == "string"
-                                       and test("^https?://[^/[:space:]]+/entity/[^/[:space:]]+/[^/[:space:]]+$"))
+                               and all(.["@id"] | entity_iri)
+                               and all(.["@id"] as $entity
+                                       | .hasSanctionEntry
+                                       | type == "array" and length > 0
+                                         and all(. as $iri
+                                                 | ($iri | entry_iri)
+                                                   and ($entry_owner[$iri] == $entity)))
                                and any(.names | type == "array"
                                        and any(type == "object"
-                                               and (.full_name | type == "string"
+                                               and (.fullName | type == "string"
                                                     and test("\\S")))))' \
               "public/api/v1/sources/${src}.jsonld" > /dev/null \
-              || { echo "sources/${src}.jsonld does not match the useSanctionsData contract: every node must be an object whose names AND addresses are absent, null, or an array holding no null; every entity node needs a bare id; at least one needs a names[].full_name. /browse/entities would render it empty"; exit 1; }
+              || { echo "sources/${src}.jsonld does not match the producer contract: every node must be an object whose names AND addresses are absent, null, or an array holding no null; every typed SanctionEntry needs a well-formed unique @id and an entityId whose entity links back; every entity node needs an @id and a hasSanctionEntry naming entry nodes present in this file; at least one needs a names[].fullName. /browse/entities or /entity/:id would render it empty"; exit 1; }
           done
           total_floor=$(jq -er \
             '.total_entities_floor | select(type == "number" and . == floor and . > 0 and . <= 100000000)' \

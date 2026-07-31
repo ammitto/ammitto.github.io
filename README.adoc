@@ -20,7 +20,7 @@ It is a https://vuejs.org[Vue.js 3] application built with https://vitejs.dev[Vi
 
 === Prerequisites
 
-* Node.js 20+
+* Node.js 22.18+ (the unit tests use Node's built-in TypeScript stripping)
 * npm
 
 === Getting Started
