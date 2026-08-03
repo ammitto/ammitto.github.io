@@ -3,16 +3,13 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "engines": {
-    "node": ">=22.18"
-  },
   "scripts": {
     "dev": "npm run build:api && vite",
     "build": "npm run build:api && vue-tsc -b && vite-ssg build",
     "build:api": "node scripts/build-api-data.js",
     "preview": "vite preview",
     "typecheck": "vue-tsc -b",
-    "test:unit": "node --test 'tests/**/*.test.ts'"
+    "test:unit": "tsc -p tsconfig.test.json && node --test tests/*.test.js"
   },
   "dependencies": {
     "vue": "^3.4.21",

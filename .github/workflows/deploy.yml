@@ -72,10 +72,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          # 22.18+: tests/ is TypeScript run through Node's own type
-          # stripping and its built-in test runner, which is how the
-          # normalizer is covered without adding a test dependency.
-          node-version: '22'
+          node-version: '20'
           cache: 'npm'
 
       - name: Install website dependencies
@@ -83,7 +80,9 @@ jobs:
 
       - name: Run unit tests
         # vue-tsc and the production build never execute the fetch-boundary
-        # normalizer; this is the only check that does.
+        # normalizer; this is the only check that does. The tests are plain
+        # JavaScript on Node's built-in runner, so they need neither a test
+        # dependency nor a Node newer than this repo already required.
         run: npm run test:unit
 
       - name: Run harmonization

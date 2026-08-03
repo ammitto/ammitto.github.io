@@ -1,0 +1,36 @@
+// Emit-only config for `npm run test:unit`.
+//
+// The unit tests are plain JavaScript so they run on the project's Node 20
+// baseline, but the module they cover is TypeScript. Node cannot import a
+// `.ts` file without its native type stripping, which needs Node 22.18+ —
+// exactly the floor this project does not want to raise. So the same erasure
+// is done ahead of time by the `typescript` package that is already a
+// devDependency (vue-tsc needs it), and the tests import the emitted module.
+//
+// This is type erasure, not a second implementation: the output is the very
+// module `src/utils/normalizeNode.ts` compiles to, so the tests exercise the
+// shipped code rather than a copy of it.
+//
+// Compiler options are inherited from tsconfig.json, so the module is emitted
+// under the application's own target, lib and module settings; only emission
+// itself is switched on. (The application is transformed by Vite/esbuild
+// rather than by tsc. Nothing in this module is transform-sensitive — no
+// decorators, const enums or namespaces, just erasable annotations over plain
+// ES2020 — so the two produce the same runtime behaviour.)
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    // Incompatible with emitting; the module under test has no imports, so
+    // turning it off changes nothing about the output.
+    "allowImportingTsExtensions": false,
+    "rootDir": "src",
+    "outDir": ".test-build",
+    "declaration": false,
+    "sourceMap": true
+  },
+  // Only the modules the tests import. Anything reachable from them is pulled
+  // in automatically; unrelated application code is not compiled.
+  "include": ["src/utils/normalizeNode.ts"],
+  "references": []
+}
