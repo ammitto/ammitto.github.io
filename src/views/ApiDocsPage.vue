@@ -49,9 +49,10 @@ const codeExamples = {
 const response = await fetch('https://ammitto.github.io/api/v1/sources/eu.jsonld');
 const data = await response.json();
 
-// Access entities
-for (const entity of data['@graph']) {
-  console.log(entity.names[0].fullName);
+// The graph holds entity AND sanction-entry nodes; entries carry no names
+for (const node of data['@graph']) {
+  if (!node['@id'].includes('/entity/')) continue;
+  console.log(node.names?.[0]?.fullName);
 }`,
   ruby: `require 'net/http'
 require 'json'
@@ -68,8 +69,13 @@ puts "Total entities: #{stats['totals']['entities']}"`,
 response = requests.get('https://ammitto.github.io/api/v1/sources/eu.jsonld')
 data = response.json()
 
-for entity in data['@graph']:
-    print(entity['names'][0]['fullName'])`,
+# The graph holds entity AND sanction-entry nodes; entries carry no names
+for node in data['@graph']:
+    if '/entity/' not in node['@id']:
+        continue
+    for name in node.get('names', [])[:1]:
+        if name.get('fullName'):
+            print(name['fullName'])`,
 }
 </script>
 

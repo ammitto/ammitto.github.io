@@ -3,6 +3,7 @@ import { onMounted, ref, computed } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
 import Badge from '@/components/atoms/Badge.vue'
 import { getLanguageName } from '@/utils/language'
+import { normalizeNode } from '@/utils/normalizeNode'
 
 const route = useRoute()
 
@@ -180,8 +181,9 @@ const loadRelatedSanctions = async (instrumentId: string) => {
         const entryResponse = await fetch(`/${entryRef}`)
         if (!entryResponse.ok) continue
 
-        const entryData = await entryResponse.json()
-        if (entryData.legal_citations) {
+        // Entry nodes arrive in the producer's JSON-LD vocabulary
+        const entryData = normalizeNode<SanctionEntry>(await entryResponse.json())
+        if (entryData?.legal_citations) {
           const citesThisInstrument = entryData.legal_citations.some(
             (citation: { legal_instrument_id?: string }) =>
               citation.legal_instrument_id === instrumentId ||

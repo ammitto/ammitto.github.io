@@ -5,6 +5,7 @@ import Badge from '@/components/atoms/Badge.vue'
 import EntityCard from '@/components/molecules/EntityCard.vue'
 import { sources } from '@/config'
 import { getLanguageName } from '@/utils/language'
+import { normalizeNode } from '@/utils/normalizeNode'
 
 const route = useRoute()
 
@@ -141,7 +142,9 @@ onMounted(async () => {
           const entryPath = entryId.replace('https://www.ammitto.org/', 'api/v1/node/')
           const entryResponse = await fetch(`/${entryPath}.jsonld`)
           if (entryResponse.ok) {
-            const entryData = await entryResponse.json()
+            // Entry and entity nodes arrive in the producer's JSON-LD vocabulary
+            const entryData = normalizeNode<Entry>(await entryResponse.json())
+            if (!entryData) continue
             entries.value.push(entryData)
 
             // Load the entity for this entry
@@ -149,8 +152,8 @@ onMounted(async () => {
               const entityPath = entryData.entity_id.replace('https://www.ammitto.org/', 'api/v1/node/')
               const entityResponse = await fetch(`/${entityPath}.jsonld`)
               if (entityResponse.ok) {
-                const entityData = await entityResponse.json()
-                entities.value.set(entryData.entity_id, entityData)
+                const entityData = normalizeNode<Entity>(await entityResponse.json())
+                if (entityData) entities.value.set(entryData.entity_id, entityData)
               }
             }
           }

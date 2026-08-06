@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
+import { normalizeNode } from '@/utils/normalizeNode'
 
 const route = useRoute()
 
@@ -171,10 +172,11 @@ const loadRelatedEntries = async (orgIdentifier: string) => {
       const entryResponse = await fetch(`/api/v1/node/entry/${entryRef}.jsonld`)
       if (!entryResponse.ok) continue
 
-      const entryData: Entry = await entryResponse.json()
-      const announcement = entryData.announcement
+      // Entry nodes arrive in the producer's JSON-LD vocabulary
+      const entryData = normalizeNode<Entry>(await entryResponse.json())
+      const announcement = entryData?.announcement
 
-      if (!announcement) continue
+      if (!entryData || !announcement) continue
 
       // Check if this org is publisher
       if (announcement.publisher === orgIdentifier || announcement.publisher?.includes(orgIdentifier)) {

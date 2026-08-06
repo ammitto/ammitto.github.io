@@ -8,7 +8,8 @@
     "build": "npm run build:api && vue-tsc -b && vite-ssg build",
     "build:api": "node scripts/build-api-data.js",
     "preview": "vite preview",
-    "typecheck": "vue-tsc -b"
+    "typecheck": "vue-tsc -b",
+    "test:unit": "tsc -p tsconfig.test.json && node --test tests/*.test.js"
   },
   "dependencies": {
     "vue": "^3.4.21",

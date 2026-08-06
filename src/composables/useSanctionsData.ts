@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue'
 import FlexSearch from 'flexsearch'
+import { normalizeGraph } from '@/utils/normalizeNode'
 
 // Entity interface matching internal format
 export interface SanctionEntity {
@@ -214,8 +215,14 @@ async function loadSourceEntities(source: string): Promise<SanctionEntity[]> {
 
     const data: JsonLdResponse = await response.json()
 
+    // The aggregate graph holds entity and entry nodes in the producer's
+    // JSON-LD vocabulary; entries carry no names and are dropped here
+    const nodes = normalizeGraph<JsonLdEntity>(data['@graph'])
+
     // Transform all entities in the graph
-    const entities = (data['@graph'] || []).map(e => transformEntity(e, source))
+    const entities = nodes
+      .filter(e => typeof e.id === 'string' && e.id.includes('/entity/'))
+      .map(e => transformEntity(e, source))
 
     sourceDataCache.value.set(cacheKey, entities)
 

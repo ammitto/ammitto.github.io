@@ -1,6 +1,7 @@
 import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useSearchIndex } from './useSearchIndex'
+import { normalizeNode, toNodeIri } from '@/utils/normalizeNode'
 
 // Full entity interface matching new data-cn JSON-LD node structure
 export interface FullEntity {
@@ -136,6 +137,10 @@ export interface Entry {
 
 const API_BASE = import.meta.env.BASE_URL || '/'
 
+// Published node IRIs are rooted here; entry references that are not are
+// not resolvable against the API tree
+const ENTITY_IRI_BASE = 'https://www.ammitto.org/'
+
 export function useEntityData() {
   const route = useRoute()
   const { loadFullEntity, loadSearchIndex, isLoaded, isLoading } = useSearchIndex()
@@ -176,21 +181,32 @@ export function useEntityData() {
 
   // Load entries using sanction_entry_ids from the entity
   const loadEntries = async () => {
-    if (!entity.value?.sanction_entry_ids?.length) {
+    const entryIris = entity.value?.sanction_entry_ids
+    if (!Array.isArray(entryIris) || entryIris.length === 0) {
       return
     }
 
-    for (const entryIri of entity.value.sanction_entry_ids) {
+    for (const rawIri of entryIris) {
+      // The IRI tail becomes a fetch path verbatim, so it must be a
+      // resolvable entry node IRI. A non-string would otherwise be iterated
+      // character by character, one bogus fetch per character.
+      const entryIri = toNodeIri(rawIri, 'entry')
+      if (!entryIri) {
+        console.warn('Skipping unrecognised entry reference:', rawIri)
+        continue
+      }
+
       try {
         // Convert IRI to API path
         // IRI: https://www.ammitto.org/entry/cn/import-export-control-list/202535-csbc-corporation-taiwan
         // Path: api/v1/node/entry/cn/import-export-control-list/202535-csbc-corporation-taiwan.jsonld
-        const entryPath = entryIri.replace('https://www.ammitto.org/', 'api/v1/node/')
+        const entryPath = `api/v1/node/${entryIri.slice(ENTITY_IRI_BASE.length)}`
         const response = await fetch(`${API_BASE}${entryPath}.jsonld`)
 
         if (response.ok) {
-          const data = await response.json()
-          entries.value.push(data as Entry)
+          // Entry nodes arrive in the producer's JSON-LD vocabulary
+          const data = normalizeNode<Entry>(await response.json())
+          if (data) entries.value.push(data)
         }
       } catch {
         console.warn('Failed to load entry:', entryIri)

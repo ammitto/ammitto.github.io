@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue'
 import FlexSearch from 'flexsearch'
+import { normalizeNode } from '@/utils/normalizeNode'
 
 /**
  * Lightweight search entity from search-index.json.
@@ -275,7 +276,8 @@ async function loadFullEntity(idOrRef: string): Promise<Record<string, unknown> 
       throw new Error(`Failed to load entity: ${response.status}`)
     }
 
-    return await response.json()
+    // Entity nodes arrive in the producer's JSON-LD vocabulary
+    return normalizeNode(await response.json())
   } catch (e) {
     console.error(`Failed to load entity ${idOrRef}:`, e)
     return null
