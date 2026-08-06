@@ -101,7 +101,7 @@ const API_BASE = import.meta.env.BASE_URL || '/'
 // All available sources
 const ALL_SOURCES = [
   'eu', 'un', 'us', 'wb', 'uk', 'au', 'ca', 'ch', 'cn',
-  'ru', 'tr', 'nz', 'jp', 'eu-vessels', 'un-vessels'
+  'ru', 'tr', 'nz', 'jp', 'eu_vessels', 'un_vessels'
 ]
 
 /**

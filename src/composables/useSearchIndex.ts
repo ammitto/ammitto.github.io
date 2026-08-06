@@ -3,14 +3,27 @@ import FlexSearch from 'flexsearch'
 import { normalizeNode } from '@/utils/normalizeNode'
 
 /**
- * Lightweight search entity from search-index.json
+ * Lightweight search entity from search-index.json.
+ *
+ * Only `id`, `ref`, `type`, `names` and `status` are guaranteed: the
+ * producer (the gem's SearchIndexExporter) compacts every other field
+ * away when the source carries no value, and defaults `type` to "person"
+ * and `status` to "active". `names` is always an array but may be empty.
+ *
+ * At the gem SHA this site pins, one entity yields one row per sanction
+ * entry, so the same `id` can repeat. Row deduplication by entity id is
+ * an unmerged upstream change (ammitto/ammitto#27); nothing here may
+ * assume ids are unique until that lands and the pin moves.
  */
 export interface SearchEntity {
   id: string
   ref: string // e.g., "un/KPi.066"
-  type: 'person' | 'organization' | 'vessel' | 'aircraft'
+  // The four values the gem's transformers emit today; the producer's
+  // own contract is any non-blank string, so unknown values must not be
+  // a type error here.
+  type: 'person' | 'organization' | 'vessel' | 'aircraft' | (string & {})
   names: string[]
-  primaryName: string
+  primaryName?: string
   country?: string
   regime?: string
   authority?: string

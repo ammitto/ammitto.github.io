@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter, type LocationQueryValue } from 'vue-router'
 import SearchInput from '@/components/atoms/SearchInput.vue'
 import Badge from '@/components/atoms/Badge.vue'
 import EntityCard from '@/components/molecules/EntityCard.vue'
 import SearchFilters from '@/components/organisms/SearchFilters.vue'
 import { useScrollAnimation } from '@/composables/useScrollAnimation'
 import { useSearchIndex, type SearchEntity } from '@/composables/useSearchIndex'
+import { normalizeSourceCode } from '@/config'
 
 // Initialize scroll animations
 useScrollAnimation()
@@ -42,23 +43,39 @@ const {
   filter,
 } = useSearchIndex()
 
+// Query params arrive as string | null | (string | null)[] — or
+// undefined when absent; keep only non-blank string entries and drop
+// duplicates so null, empty and whitespace-only forms (?type, ?type=%20)
+// never leak into filters or back into the canonicalized URL. Trimming
+// precedes the blank test and the dedup: " " is truthy, so untrimmed it
+// would become a filter value matching no facet code, emptying the
+// result set while staying in the URL.
+const queryList = (
+  value: LocationQueryValue | LocationQueryValue[] | undefined,
+) =>
+  [...new Set(
+    (Array.isArray(value) ? value : [value])
+      .filter((v): v is string => typeof v === 'string')
+      .map((v) => v.trim())
+      .filter((v) => v !== ''),
+  )]
+
 // Load data on mount
 onMounted(async () => {
   // Initialize from URL params
   const { q, source, type, status } = route.query
-  if (q) searchQuery.value = q as string
-  if (source) {
-    const src = Array.isArray(source) ? source : [source]
-    filters.value.sources = src as string[]
-  }
-  if (type) {
-    const typ = Array.isArray(type) ? type : [type]
-    filters.value.entityTypes = typ as string[]
-  }
-  if (status) {
-    const stat = Array.isArray(status) ? status : [status]
-    filters.value.statuses = stat as string[]
-  }
+  const [firstQuery] = queryList(q)
+  if (firstQuery) searchQuery.value = firstQuery
+  // Parse unconditionally: null/empty scalar forms (?source) must also
+  // reach the filters so the watcher below canonicalizes them away.
+  // Normalize legacy hyphenated codes (eu-vessels -> eu_vessels) so old
+  // bookmarks keep filtering; de-duplicate after normalization so mixed
+  // legacy/canonical forms collapse to one entry.
+  filters.value.sources = [...new Set(
+    queryList(source).map(normalizeSourceCode),
+  )]
+  filters.value.entityTypes = queryList(type)
+  filters.value.statuses = queryList(status)
 
   // Load search index and facets
   await Promise.all([loadSearchIndex(), loadFacets()])
@@ -126,11 +143,15 @@ const loadMore = () => {
   loadedCount.value += PAGE_SIZE
 }
 
-// Count per category for filter badges (use facets when available)
+// Count per category for filter badges (use facets when available).
+// Null-prototype accumulators: the keys are facet codes read straight out
+// of api/v1/facets/*.json, so on a plain {} a code of `__proto__` would
+// assign to the prototype rather than create an own property — the count
+// vanishes and reads return Object.prototype.
 const counts = computed(() => {
-  const sourceCountsMap: Record<string, number> = {}
-  const typeCountsMap: Record<string, number> = {}
-  const statusCountsMap: Record<string, number> = {}
+  const sourceCountsMap: Record<string, number> = Object.create(null)
+  const typeCountsMap: Record<string, number> = Object.create(null)
+  const statusCountsMap: Record<string, number> = Object.create(null)
 
   // Use facets for source counts (more accurate)
   for (const facet of authorityFacets.value) {
