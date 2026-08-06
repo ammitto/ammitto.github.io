@@ -367,7 +367,11 @@ onMounted(async () => {
                       <span class="capitalize font-medium text-sm">{{ formatEffectType(effect.effect_type) }}</span>
                     </div>
                     <!-- Localized descriptions -->
-                    <div v-if="effect.description && effect.description.length > 0" class="space-y-1">
+                    <!-- Localized array only: a plain-string description would
+                         truthy-match here and v-for would iterate its
+                         CHARACTERS, rendering one bare colon per character
+                         (seen live on every wb debarment record). -->
+                    <div v-if="Array.isArray(effect.description) && effect.description.length > 0" class="space-y-1">
                       <div v-for="(desc, didx) in effect.description" :key="didx" class="text-sm">
                         <span class="text-light-muted dark:text-dark-muted text-xs uppercase mr-1">{{ desc.lang }}:</span>
                         <span :class="{ 'font-medium': desc.is_primary }">{{ desc.value }}</span>
@@ -394,11 +398,16 @@ onMounted(async () => {
               <div v-if="reason.category" class="text-xs uppercase text-brand-primary mb-1">
                 {{ reason.category }}
               </div>
-              <div v-if="reason.description && reason.description.length > 0" class="space-y-1">
+              <!-- Same guard as effects: v-for over a plain string iterates
+                   characters and renders a colon per character. -->
+              <div v-if="Array.isArray(reason.description) && reason.description.length > 0" class="space-y-1">
                 <div v-for="(desc, didx) in reason.description" :key="didx" class="text-sm">
                   <span class="text-light-muted dark:text-dark-muted text-xs uppercase mr-1">{{ desc.lang }}:</span>
                   <span :class="{ 'font-medium': desc.is_primary }">{{ desc.value }}</span>
                 </div>
+              </div>
+              <div v-else-if="reason.description" class="text-sm">
+                {{ reason.description }}
               </div>
             </li>
           </ul>
