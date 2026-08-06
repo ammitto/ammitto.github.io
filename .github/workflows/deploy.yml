@@ -37,21 +37,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ammitto/ammitto
-          # Transitional pin, superseded inside this stack. It was taken
-          # when main was 1629e2e ("[WIP] Fix production harmonize
-          # pipeline"), whose harmonize crashed on an undefined variable
-          # `r`. That work landed as ammitto/ammitto#18 on 2026-07-24, and
-          # main is now 541b0cf — eight merged PRs later, #18 through #25
-          # on first-parent history — so this pin has none of: harmonize
-          # health gates, --allow-empty, per-source sources/<code>.jsonld
-          # aggregates, the exporter filename clamp, or harmonize
-          # input-directory discovery.
-          # The repin to 541b0cf and the removal of the aggregate-restore
-          # step below both live in the follow-up PR of this stack; the
-          # pin stays here only so the CI-workspace fix reviews on its
-          # own. Merging this PR without that follow-up deploys a pre-#18
-          # gem's output.
-          ref: 8203303c5f250cc8372cb91465ac51d3bd34b766
+          # Pinned to the post-#24/#25 merge of main (exporter filename
+          # clamp fixing the ENAMETOOLONG crash, harmonize input-dir
+          # discovery fix). Pin-to-SHA stays the policy — tracking
+          # floating main is a pending policy decision.
+          ref: 541b0cfe2d970fe57574422351913e8bb1edb868
           path: ammitto-gem
 
       - name: Checkout data repositories
@@ -95,105 +85,74 @@ jobs:
           # creates/overwrites files, so without this, stale committed files
           # would survive into the deployed artifact next to fresh output.
           rm -rf ../public/api/v1
-          bundle exec ruby exe/ammitto harmonize --scan --verbose \
+          # --combine emits the aggregated all.jsonld (downloaded by the
+          # client library) and its all.ttl Turtle rendering; the gem
+          # gates both behind the flag and defaults it off.
+          bundle exec ruby exe/ammitto harmonize --scan --verbose --combine \
             --sources-dir .. \
             --output-dir ../public/api/v1
 
-      - name: Restore per-source aggregates
-        run: |
-          # The pinned gem predates the per-source sources/<code>.jsonld
-          # aggregates that the live API serves (and the site fetches),
-          # so restore them from the committed api/v1 snapshot. Remove
-          # this step together with the pin once the gem generates them
-          # itself. If the destination already exists, harmonize has
-          # started generating the aggregates: fail loudly rather than
-          # nest or overwrite fresh output with the stale snapshot.
-          if [ -e public/api/v1/sources ]; then
-            echo "public/api/v1/sources already exists: harmonize now generates per-source aggregates; remove this step together with the gem pin."
-            exit 1
-          fi
-          # Validate the snapshot before publishing it. BrowseEntitiesPage
-          # loads these aggregates through useSanctionsData, whose
-          # JsonLdEntity contract reads a bare `id` plus snake_case fields
-          # (entity_type, names[].full_name, source_references[]) — the
-          # pre-revamp schema this snapshot is written in. Do NOT gate on
-          # JSON-LD node shape here: 96550 of the snapshot's 96731 nodes
-          # carry `id` rather than `@id`, so an @id/@type assertion would
-          # reject the only schema this consumer can actually read.
-          # Measured 2026-07-29 across all 15 files: those 96550 bare ids
-          # are ALL distinct, only 24 nodes in total resolve to a
-          # `/unknown` placeholder, and 93102 of 93423 name objects carry
-          # a non-blank full_name. The records are real, named and
-          # distinctly identified.
-          # What IS wrong is coverage. Three aggregates collapsed to a
-          # single entity each against the counts stats.json claims —
-          # eu 1 of 11720, ru 1 of 1995, un_vessels 1 of 32 — so
-          # restoring them unchecked would serve a near-empty EU list as
-          # live data. The two gates below are therefore: a
-          # schema-agnostic identifier check (@id or id, non-blank), and
-          # a coverage floor at a quarter of the committed count. The
-          # twelve healthy files clear that floor with room (the tightest
-          # is ch at 8255 against 4797); the three collapsed ones fail it.
-          # Both candidates are tested independently rather than with
-          # `.["@id"] // .id`: that alternative yields on false/null only,
-          # so a numeric or whitespace @id would mask a perfectly usable
-          # `id` and fail a file this gate should pass. The coverage
-          # counter anchors on the whole entity IRI instead of searching
-          # for "/entity/" anywhere in the string, so a value such as
-          # "garbage/entry/x/entity/y" cannot pad the count, and it
-          # excludes whitespace from every path component so an id like
-          # "https://x/entity/ / " is not counted as a real entity.
-          command -v jq > /dev/null \
-            || { echo "jq is required to validate the aggregate snapshot"; exit 1; }
-          for src in api/v1/sources/*.jsonld; do
-            code=$(basename "$src" .jsonld)
-            jq -es 'length == 1 and (.[0] | type == "object"
-                      and (.["@graph"] | type == "array" and length > 0
-                        and all(type == "object"
-                          and ([.["@id"], .id]
-                                 | map(select(type == "string" and test("\\S")))
-                                 | length > 0))))' \
-              "$src" > /dev/null \
-              || { echo "${src}: not a single JSON object, or nodes carry no usable identifier under @id or id"; exit 1; }
-            distinct=$(jq -es \
-              '.[0]["@graph"]
-                 | map([.["@id"], .id]
-                         | map(select(type == "string"
-                                      and test("^https?://[^/[:space:]]+/entity/[^/[:space:]]+/[^/[:space:]]+$")))
-                         | .[0] | select(. != null))
-                 | unique | length' "$src") \
-              || { echo "${src}: cannot count distinct entity ids"; exit 1; }
-            committed=$(jq -er --arg s "$code" \
-              '.sources[$s].entities | select(type == "number" and . == floor and . > 0)' \
-              api/v1/stats.json) \
-              || { echo "${code}: no committed entity count to check the snapshot against"; exit 1; }
-            # Clamp to 1: integer division turns any committed count below
-            # 4 into a floor of 0, which a fully collapsed aggregate would
-            # pass. Every source must contribute at least one entity.
-            floor=$(( committed / 4 ))
-            [ "$floor" -ge 1 ] || floor=1
-            if [ "$distinct" -lt "$floor" ]; then
-              echo "${src}: holds ${distinct} distinct entity ids against a committed ${committed} (floor ${floor}); refusing to publish a collapsed aggregate"
-              exit 1
-            fi
-          done
-          cp -R api/v1/sources public/api/v1/sources
-
       - name: Verify harmonized output
         run: |
-          # The pinned gem has no output health gates, so guard here: fail
-          # the run instead of deploying an empty or incomplete API tree.
+          # Independent workflow-side gate. The gem enforces its own health
+          # gates (nonzero exit on per-file transform errors, source errors,
+          # zero entities, missing aggregates), but those cannot catch
+          # partial-source loss — a source that "succeeds" with far fewer
+          # entities than reality. Entity floors live in
+          # .github/harmonize-thresholds.json (derivation documented there);
+          # regenerate them from a reviewed fresh harmonize when sources
+          # legitimately shrink or grow.
+          # UNREACHABLE AT THE CURRENT PIN. ca, ru, un and un_vessels hold
+          # no harmonizable input, and the gem's own zero-entity gate exits
+          # 1 on them unless the run passes --allow-empty, which the
+          # harmonize step above deliberately does not. So this step is
+          # never reached until either those data repos are restored or the
+          # workflow opts them out. The floors below were also measured on
+          # 541b0cf plus three unmerged gem branches, so a run against the
+          # pinned SHA alone would publish the placeholder ids those
+          # branches remove. Both are why the deploy stays red.
+          thresholds=.github/harmonize-thresholds.json
           command -v jq > /dev/null \
             || { echo "jq is required for verification"; exit 1; }
-          jq -e . public/api/v1/stats.json > /dev/null \
-            || { echo "stats.json is missing or not valid JSON"; exit 1; }
-          test -s public/api/v1/search-index.json \
-            || { echo "search-index.json is missing or empty"; exit 1; }
-          jq -e '(.entities | type == "array") and (.entities | length > 0)' \
+          # Slurp (-s) so empty files and multi-document streams fail: a
+          # bare `jq -e .` exits 0 on both, and a multi-document file
+          # would make the per-source jq lookups below emit MULTILINE
+          # values that break [ -lt ] into a silent pass.
+          jq -es 'length == 1 and (.[0] | type == "object")' "$thresholds" > /dev/null \
+            || { echo "threshold manifest ${thresholds} is missing, invalid, or not a single JSON object"; exit 1; }
+          jq -es 'length == 1 and (.[0] | type == "object")' public/api/v1/stats.json > /dev/null \
+            || { echo "stats.json is missing, invalid, or not a single JSON object"; exit 1; }
+          # jq object parsing is last-duplicate-wins, so a duplicated key
+          # in either decision input would silently swap the reviewed
+          # value for the file's last one. Detect duplicates from the raw
+          # stream events: leaf paths alone are not enough (a duplicated
+          # container key can emit disjoint leaf paths), so close events
+          # are mapped to their container path too — every key
+          # instantiation (scalar leaf, empty container, or container
+          # close) must then appear exactly once. -n with explicit inputs
+          # is deliberate: under -s --stream, jq 1.6 splits the final
+          # close event into a second input and -e keys off that stray
+          # last output. The graph artifacts below are only checked
+          # structurally; last-wins there matches what any consumer's
+          # parser sees, so duplicates cannot flip those gates.
+          for f in "$thresholds" public/api/v1/stats.json; do
+            jq -en --stream \
+              '[inputs | if length == 2 then .[0] else .[0][:-1] end]
+                | length == (unique | length)' \
+              "$f" > /dev/null \
+              || { echo "duplicate JSON keys in ${f}"; exit 1; }
+          done
+          jq -es 'length == 1 and (.[0] | (.entities | type == "array") and (.entities | length > 0))' \
             public/api/v1/search-index.json > /dev/null \
-            || { echo "search-index.json has no entities array"; exit 1; }
-          test -s public/api/v1/all.jsonld \
-            || { echo "all.jsonld is missing or empty"; exit 1; }
+            || { echo "search-index.json is not a single JSON object with a non-empty entities array"; exit 1; }
+          # The client library downloads all.jsonld: require one JSON
+          # object with a non-empty @graph, not just a non-empty file
+          # (~59 MB; the slurp parse costs a few seconds).
+          jq -es 'length == 1 and (.[0] | type == "object" and (.["@graph"] | type == "array" and length > 0))' \
+            public/api/v1/all.jsonld > /dev/null \
+            || { echo "all.jsonld is not a single JSON-LD object with a non-empty @graph"; exit 1; }
+          test -s public/api/v1/all.ttl \
+            || { echo "all.ttl is missing or empty"; exit 1; }
           count=$(find public/api/v1 -type f | wc -l)
           echo "Harmonized output contains ${count} files"
           test "$count" -ge 100 \
@@ -211,45 +170,134 @@ jobs:
             test -s "public/api/v1/node/${kind}/index.jsonld" \
               || { echo "Missing node index: node/${kind}/index.jsonld"; exit 1; }
           done
-          # Guard against a partial harmonize: the pinned gem swallows
-          # per-file transformation errors and still reports success, so a
-          # file-count floor alone cannot catch one. Floor every source at
-          # a QUARTER of its committed-snapshot count: the snapshot is the
-          # only baseline that exists for all 15 sources (their repo
-          # layouts differ and several keep no processed/ YAML), but its
-          # counts drift and at least one (au) is double-counted at ~2x
-          # the repo's actual data — a quarter-floor still catches a true
-          # collapse. Tighten to half once the pin is lifted and the
-          # snapshot is regenerated. Every restored per-source aggregate
-          # must be present and valid JSON.
+          # Large-loss regression gate: floor every source's harmonized
+          # entity count at its manifest floor. The source list is
+          # hardcoded here so a manifest edit that drops a key fails the
+          # floor lookup loudly instead of silently disabling that
+          # source's gate. Counts and floors must be plain non-negative
+          # integers within 1e8 (floors strictly positive — zero or
+          # negative would disable the gate; the bound keeps jq from
+          # emitting exponent notation that [ -lt ] cannot parse); the
+          # digits-only case guard makes the shell comparisons fail
+          # closed even if a jq quirk lets a non-integer through. The
+          # harmonized count defaults a missing source key to 0 so it
+          # fails the floor below with an accurate message instead.
+          # Every generated per-source aggregate must be a single JSON
+          # object with a non-empty @graph (a zero-byte file passes a
+          # bare `jq -e .`) whose nodes each carry a non-blank identifier.
+          # The identifier is accepted under @id OR a bare `id`, and no
+          # @type is required: the gem's serializer emits @id/@type, but
+          # BrowseEntitiesPage reads these files through
+          # useSanctionsData's JsonLdEntity contract, which wants a bare
+          # `id` and snake_case fields. Asserting JSON-LD node shape here
+          # would certify output that page cannot render.
+          # So the gate below asserts the CONSUMER contract, not the
+          # producer's: every node must be safe for transformEntity to
+          # walk, every entity node must expose a bare `id`, and at least
+          # one must expose a `names[].full_name`. At the current pin the
+          # gem emits `@id`/`entityType`/
+          # `names[].fullName` and this WILL fail — deliberately. That
+          # failure is the schema mismatch itself, and it is better named
+          # here than shipped as a silently empty /browse/entities page.
+          # Resolving it (teach useSanctionsData both schemas, or change
+          # what the gem writes) is a maintainer decision this PR does
+          # not take.
+          # Identifier candidates are tested independently rather than
+          # with `.["@id"] // .id`: that alternative yields on false/null
+          # only, so a numeric or whitespace @id would mask a usable `id`.
           for src in au ca ch cn eu eu_vessels jp nz ru tr uk un un_vessels us wb; do
-            # The committed baseline must be a number (a missing one would
-            # silently disable this source's floor); the harmonized count
-            # defaults a missing source key to 0 so it fails the floor
-            # below with an accurate message instead.
-            expected=$(jq -er --arg s "$src" \
-              '.sources[$s].entities | select(type == "number") | floor' \
-              api/v1/stats.json) \
-              || { echo "Invalid committed entity count for ${src}"; exit 1; }
+            floor=$(jq -er --arg s "$src" \
+              '.source_floors[$s] | select(type == "number" and . == floor and . > 0 and . <= 100000000)' \
+              "$thresholds") \
+              || { echo "Missing or invalid floor for ${src} in ${thresholds}"; exit 1; }
+            case "$floor" in (''|*[!0-9]*)
+              echo "Non-integer floor for ${src}: ${floor}"; exit 1;;
+            esac
             actual=$(jq -er --arg s "$src" \
-              '.sources[$s].entities // 0 | select(type == "number") | floor' \
+              '.sources[$s].entities // 0 | select(type == "number" and . == floor and . >= 0 and . <= 100000000)' \
               public/api/v1/stats.json) \
               || { echo "Invalid harmonized entity count for ${src}"; exit 1; }
-            floor=$((expected / 4))
+            case "$actual" in (''|*[!0-9]*)
+              echo "Non-integer entity count for ${src}: ${actual}"; exit 1;;
+            esac
             if [ "$actual" -lt "$floor" ]; then
-              echo "Source ${src}: harmonized ${actual} entities, floor is" \
-                "${floor} (quarter of committed ${expected})"
+              echo "Source ${src}: harmonized ${actual} entities, floor is ${floor}"
               exit 1
             fi
-            jq -e . "public/api/v1/sources/${src}.jsonld" > /dev/null \
+            jq -es 'length == 1 and (.[0] | type == "object"
+                      and (.["@graph"] | type == "array" and length > 0
+                        and all(type == "object"
+                          and ([.["@id"], .id]
+                                 | map(select(type == "string" and test("\\S")))
+                                 | length > 0))))' \
+              "public/api/v1/sources/${src}.jsonld" > /dev/null \
               || { echo "Missing or invalid aggregate: sources/${src}.jsonld"; exit 1; }
+            # Three rules, in the consumer's terms.
+            # (a) Crash safety, over EVERY node: transformEntity is mapped
+            #     across the whole @graph without filtering, and it walks
+            #     both `entity.names?.map(n => n.full_name)` and
+            #     `entity.addresses?.map(a => a.street)`. Each throws a
+            #     TypeError if its value is a non-array non-null, or if it
+            #     is an array holding a null; loadSourceEntities turns any
+            #     throw into [] for the ENTIRE source, so one bad record
+            #     silently empties a whole list. Both keys must therefore
+            #     be absent/null, or an array with no null element, on
+            #     every node rather than only on the ones that look like
+            #     entities. String or number elements are safe (property
+            #     access on them just yields undefined) and are allowed.
+            # (b) Identity, universal over candidates: candidates are
+            #     selected WITHOUT relying on the id, so a node that
+            #     presents as an entity but carries a broken one cannot
+            #     slip past the quantifier. Schema is all-or-nothing per
+            #     file, so every candidate needs a bare `id` matching the
+            #     entity IRI shape, whitespace excluded from every path
+            #     component.
+            # (c) Names, existential: at least one candidate must carry a
+            #     usable names[].full_name. Only availability is relaxed
+            #     here — shape safety stays universal under (a). A handful
+            #     of genuinely nameless records is data quality, not a
+            #     schema failure: the March snapshot's ~24 placeholder
+            #     entities are exactly that, and gating on "every" would
+            #     reject twelve otherwise-healthy files.
+            jq -es 'def walkable: type == "null"
+                                  or (type == "array"
+                                      and all(type != "null"));
+                    .[0]["@graph"] as $g
+                      | ($g | all(type == "object"
+                                  and (.names | walkable)
+                                  and (.addresses | walkable)))
+                        and ($g
+                             | map(select(has("entity_type") or has("entityType")
+                                          or ([.["@id"], .id]
+                                                | any(type == "string"
+                                                      and test("/entity/")))))
+                             | length > 0
+                               and all(.id | type == "string"
+                                       and test("^https?://[^/[:space:]]+/entity/[^/[:space:]]+/[^/[:space:]]+$"))
+                               and any(.names | type == "array"
+                                       and any(type == "object"
+                                               and (.full_name | type == "string"
+                                                    and test("\\S")))))' \
+              "public/api/v1/sources/${src}.jsonld" > /dev/null \
+              || { echo "sources/${src}.jsonld does not match the useSanctionsData contract: every node must be an object whose names AND addresses are absent, null, or an array holding no null; every entity node needs a bare id; at least one needs a names[].full_name. /browse/entities would render it empty"; exit 1; }
           done
-          entities_count=$(jq -er '.total_entities | select(type == "number") | floor' \
+          total_floor=$(jq -er \
+            '.total_entities_floor | select(type == "number" and . == floor and . > 0 and . <= 100000000)' \
+            "$thresholds") \
+            || { echo "Missing or invalid total_entities_floor in ${thresholds}"; exit 1; }
+          case "$total_floor" in (''|*[!0-9]*)
+            echo "Non-integer total_entities_floor: ${total_floor}"; exit 1;;
+          esac
+          entities_count=$(jq -er \
+            '.total_entities | select(type == "number" and . == floor and . >= 0 and . <= 100000000)' \
             public/api/v1/stats.json) \
             || { echo "Invalid total_entities in stats.json"; exit 1; }
-          echo "Total entities: ${entities_count}"
-          test "$entities_count" -ge 1000 \
-            || { echo "Total entities ${entities_count} is below the floor of 1000"; exit 1; }
+          case "$entities_count" in (''|*[!0-9]*)
+            echo "Non-integer total_entities: ${entities_count}"; exit 1;;
+          esac
+          echo "Total entities: ${entities_count} (floor ${total_floor})"
+          test "$entities_count" -ge "$total_floor" \
+            || { echo "Total entities ${entities_count} is below the floor of ${total_floor}"; exit 1; }
 
       - name: Build Vue.js app with Vite
         run: npm run build
