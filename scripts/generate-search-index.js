@@ -171,14 +171,14 @@ function getAuthorityName(code) {
     'ch': 'Switzerland',
     'cn': 'China',
     'eu': 'European Union',
-    'eu-vessels': 'EU Vessels',
+    'eu_vessels': 'EU Vessels',
     'jp': 'Japan',
     'nz': 'New Zealand',
     'ru': 'Russia',
     'tr': 'Turkey',
     'uk': 'United Kingdom',
     'un': 'United Nations',
-    'un-vessels': 'UN Vessels',
+    'un_vessels': 'UN Vessels',
     'us': 'United States',
     'wb': 'World Bank'
   }
@@ -192,7 +192,11 @@ function main() {
   console.log('Generating search index from JSON-LD sources...\n');
 
   const allEntities = [];
-  const authorityCounts = {};
+  // Null-prototype: the keys are authority codes read out of the source
+  // files' IRIs, so a file carrying `__proto__` or `constructor` would
+  // otherwise read and write Object.prototype instead of a count —
+  // silently corrupting or dropping that authority's facet.
+  const authorityCounts = Object.create(null);
 
   // Get all source files
   const sourceFiles = fs.readdirSync(SOURCES_DIR)

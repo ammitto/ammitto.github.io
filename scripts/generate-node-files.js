@@ -62,7 +62,10 @@ function processSourceFile(filePath) {
   const content = fs.readFileSync(filePath, 'utf8');
   const data = JSON.parse(content);
 
-  const sourceCode = path.basename(filePath, '.jsonld').replace('_', '-');
+  // Keep the underscore source code as-is: entity/entry IRIs use underscore
+  // codes (e.g. entity/eu_vessels/...), and the frontend fetches node files
+  // at api/v1/node/entity/<ref>.jsonld with refs extracted from those IRIs.
+  const sourceCode = path.basename(filePath, '.jsonld');
 
   // Create directories
   const nodeEntityDir = path.join(NODE_DIR, 'entity', sourceCode);
