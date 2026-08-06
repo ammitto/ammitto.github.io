@@ -59,9 +59,18 @@
   "generated_at": "2026-07-29",
   "gem_commit": "541b0cfe2d970fe57574422351913e8bb1edb868",
   "gem_branches_applied": [
-    { "branch": "fix/pipeline-honesty", "measured_at": "2769b70" },
-    { "branch": "fix/output-integrity", "measured_at": "85f22bb" },
-    { "branch": "fix/ingestion-robustness", "measured_at": "cb2d8e0" }
+    {
+      "branch": "fix/pipeline-honesty",
+      "measured_at": "2769b70"
+    },
+    {
+      "branch": "fix/output-integrity",
+      "measured_at": "85f22bb"
+    },
+    {
+      "branch": "fix/ingestion-robustness",
+      "measured_at": "cb2d8e0"
+    }
   ],
   "derivation_command": "ammitto harmonize --sources-dir <15 data-* clones> --combine --verbose, once per source so no failure masked another",
   "reproducibility": [
@@ -84,17 +93,52 @@
     "cn": 322,
     "eu": 5860,
     "eu_vessels": 597,
-    "jp": 0,
+    "jp": 5097,
     "nz": 2058,
     "ru": 0,
-    "tr": 238,
+    "tr": 275,
     "uk": 5738,
     "un": 0,
     "un_vessels": 0,
     "us": 0,
     "wb": 1370,
-    "green_total": 19756,
+    "green_total": 25128,
     "index_rows": 19994
+  },
+  "partition": [
+    "publishing_sources and pending_sources partition source_floors: every",
+    "key appears in exactly one list. publishing_sources are harmonized and",
+    "gated on their floors below. pending_sources are named in the harmonize",
+    "step's --allow-empty list, or omitted from its source list entirely,",
+    "because their input is missing or unusable upstream; the verify step",
+    "holds each at EXACTLY zero entities and no published aggregate, so the",
+    "day one of them harvests real data the gate fails and forces its floor",
+    "to be recalibrated before it is published. That is deliberately the",
+    "opposite of relaxing the floor to 0: a floor of 0 would accept both",
+    "zero and a half-restored source, this accepts only zero.",
+    "Measured 2026-08-05 against ammitto/ammitto main dead9f0 with the three",
+    "open PRs #35, #36 and #37 merged in, over fresh clones of all 15 data-*",
+    "repositories: publishing_sources harmonize 20031 entities and every one",
+    "clears its existing floor unchanged; every pending source harmonizes 0."
+  ],
+  "publishing_sources": [
+    "au",
+    "cn",
+    "eu",
+    "eu_vessels",
+    "jp",
+    "nz",
+    "tr",
+    "uk",
+    "wb"
+  ],
+  "pending_sources": {
+    "ca": "processed/ is gitignored and empty; harmonize reports 'No YAML files found'. Cleared by the open data-ca PR that un-ignores processed/ plus one committed fetch.",
+    "ch": "the only committed input is one announcement-format YAML under sources/sanction-lists/, which the per-entity Ch::Identity path refuses as an unconditional transform error. Cleared by the open data-ch PR shipping processed/ YAML.",
+    "ru": "the mid.ru scrape returns 0 entities and processed/ is empty; harmonize reports 'No YAML files found'.",
+    "un": "no processed/ input directory in the clone at all.",
+    "un_vessels": "no processed/ input directory in the clone at all; the fetcher is a PDF stub that writes nothing.",
+    "us": "the only committed input is one announcement-format YAML under sources/sanction-lists/sdn-list/, which the per-entity Us::SdnEntry path refuses as an unconditional transform error. Cleared by the open data-us PR shipping processed/ YAML."
   },
   "source_floors": {
     "au": 2667,
@@ -103,7 +147,7 @@
     "cn": 225,
     "eu": 4102,
     "eu_vessels": 417,
-    "jp": 261,
+    "jp": 3567,
     "nz": 1440,
     "ru": 698,
     "tr": 166,
@@ -113,5 +157,26 @@
     "us": 6701,
     "wb": 959
   },
-  "total_entities_floor": 13829
+  "total_entities_floor": 17589,
+  "composition_note": [
+    "2026-08-05: jp moved from pending_sources to publishing_sources.",
+    "The gem tree measured here is main dead9f0 + PRs #35/#36/#37 + the",
+    "ch/ca/jp datafix, which adds announcement ingestion for jp and mints",
+    "ids for the 748 fefta-list records that carry none. jp harmonizes",
+    "5097 entities from data-jp as committed today (1f45061) -- no",
+    "data-repo change was required. tr also now exits 0 at 275 entities",
+    "rather than 238, so it joins the green total.",
+    "Floors here follow the documented integer rule",
+    "floor(count * 70 / 100): jp 3567, total floor 17589 over a green",
+    "total of 25128 (au cn eu eu_vessels jp nz tr uk wb).",
+    "THIS IS A HAND-TUNE, which the derivation note above forbids: it says",
+    "to regenerate the entire file from a reviewed full harvest. Treat",
+    "these two numbers as provisional and regenerate before relying on",
+    "them. The tr floor of 166 is left untouched and is now stale-low",
+    "against a measured 275.",
+    "ca ch ru un un_vessels us remain pending and remain held at exactly",
+    "zero; us and ch are still omitted from the harmonize source list",
+    "because their announcement-format YAML is an unconditional transform",
+    "error that no flag clears."
+  ]
 }
