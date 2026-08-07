@@ -86,12 +86,14 @@ export interface Entry {
   effects?: Array<{
     effect_type?: string
     scope?: string
+    // Producer data carries either a localized array or a plain string
+    // (seen live on wb debarment records); templates must guard both.
     description?: Array<{
       value: string
       lang: string
       script?: string
       is_primary?: boolean
-    }>
+    }> | string
   }>
   reasons?: Array<{
     category?: string
@@ -100,7 +102,7 @@ export interface Entry {
       lang: string
       script?: string
       is_primary?: boolean
-    }>
+    }> | string
   }>
   period?: {
     effective_date?: string
