@@ -100,26 +100,30 @@ jobs:
           # client library) and its all.ttl Turtle rendering; the gem
           # gates both behind the flag and defaults it off.
           #
-          # The sources are named rather than discovered with --scan. --scan
-          # picks up every data-* clone, including three whose committed
-          # input the gem cannot ingest at all — data-us and data-ch each
-          # hold one announcement-format YAML that the per-entity us/ch
-          # transformers refuse, and all 101 data-jp files carry blank local
-          # ids. Those are UNCONDITIONAL per-file transform errors: no flag
-          # clears them, so --scan can only ever exit 1. They come back to
-          # this list the moment their processed/ YAML ships (the open
-          # data-repo PRs) or announcement ingestion lands.
+          # The sources are named rather than discovered with --scan: the
+          # published set must stay exactly the set the threshold manifest
+          # was calibrated for, so adding a source is a deliberate edit to
+          # this list and .github/harmonize-thresholds.json together. The
+          # list is the manifest's derivation_command — all 15 sources. An
+          # earlier revision named only 13, excluding us and ch, because the
+          # gem then refused their committed input outright
+          # (announcement-format YAML in data-us/data-ch, blank local ids in
+          # every data-jp file). The gem pinned above transforms all three
+          # (ch record-shape dispatch, jp announcement ingestion), so that
+          # reasoning is obsolete: the 2026-08-07 calibration harvest
+          # measured us 19189, ch 8604 and jp 5097 entities, each exit 0.
           #
-          # --allow-empty covers the four sources that have input directories
-          # with nothing harmonizable in them (ca/ru ship no YAML, un and
-          # un_vessels have no input directory at all). It restores what the
-          # gem's DORMANT_SOURCES constant did automatically before it was
-          # replaced by this opt-in flag. It does NOT and cannot clear the
-          # us/ch/jp errors above.
+          # --allow-empty exempts the two pending sources whose input is
+          # missing upstream — ru ships no processed YAML and un_vessels has
+          # no input directory at all (their data-repo PRs are unmerged);
+          # the verify step below holds both at exactly zero. un and ca left
+          # this list on 2026-08-07: the data-repo gitignore fix landed
+          # their committed corpora, and both are now floor-gated publishing
+          # sources.
           bundle exec ruby exe/ammitto harmonize \
-            eu un wb uk au ca cn ru tr nz jp eu_vessels un_vessels \
+            eu un wb uk au ca cn ru tr nz jp eu_vessels un_vessels us ch \
             --verbose --combine \
-            --allow-empty un,ca,ru,un_vessels \
+            --allow-empty ru,un_vessels \
             --sources-dir .. \
             --output-dir ../public/api/v1
 
