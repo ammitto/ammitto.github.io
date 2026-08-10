@@ -27,7 +27,7 @@ const currentYear = new Date().getFullYear()
                 :href="source.url"
                 target="_blank"
                 rel="noopener noreferrer"
-                class="text-sm text-light-muted dark:text-dark-muted hover:text-brand-primary transition-colors"
+                class="text-sm text-light-muted dark:text-dark-muted hover:text-brand-link transition-colors"
               >
                 {{ source.name }}
               </a>
@@ -41,7 +41,7 @@ const currentYear = new Date().getFullYear()
             <li>
               <RouterLink
                 to="/about"
-                class="text-sm text-light-muted dark:text-dark-muted hover:text-brand-primary transition-colors"
+                class="text-sm text-light-muted dark:text-dark-muted hover:text-brand-link transition-colors"
               >
                 About
               </RouterLink>
@@ -49,7 +49,7 @@ const currentYear = new Date().getFullYear()
             <li>
               <RouterLink
                 to="/license"
-                class="text-sm text-light-muted dark:text-dark-muted hover:text-brand-primary transition-colors"
+                class="text-sm text-light-muted dark:text-dark-muted hover:text-brand-link transition-colors"
               >
                 License
               </RouterLink>
@@ -57,7 +57,7 @@ const currentYear = new Date().getFullYear()
             <li>
               <RouterLink
                 to="/api"
-                class="text-sm text-light-muted dark:text-dark-muted hover:text-brand-primary transition-colors"
+                class="text-sm text-light-muted dark:text-dark-muted hover:text-brand-link transition-colors"
               >
                 API Documentation
               </RouterLink>
@@ -65,7 +65,7 @@ const currentYear = new Date().getFullYear()
             <li>
               <RouterLink
                 to="/ontology"
-                class="text-sm text-light-muted dark:text-dark-muted hover:text-brand-primary transition-colors"
+                class="text-sm text-light-muted dark:text-dark-muted hover:text-brand-link transition-colors"
               >
                 Ontology
               </RouterLink>

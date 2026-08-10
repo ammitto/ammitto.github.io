@@ -16,6 +16,12 @@ export default {
           primary: '#0066cc',
           secondary: '#1a1a2e',
           accent: 'var(--color-brand-accent)',
+          // Link/accent TEXT. Unlike brand.primary this one is theme-aware:
+          // the variable is redefined under html.dark in main.css, because
+          // #0066cc as text on the dark surfaces only reaches 3.06-3.42:1.
+          // brand.primary stays literal so solid fills under white text
+          // (btn-primary, bg-brand-primary) keep the brand colour.
+          link: 'rgb(var(--color-brand-link) / <alpha-value>)',
         },
         status: {
           active: '#ef4444',

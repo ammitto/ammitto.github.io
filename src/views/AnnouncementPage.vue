@@ -299,7 +299,7 @@ onMounted(async () => {
       <!-- Back link -->
       <RouterLink
         to="/browse"
-        class="inline-flex items-center gap-2 text-light-muted dark:text-dark-muted hover:text-brand-primary mb-6"
+        class="inline-flex items-center gap-2 text-light-muted dark:text-dark-muted hover:text-brand-link mb-6"
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
@@ -354,7 +354,7 @@ onMounted(async () => {
               <dd class="font-medium">
                 <RouterLink
                   :to="`/document-type/${announcement.announcement.document_type}`"
-                  class="text-brand-primary hover:text-brand-primary/80"
+                  class="text-brand-link hover:text-brand-link/80"
                 >
                   {{ getDocumentTypeName(announcement.announcement.document_type) }}
                 </RouterLink>
@@ -365,7 +365,7 @@ onMounted(async () => {
               <dd class="font-medium">
                 <RouterLink
                   :to="`/organization/${announcement.announcement.authority}`"
-                  class="text-brand-primary hover:text-brand-primary/80"
+                  class="text-brand-link hover:text-brand-link/80"
                 >
                   {{ getOrganizationName(announcement.announcement.authority) }}
                 </RouterLink>
@@ -376,7 +376,7 @@ onMounted(async () => {
               <dd class="font-medium">
                 <RouterLink
                   :to="`/organization/${announcement.announcement.signatory}`"
-                  class="text-brand-primary hover:text-brand-primary/80"
+                  class="text-brand-link hover:text-brand-link/80"
                 >
                   {{ getOrganizationName(announcement.announcement.signatory) }}
                 </RouterLink>
@@ -387,7 +387,7 @@ onMounted(async () => {
               <dd class="font-medium">
                 <RouterLink
                   :to="`/organization/${announcement.announcement.publisher}`"
-                  class="text-brand-primary hover:text-brand-primary/80"
+                  class="text-brand-link hover:text-brand-link/80"
                 >
                   {{ getOrganizationName(announcement.announcement.publisher) }}
                 </RouterLink>
@@ -447,7 +447,7 @@ onMounted(async () => {
                   <RouterLink
                     v-if="citation.legal_instrument_id && !citation.legal_instrument_id.includes('/unknown')"
                     :to="`/legal-instrument/${citation.legal_instrument_id.split('/').slice(-2).join('/')}`"
-                    class="font-medium text-brand-primary hover:text-brand-primary/80"
+                    class="font-medium text-brand-link hover:text-brand-link/80"
                   >
                     {{ getLegalInstrumentName(citation.legal_instrument_id) }}
                   </RouterLink>

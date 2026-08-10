@@ -78,15 +78,15 @@ onMounted(async () => {
 
         <div class="flex flex-wrap justify-center gap-8">
           <div class="text-center">
-            <div class="text-3xl font-bold text-brand-primary">{{ entityCount.toLocaleString() }}</div>
+            <div class="text-3xl font-bold text-brand-link">{{ entityCount.toLocaleString() }}</div>
             <div class="text-sm text-light-muted dark:text-dark-muted">Entities</div>
           </div>
           <div class="text-center">
-            <div class="text-3xl font-bold text-brand-primary">{{ sourceCount }}</div>
+            <div class="text-3xl font-bold text-brand-link">{{ sourceCount }}</div>
             <div class="text-sm text-light-muted dark:text-dark-muted">Sources</div>
           </div>
           <div class="text-center">
-            <div class="text-3xl font-bold text-brand-primary">{{ typeCount }}</div>
+            <div class="text-3xl font-bold text-brand-link">{{ typeCount }}</div>
             <div class="text-sm text-light-muted dark:text-dark-muted">Types</div>
           </div>
         </div>

@@ -50,7 +50,7 @@ const toggleStatus = (code: string) => {
       <h3 class="font-semibold text-light-text dark:text-dark-text">Filters</h3>
       <button
         @click="emit('clear')"
-        class="text-sm text-brand-primary hover:underline"
+        class="text-sm text-brand-link hover:underline"
       >
         Clear all
       </button>

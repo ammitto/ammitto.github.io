@@ -333,7 +333,7 @@ const statuses = computed(() =>
               </span>
               {{ filteredEntities.length === 1 ? 'result' : 'results' }}
               <span v-if="hasActiveFilters">(filtered)</span>
-              <span v-if="loading" class="ml-2 text-brand-primary">
+              <span v-if="loading" class="ml-2 text-brand-link">
                 (loading...)
               </span>
             </p>

@@ -237,7 +237,7 @@ onMounted(async () => {
       <!-- Back link -->
       <RouterLink
         to="/browse"
-        class="inline-flex items-center gap-2 text-light-muted dark:text-dark-muted hover:text-brand-primary mb-6"
+        class="inline-flex items-center gap-2 text-light-muted dark:text-dark-muted hover:text-brand-link mb-6"
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
@@ -260,8 +260,11 @@ onMounted(async () => {
       <div v-else-if="instrument" class="space-y-6">
         <!-- Header -->
         <div class="bg-white dark:bg-dark-card rounded-lg shadow-sm border border-light-border dark:border-dark-border p-6">
-          <div class="flex items-start justify-between gap-4">
-            <div>
+          <!-- flex-wrap + min-w-0: the "View Official Document" button below is
+               shrink-0, so on a 320px screen the title and the button could not
+               share one row and the header pushed the page 59px wide. -->
+          <div class="flex flex-wrap items-start justify-between gap-4">
+            <div class="min-w-0">
               <h1 class="text-2xl font-bold text-light-fg dark:text-dark-fg mb-2">
                 {{ displayTitle }}
               </h1>
@@ -407,7 +410,7 @@ onMounted(async () => {
                 <div>
                   <RouterLink
                     :to="`/group/${getGroupRef(group.id)}`"
-                    class="text-brand-primary hover:underline font-medium"
+                    class="text-brand-link hover:underline font-medium"
                   >
                     {{ group.announcement_title || getGroupRef(group.id) }}
                   </RouterLink>

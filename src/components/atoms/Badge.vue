@@ -1,56 +1,44 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { sources, entityTypes, statuses } from '@/config'
+import { pillToneVars, NEUTRAL_SEED } from '@/config/palette'
 
 const props = defineProps<{
   variant?: 'source' | 'person' | 'organization' | 'vessel' | 'aircraft' | 'active' | 'suspended' | 'delisted' | 'terminated' | 'expired' | 'default'
   sourceCode?: string
 }>()
 
-const style = computed(() => {
+/**
+ * The seed colour this badge is themed from. Every lookup can miss — the
+ * source-code prop is optional and is genuinely omitted by callers (regime
+ * badges in EntityPage), the variant is cast from API strings that may not be
+ * a known type or status — so a miss falls back to the neutral seed rather
+ * than to `undefined`, which used to reach the style binding as the string
+ * "undefined20".
+ */
+const seed = computed(() => {
   if (props.variant === 'source') {
-    const source = sources.find(s => s.code === props.sourceCode)
-    return {
-      backgroundColor: (source?.color || '#6b7280') + '20',
-      color: source?.color || '#6b7280',
-      borderColor: (source?.color || '#6b7280') + '40',
-    }
+    return sources.find(s => s.code === props.sourceCode)?.color ?? NEUTRAL_SEED
   }
-
-  if (props.variant && ['person', 'organization', 'vessel', 'aircraft'].includes(props.variant)) {
-    const type = entityTypes.find(t => t.code === props.variant)
-    return {
-      backgroundColor: type?.color + '20',
-      color: type?.color,
-      borderColor: type?.color + '40',
-    }
-  }
-
-  if (props.variant && ['active', 'suspended', 'delisted', 'terminated', 'expired'].includes(props.variant)) {
-    const status = statuses.find(s => s.code === props.variant)
-    return {
-      backgroundColor: status?.color + '20',
-      color: status?.color,
-      borderColor: status?.color + '40',
-    }
-  }
-
-  return {
-    backgroundColor: '#6b728020',
-    color: '#6b7280',
-    borderColor: '#6b728040',
-  }
+  const type = entityTypes.find(t => t.code === props.variant)
+  if (type) return type.color
+  const status = statuses.find(s => s.code === props.variant)
+  if (status) return status.color
+  return NEUTRAL_SEED
 })
+
+/**
+ * Both themes' colours at once, as custom properties. `.tone-pill` and
+ * `html.dark .tone-pill` in main.css pick a set; see src/config/palette.ts for
+ * why the choice is made in CSS rather than by reading the theme here.
+ */
+const toneVars = computed(() => pillToneVars(seed.value))
 </script>
 
 <template>
   <span
-    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border"
-    :style="{
-      backgroundColor: style.backgroundColor,
-      color: style.color,
-      borderColor: style.borderColor,
-    }"
+    class="tone-pill inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border"
+    :style="toneVars"
   >
     <slot />
   </span>
