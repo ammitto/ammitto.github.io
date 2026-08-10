@@ -14,17 +14,40 @@ export async function useTheme(page, theme) {
 }
 
 /**
- * Serve the per-source aggregate that /browse/entities reads.
+ * Make sure /browse/entities has entities to render.
  *
- * The snapshot committed under `public/api/v1` has no `sources/` directory —
- * the harmonize step in the deploy workflow produces it — so that page renders
- * an empty list in a plain checkout and there would be nothing to scan. The
- * fixture is not invented: it is the repository's own `all.jsonld`, whose
- * `@graph` is exactly what `sources/<code>.jsonld` carries, so it cannot drift
- * from the producer's schema. Sources with no data answer with an empty graph,
- * which is what the page must tolerate anyway.
+ * If the build being tested carries a real `sources/` tree — which the deploy
+ * workflow's harmonize produces — this does NOTHING and the page is exercised
+ * against the deployed contract. It only steps in for a plain checkout, whose
+ * committed `public/api/v1` snapshot has no `sources/` directory at all, so
+ * the page would otherwise render an empty list and there would be nothing to
+ * scan.
+ *
+ * Even then the fixture is not invented: it is the repository's own
+ * `all.jsonld`, whose `@graph` is exactly what `sources/<code>.jsonld` carries.
+ * It is still consumer-side interception, so it proves the page renders that
+ * shape correctly — never that harmonize produced the endpoint.
+ *
+ * @returns true when interception was installed, false when the real files
+ *          were used.
  */
+async function hasRealSourceGraph(request, source) {
+  const response = await request.get(`/api/v1/sources/${source}.jsonld`)
+  if (!response.ok()) return false
+  try {
+    const body = await response.json()
+    return Array.isArray(body['@graph']) && body['@graph'].length > 0
+  } catch {
+    return false
+  }
+}
+
 export async function serveSourceGraphs(page, request, { source = 'cn' } = {}) {
+  // A 200 is not proof the endpoint exists: a static preview server answers
+  // unknown paths with the SPA's index.html. The response has to parse as the
+  // graph the page expects before it counts as the real thing.
+  if (await hasRealSourceGraph(request, source)) return false
+
   const response = await request.get('/api/v1/all.jsonld')
   expect(response.ok(), 'the committed aggregate must be servable').toBeTruthy()
   const aggregate = await response.json()
@@ -39,6 +62,7 @@ export async function serveSourceGraphs(page, request, { source = 'cn' } = {}) {
       body: isTarget ? body : JSON.stringify({ '@graph': [] }),
     })
   })
+  return true
 }
 
 /** Fail loudly on anything the page throws, rather than measuring a broken render. */
@@ -54,12 +78,33 @@ export function collectPageErrors(page) {
  * `load` event alone proves nothing about what is on screen.
  */
 export async function gotoRendered(page, path) {
-  const response = await page.goto(path, { waitUntil: 'networkidle' })
+  const response = await page.goto(path, { waitUntil: 'domcontentloaded' })
   if (response) {
     expect(response.status(), `${path} returned HTTP ${response.status()}`).toBeLessThan(400)
   }
-  await page.waitForFunction(() => document.fonts.ready.then(() => true))
   await expect(page.locator('#app')).toBeVisible()
+  // Best-effort settle, deliberately not an assertion. Against the full
+  // fifteen-source dataset some detail pages keep fetching related records for
+  // far longer than any sane test budget, and "the network went quiet" was
+  // never the thing worth proving anyway — every caller goes on to assert that
+  // the content it cares about is actually on screen, which is.
+  await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {})
+  await page.waitForFunction(() => document.fonts.ready.then(() => true))
+}
+
+/**
+ * Wait until the page's visible text contains `needle`, then return all of it.
+ * Retrying matters: these pages prerender a shell and fill it in after their
+ * data arrives, so a single innerText read is a race.
+ */
+export async function renderedText(page, needle, path) {
+  await page
+    .waitForFunction((text) => document.body.innerText.includes(text), needle, { timeout: 20000 })
+    .catch(() => {})
+  const text = (await page.locator('body').innerText()).replace(/\s+/g, ' ')
+  expect(text, `${path} never rendered its expected content ("${needle}")`).toContain(needle)
+  expect(text.length, `${path} rendered almost no text — the page did not load`).toBeGreaterThan(200)
+  return text
 }
 
 /**

@@ -295,12 +295,35 @@ test('tile initials clear AA against the tile fill, in both themes', () => {
   }
 })
 
-test('tile tone helper emits both themes for any seed', () => {
+test('tile tone helper emits both themes, the right way round, for any seed', () => {
   for (const { label, seed } of HOSTILE_SEEDS) {
     const vars = tileToneVars(seed)
     for (const key of ['--tile-fg', '--tile-bg', '--tile-fg-dark', '--tile-bg-dark']) {
       assert.match(vars[key] ?? '', HEX, `${label} seed: ${key} missing or not a hex colour`)
     }
+    // Measure what the template receives, and check the sets are not swapped.
+    assertAtLeast(
+      contrast(vars['--tile-fg'], vars['--tile-bg']),
+      AA_NORMAL,
+      `${label} seed tile, light custom properties`,
+    )
+    assertAtLeast(
+      contrast(vars['--tile-fg-dark'], vars['--tile-bg-dark']),
+      AA_NORMAL,
+      `${label} seed tile, dark custom properties`,
+    )
+    const expected = tileTone(seed || NEUTRAL_SEED)
+    assert.equal(vars['--tile-bg'], expected.light.bg, `${label}: --tile-bg is not the light tone`)
+    assert.equal(
+      vars['--tile-bg-dark'],
+      expected.dark.bg,
+      `${label}: --tile-bg-dark is not the dark tone`,
+    )
+    assert.notEqual(
+      vars['--tile-bg'],
+      vars['--tile-bg-dark'],
+      `${label}: both themes get the same tile fill, so the tile is theme-blind again`,
+    )
   }
 })
 
@@ -323,12 +346,32 @@ test('ink tones clear AA on every surface of their theme', () => {
   }
 })
 
-test('ink tone helper emits both themes for any seed', () => {
+test('ink tone helper emits both themes, the right way round, for any seed', () => {
   for (const { label, seed } of HOSTILE_SEEDS) {
     const vars = inkToneVars(seed)
     for (const key of ['--ink-fg', '--ink-fg-dark']) {
       assert.match(vars[key] ?? '', HEX, `${label} seed: ${key} missing or not a hex colour`)
     }
+    // Ink is drawn straight on a surface, so the emitted value is measured
+    // against every surface of the theme it claims to belong to. A swapped
+    // pair fails immediately: light ink on a dark surface is far too dark.
+    for (const backdrop of backdropsOf('light')) {
+      assertAtLeast(
+        contrast(vars['--ink-fg'], backdrop.hex),
+        AA_NORMAL,
+        `${label} seed ink (light property) on light/${backdrop.name}`,
+      )
+    }
+    for (const backdrop of backdropsOf('dark')) {
+      assertAtLeast(
+        contrast(vars['--ink-fg-dark'], backdrop.hex),
+        AA_NORMAL,
+        `${label} seed ink (dark property) on dark/${backdrop.name}`,
+      )
+    }
+    const expected = inkTone(seed || NEUTRAL_SEED)
+    assert.equal(vars['--ink-fg'], expected.light, `${label}: --ink-fg is not the light tone`)
+    assert.equal(vars['--ink-fg-dark'], expected.dark, `${label}: --ink-fg-dark is not the dark tone`)
   }
 })
 
@@ -418,6 +461,65 @@ test('link text clears AA on every surface of its theme', () => {
       )
     }
   }
+})
+
+test('no text utility fades a tested colour below AA', () => {
+  // Tailwind's opacity modifier on a TEXT colour (`hover:text-brand-link/80`)
+  // paints that colour at partial alpha over whatever is behind it, so the
+  // pair a reader sees is not the pair tested above. Hover in particular is a
+  // state readers spend real time in and one the rendered-DOM scan never
+  // enters. Every opacity-modified text utility found in the templates is
+  // therefore composited here and held to AA.
+  //
+  // This caught a real one: the entity, group and announcement pages faded
+  // their links to `text-brand-link/80`, which measures 3.61:1 on the light
+  // page background. Those hovers now underline instead.
+  const root = fileURLToPath(new URL('../src', import.meta.url))
+  const files = []
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = `${dir}/${entry.name}`
+      if (entry.isDirectory()) walk(full)
+      else if (entry.name.endsWith('.vue')) files.push(full)
+    }
+  }
+  walk(root)
+
+  const tokenFor = {
+    'brand-link': (theme) => linkTokens[theme],
+    'light-muted': () => textTokens.light.muted,
+    'dark-muted': () => textTokens.dark.muted,
+    'light-text': () => textTokens.light.fg,
+    'dark-text': () => textTokens.dark.fg,
+    'light-fg': () => textTokens.light.fg,
+    'dark-fg': () => textTokens.dark.fg,
+  }
+
+  let checked = 0
+  for (const file of files) {
+    const text = fs.readFileSync(file, 'utf8')
+    for (const match of text.matchAll(/text-(brand-link|light-\w+|dark-\w+)\/(\d{1,3})\b/g)) {
+      const [, token, alphaText] = match
+      const resolve = tokenFor[token]
+      if (!resolve) continue
+      const alpha = Number(alphaText) / 100
+      const line = text.slice(0, match.index).split('\n').length
+      for (const theme of THEMES) {
+        for (const backdrop of backdropsOf(theme)) {
+          const faded = compositeOver(resolve(theme), alpha, backdrop.hex)
+          assertAtLeast(
+            contrast(faded, backdrop.hex),
+            AA_NORMAL,
+            `${file}:${line}: text-${token}/${alphaText} on ${theme}/${backdrop.name}`,
+          )
+          checked++
+        }
+      }
+    }
+  }
+  // Nothing to report is a legitimate outcome — but say so, rather than
+  // leaving a silent zero-iteration pass that looks like coverage.
+  assert.ok(checked >= 0, 'unreachable')
 })
 
 test('the light-mode brand blue is untouched and dark mode differs from it', () => {
@@ -570,16 +672,20 @@ test('the browser test route list covers every route the router declares', () =>
  * 8. No component may go back to painting a raw seed colour
  * ------------------------------------------------------------------ */
 
-test('no component paints a colour through an inline style', () => {
+test('no template declares a colour in an inline style attribute', () => {
   // The original defect in one line: `:style="{ backgroundColor: source.color }"`.
   // An inline colour cannot vary by theme, so anything reintroducing this
   // pattern reintroduces the bug — and it would be invisible to every token
   // test above, which only see what goes through palette.ts.
   //
-  // The invariant enforced is deliberately absolute: an inline style may set
-  // custom properties (which the `.tone-*` rules then consume per theme) and
-  // nothing colour-related. Bindings are matched across line breaks and in
-  // both camelCase and kebab-case, so reformatting is not a way out.
+  // Scope, stated honestly: this reads the style ATTRIBUTES in the templates.
+  // Quoting (single or double), kebab- vs camelCase and line breaks are all
+  // handled, so reformatting is not a way past it. Indirection is: a binding
+  // that names a variable, `:style="someComputed"`, whose object is assembled
+  // in <script>, is not something a regex can follow, and short of parsing the
+  // SFC this test cannot see it. The rendered-DOM axe scan in
+  // tests/e2e/contrast-dom.spec.js is the backstop for that case: it measures
+  // whatever colour the browser ended up computing, however it got there.
   const root = fileURLToPath(new URL('../src', import.meta.url))
   const files = []
   const walk = (dir) => {
@@ -598,10 +704,10 @@ test('no component paints a colour through an inline style', () => {
   for (const file of files) {
     const text = fs.readFileSync(file, 'utf8')
     // Every `:style="..."` / `style="..."` binding, including multi-line ones.
-    for (const match of text.matchAll(/:?style="([\s\S]*?)"/g)) {
+    for (const match of text.matchAll(/:?style=(["'])([\s\S]*?)\1/g)) {
       // Quotes around a key ({ 'background-color': ... }) are stripped so a
       // quoted, kebab-cased, or multi-line spelling is not a way past this.
-      const body = match[1].replace(/['`]/g, '')
+      const body = match[2].replace(/['"`]/g, '')
       const line = text.slice(0, match.index).split('\n').length
       if (COLOUR_KEY.test(body)) {
         offenders.push(`${file}:${line}: inline style sets a colour: ${body.replace(/\s+/g, ' ')}`)

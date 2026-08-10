@@ -227,7 +227,7 @@ onMounted(async () => {
               <dd>
                 <RouterLink
                   :to="`/announcement/${getAnnouncementRef(group.announcement_id)}`"
-                  class="text-brand-link hover:text-brand-link/80"
+                  class="text-brand-link hover:underline"
                 >
                   View Details
                 </RouterLink>

@@ -67,6 +67,11 @@ jobs:
         # Horizontal overflow at 320px and 390px on every route in the router,
         # plus an axe colour-contrast scan of the rendered pages. These run
         # against the production build served by `vite preview`.
+        #
+        # Scope, stated plainly: this build carries the committed CN-only
+        # snapshot, not the fifteen-source dataset that deploys. The same suite
+        # therefore runs again in build_deploy after the real harmonize, where
+        # it sees the artifact that ships.
         run: npm run test:e2e
 
       - name: Upload Playwright report

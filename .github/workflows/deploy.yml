@@ -453,6 +453,31 @@ jobs:
           # the stale CN-only copy from data-cn.
           SKIP_API_DATA: '1'
 
+      - name: Install Playwright chromium
+        # Only chromium, and only its dependencies. The browser version is
+        # pinned by the exact @playwright/test version in package-lock.json.
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser tests against the harmonized build
+        # ci.yml runs the same suite, but against the committed CN-only
+        # snapshot. This is the only place the tests see the artifact that
+        # actually deploys: fifteen sources, real per-source endpoints, real
+        # names. The layout defect these tests exist for — a long sanctioned
+        # name stretching a card grid past a phone viewport — is exactly the
+        # kind that only shows up with the full dataset, so gating the upload
+        # on it is the point rather than an inconvenience.
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-harmonized
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
       - name: Setup Pages
         id: pages
         uses: actions/configure-pages@v4

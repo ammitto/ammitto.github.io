@@ -4,6 +4,7 @@ import {
   collectPageErrors,
   expectNoHorizontalOverflow,
   gotoRendered,
+  renderedText,
   useTheme,
 } from './helpers.js'
 
@@ -48,18 +49,7 @@ for (const theme of ['light', 'dark']) {
         // element: at 320px parts of the chrome (the desktop nav) are
         // display:none, and a sentinel that happened to land there would fail
         // a visibility assertion for the wrong reason.
-        const rendered = await page
-          .locator('body')
-          .innerText()
-          .then((text) => text.replace(/\s+/g, ' '))
-        expect(
-          rendered.length,
-          `${route.path} rendered almost no text — the page did not load`,
-        ).toBeGreaterThan(200)
-        expect(
-          rendered,
-          `${route.path} never rendered its expected content ("${route.contains}")`,
-        ).toContain(route.contains)
+        await renderedText(page, route.contains, route.path)
 
         const themeApplied = await page.evaluate(() =>
           document.documentElement.classList.contains('dark'),

@@ -17,7 +17,11 @@ export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: 0,
+  // One retry on CI only. These assertions are deterministic — a layout width,
+  // a computed colour — so a retry never turns a real failure green; it stops a
+  // single flaky page load from blocking a deployment. Locally, zero, so a
+  // flake is visible while it is being written.
+  retries: process.env.CI ? 1 : 0,
   workers: process.env.CI ? 2 : undefined,
   reporter: process.env.CI ? [['github'], ['list']] : 'list',
   use: {

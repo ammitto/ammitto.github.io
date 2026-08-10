@@ -109,8 +109,11 @@ test('badge and link colours differ between the themes in the rendered page', as
   // The badge fill must be opaque; a translucent fill would make the tested
   // pair depend on whatever the badge happens to be sitting on.
   expect(light.pillBackground, 'badge fill must be opaque').not.toMatch(/rgba?\([^)]*,\s*0?\.\d+\)/)
-  if (light.linkColor && dark.linkColor) {
-    expect(light.linkColor, 'link colour must be theme-dependent').not.toEqual(dark.linkColor)
-    expect(light.linkColor, 'the light-mode link must stay the brand blue').toBe('rgb(0, 102, 204)')
-  }
+
+  // Not conditional: a missing link element would silently skip the only check
+  // that the new brand.link token reaches the browser at all.
+  expect(light.linkColor, '/search rendered no .text-brand-link element (light)').toBeTruthy()
+  expect(dark.linkColor, '/search rendered no .text-brand-link element (dark)').toBeTruthy()
+  expect(light.linkColor, 'link colour must be theme-dependent').not.toEqual(dark.linkColor)
+  expect(light.linkColor, 'the light-mode link must stay the brand blue').toBe('rgb(0, 102, 204)')
 })

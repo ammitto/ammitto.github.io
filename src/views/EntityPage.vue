@@ -428,7 +428,7 @@ onMounted(async () => {
                   v-for="groupId in groupIds"
                   :key="groupId"
                   :to="`/group/${extractIdFromIri(groupId)}`"
-                  class="block break-all text-brand-link hover:text-brand-link/80 font-mono text-sm"
+                  class="block break-all text-brand-link hover:underline font-mono text-sm"
                 >
                   {{ groupId }}
                 </RouterLink>
@@ -465,7 +465,7 @@ onMounted(async () => {
                   <dd class="inline">
                     <RouterLink
                       :to="`/document-type/${announcement.document_type}`"
-                      class="text-brand-link hover:text-brand-link/80"
+                      class="text-brand-link hover:underline"
                     >
                       {{ getDocumentTypeName(announcement.document_type) }}
                     </RouterLink>
@@ -480,7 +480,7 @@ onMounted(async () => {
                   <dd class="inline">
                     <RouterLink
                       :to="`/organization/${announcement.authority}`"
-                      class="text-brand-link hover:text-brand-link/80"
+                      class="text-brand-link hover:underline"
                     >
                       {{ getOrganizationName(announcement.authority) }}
                     </RouterLink>
@@ -491,7 +491,7 @@ onMounted(async () => {
                   <dd class="inline">
                     <RouterLink
                       :to="`/organization/${announcement.signatory}`"
-                      class="text-brand-link hover:text-brand-link/80"
+                      class="text-brand-link hover:underline"
                     >
                       {{ getOrganizationName(announcement.signatory) }}
                     </RouterLink>
@@ -502,7 +502,7 @@ onMounted(async () => {
                   <dd class="inline">
                     <RouterLink
                       :to="`/organization/${announcement.publisher}`"
-                      class="text-brand-link hover:text-brand-link/80"
+                      class="text-brand-link hover:underline"
                     >
                       {{ getOrganizationName(announcement.publisher) }}
                     </RouterLink>
@@ -513,7 +513,7 @@ onMounted(async () => {
                 <RouterLink
                   v-if="groupIds.length > 0"
                   :to="`/announcement/${extractIdFromIri(groupIds[0])}`"
-                  class="inline-flex items-center gap-1 text-brand-link hover:text-brand-link/80 text-sm"
+                  class="inline-flex items-center gap-1 text-brand-link hover:underline text-sm"
                 >
                   View Full Announcement & All Entities
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -525,7 +525,7 @@ onMounted(async () => {
                   :href="announcement.url"
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="inline-flex items-center gap-1 text-brand-link hover:text-brand-link/80 text-sm"
+                  class="inline-flex items-center gap-1 text-brand-link hover:underline text-sm"
                 >
                   View Official Source
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -534,7 +534,7 @@ onMounted(async () => {
                 </a>
               </div>
               <details v-if="announcement.content" class="mt-3">
-                <summary class="cursor-pointer text-sm text-brand-link hover:text-brand-link/80">
+                <summary class="cursor-pointer text-sm text-brand-link hover:underline">
                   View Full Text
                 </summary>
                 <p class="mt-2 text-sm text-light-muted dark:text-dark-muted whitespace-pre-wrap bg-light-surface/50 dark:bg-dark-surface/50 p-3 rounded-lg">{{ announcement.content }}</p>

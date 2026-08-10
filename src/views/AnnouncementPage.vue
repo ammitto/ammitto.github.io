@@ -354,7 +354,7 @@ onMounted(async () => {
               <dd class="font-medium">
                 <RouterLink
                   :to="`/document-type/${announcement.announcement.document_type}`"
-                  class="text-brand-link hover:text-brand-link/80"
+                  class="text-brand-link hover:underline"
                 >
                   {{ getDocumentTypeName(announcement.announcement.document_type) }}
                 </RouterLink>
@@ -365,7 +365,7 @@ onMounted(async () => {
               <dd class="font-medium">
                 <RouterLink
                   :to="`/organization/${announcement.announcement.authority}`"
-                  class="text-brand-link hover:text-brand-link/80"
+                  class="text-brand-link hover:underline"
                 >
                   {{ getOrganizationName(announcement.announcement.authority) }}
                 </RouterLink>
@@ -376,7 +376,7 @@ onMounted(async () => {
               <dd class="font-medium">
                 <RouterLink
                   :to="`/organization/${announcement.announcement.signatory}`"
-                  class="text-brand-link hover:text-brand-link/80"
+                  class="text-brand-link hover:underline"
                 >
                   {{ getOrganizationName(announcement.announcement.signatory) }}
                 </RouterLink>
@@ -387,7 +387,7 @@ onMounted(async () => {
               <dd class="font-medium">
                 <RouterLink
                   :to="`/organization/${announcement.announcement.publisher}`"
-                  class="text-brand-link hover:text-brand-link/80"
+                  class="text-brand-link hover:underline"
                 >
                   {{ getOrganizationName(announcement.announcement.publisher) }}
                 </RouterLink>
@@ -447,7 +447,7 @@ onMounted(async () => {
                   <RouterLink
                     v-if="citation.legal_instrument_id && !citation.legal_instrument_id.includes('/unknown')"
                     :to="`/legal-instrument/${citation.legal_instrument_id.split('/').slice(-2).join('/')}`"
-                    class="font-medium text-brand-link hover:text-brand-link/80"
+                    class="font-medium text-brand-link hover:underline"
                   >
                     {{ getLegalInstrumentName(citation.legal_instrument_id) }}
                   </RouterLink>
