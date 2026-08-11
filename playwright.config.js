@@ -38,9 +38,22 @@ export default defineConfig({
   webServer: process.env.E2E_BASE_URL
     ? undefined
     : {
-        command: 'npx vite preview --port 4173 --strictPort',
+        // --host 127.0.0.1 is load-bearing, not tidiness. `vite preview`
+        // defaults to host `localhost`, and Node resolves that name through
+        // the system resolver: IPv4 first on this workstation, IPv6 first on
+        // a GitHub runner. There the server binds to ::1 only, while the url
+        // below is polled on 127.0.0.1, so nothing ever answers and the run
+        // dies at the timeout without executing a single test — passing
+        // locally and failing in CI on both the small and the full dataset.
+        // Binding explicitly removes the resolver from the question.
+        command: 'npx vite preview --host 127.0.0.1 --port 4173 --strictPort',
         url: 'http://127.0.0.1:4173/',
         reuseExistingServer: !process.env.CI,
         timeout: 120000,
+        // Without this the server's own stderr is swallowed, so a startup
+        // failure surfaces only as "timed out waiting" with no cause. The
+        // first diagnosis of the bug above cost far more than this noise.
+        stdout: 'pipe',
+        stderr: 'pipe',
       },
 })
