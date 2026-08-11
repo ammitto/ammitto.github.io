@@ -51,7 +51,7 @@ import {
   tileToneVars,
 } from '../.test-build/config/palette.js'
 import { entityTypes, sources, statuses } from '../.test-build/config/index.js'
-import { ALL_ROUTES, PARAM_ROUTES, STATIC_ROUTES } from './routes.js'
+import { ALL_ROUTES, PARAM_ROUTES, STATIC_ROUTES, SWEEPABLE_ROUTES } from './routes.js'
 
 /* ------------------------------------------------------------------ *
  * The oracle: WCAG 2.x relative luminance and contrast ratio.
@@ -734,10 +734,43 @@ test('the browser specs use the shared route inventory', () => {
   const specs = fs.readdirSync(dir).filter((f) => f.endsWith('.spec.js'))
   assert.ok(specs.length >= 2, `expected browser specs in tests/e2e, found ${specs.join(', ')}`)
   const sources = specs.map((f) => fs.readFileSync(`${dir}/${f}`, 'utf8')).join('\n')
-  for (const name of ['ALL_ROUTES', 'NARROW_VIEWPORTS', 'CONTRAST_SCAN_ROUTES']) {
+  // SWEEPABLE_ROUTES is ALL_ROUTES minus the temporarily excluded slow
+  // routes, and is derived from it in routes.js — so a spec importing
+  // either one is visiting the shared inventory. What this guards against
+  // is a spec declaring its own array, which either name rules out.
+  for (const name of ['ALL_ROUTES|SWEEPABLE_ROUTES', 'NARROW_VIEWPORTS', 'CONTRAST_SCAN_ROUTES']) {
     assert.ok(
-      new RegExp(`\\b${name}\\b`).test(sources),
+      new RegExp(`\\b(?:${name})\\b`).test(sources),
       `no browser spec uses ${name}; the shared route inventory is not what the browser visits`,
     )
+  }
+})
+
+test('the slow-route exclusion is derived, not a second hand-written list', () => {
+  // The exclusion is the kind of thing that rots into a divergent copy of
+  // the inventory. Pin that SWEEPABLE_ROUTES is a strict subset of
+  // ALL_ROUTES and that it drops exactly the flagged routes, so a route
+  // cannot be quietly dropped from the sweep without carrying the flag
+  // that documents why and names what ends it.
+  for (const route of SWEEPABLE_ROUTES) {
+    assert.ok(
+      ALL_ROUTES.includes(route),
+      `${route.path} is swept but is not in the shared inventory`,
+    )
+  }
+
+  const excluded = ALL_ROUTES.filter((route) => !SWEEPABLE_ROUTES.includes(route))
+  for (const route of excluded) {
+    assert.ok(
+      route.slowUntilSummariesExist,
+      `${route.path} is excluded from the sweep with no reason recorded`,
+    )
+  }
+
+  // Against the committed snapshot nothing is excluded — every route is
+  // fast there, and a sweep that skipped routes locally would hide a
+  // failure until deploy.
+  if (!process.env.E2E_FULL_DATASET) {
+    assert.equal(excluded.length, 0, 'routes were excluded outside the full-dataset run')
   }
 })
