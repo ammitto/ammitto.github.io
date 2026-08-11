@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
-import { toNodeIri } from '@/utils/normalizeNode'
+import {
+  documentTypeSummaryUrl,
+  summaryList,
+  toAnnouncementRows,
+  type AnnouncementSummary,
+  type DocumentTypeSummary,
+  type LegalInstrumentSummary
+} from '@/utils/summarySlice'
 
 const route = useRoute()
 
@@ -19,48 +26,15 @@ interface DocumentType {
   name: LocalizedName[]
 }
 
-/** A localized title as the producer may publish it. */
-type LocalizedTitle = string | Array<{ value: string; lang: string } | { [key: string]: string }>
-
-/**
- * One announcement as the publishing pipeline aggregated it.
- *
- * The gem emits `by-document-type/{identifier}.jsonld` carrying the
- * announcements of this type and the legal instruments declaring it,
- * already deduplicated and counted. `title` arrives raw: this page resolves
- * English only, OrganizationPage falls back to Chinese, and the producer
- * must not choose between them.
- */
-interface AnnouncementSummary {
-  documentId: string
-  title?: LocalizedTitle
-  publishDate: string
-  url?: string
-  groupId?: string
-  entryCount: number
-}
-
-interface LegalInstrument {
-  '@id': string
-  identifier?: string
-  name?: string
-  title?: Array<{ 'zh-Hans'?: string; 'en'?: string }> | string
-  type?: string
-  publishDate?: string
-  url?: string
-  lang?: string
-}
-
-interface DocumentTypeSummary {
-  announcements?: AnnouncementSummary[]
-  legalInstruments?: LegalInstrument[]
-}
-
 const documentType = ref<DocumentType | null>(null)
 const relatedAnnouncements = ref<AnnouncementSummary[]>([])
-const relatedInstruments = ref<LegalInstrument[]>([])
+const relatedInstruments = ref<LegalInstrumentSummary[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
+// Distinguishes "nothing carries this document type" from "the summary could
+// not be read". Without it the empty state below would state, falsely and
+// confidently, that no documents exist.
+const summaryUnavailable = ref(false)
 
 const docTypeId = computed(() => route.params.id as string)
 
@@ -106,41 +80,11 @@ const getAnnouncementTitle = (announcement: AnnouncementSummary): string => {
   return 'Untitled'
 }
 
-/** One rendered row. */
-interface UniqueAnnouncement {
-  document_id: string
-  title: string
-  publish_date: string
-  url?: string
-  entry_count: number
-  group_id?: string
-}
-
-/**
- * Resolve summaries into rendered rows.
- *
- * Grouping, deduplication and counting already happened in the publishing
- * pipeline. What stays here is what only this page can decide: its
- * English-only title fallback, and the ordering — kept as the same
- * `localeCompare` comparison over the same values, so the sequence a
- * visitor sees is produced by the comparison that always produced it.
- * `group_id` goes through `toNodeIri` because that is the validation
- * `normalizeNode` used to apply while these rows came from entry nodes.
- */
-const uniqueAnnouncements = computed<UniqueAnnouncement[]>(() =>
-  relatedAnnouncements.value
-    .map((summary) => ({
-      document_id: summary.documentId,
-      title: getAnnouncementTitle(summary),
-      publish_date: summary.publishDate,
-      url: summary.url,
-      entry_count: summary.entryCount,
-      group_id: toNodeIri(summary.groupId, 'group') ?? undefined
-    }))
-    .sort((a, b) => b.publish_date.localeCompare(a.publish_date))
+const uniqueAnnouncements = computed(() =>
+  toAnnouncementRows(relatedAnnouncements.value, getAnnouncementTitle)
 )
 
-const getInstrumentTitle = (instrument: LegalInstrument): string => {
+const getInstrumentTitle = (instrument: LegalInstrumentSummary): string => {
   if (instrument.title) {
     if (typeof instrument.title === 'string') return instrument.title
     if (Array.isArray(instrument.title)) {
@@ -176,13 +120,17 @@ const getGroupRef = (groupId?: string): string | null => {
  */
 const loadSummary = async (docTypeIdentifier: string) => {
   try {
-    const response = await fetch(`/api/v1/by-document-type/${docTypeIdentifier}.jsonld`)
-    if (!response.ok) return
+    const response = await fetch(documentTypeSummaryUrl(docTypeIdentifier))
+    if (!response.ok) {
+      summaryUnavailable.value = true
+      return
+    }
 
     const summary: DocumentTypeSummary = await response.json()
-    relatedAnnouncements.value = Array.isArray(summary.announcements) ? summary.announcements : []
-    relatedInstruments.value = Array.isArray(summary.legalInstruments) ? summary.legalInstruments : []
+    relatedAnnouncements.value = summaryList<AnnouncementSummary>(summary.announcements)
+    relatedInstruments.value = summaryList<LegalInstrumentSummary>(summary.legalInstruments)
   } catch (e) {
+    summaryUnavailable.value = true
     console.error('Failed to load document type summary:', e)
   }
 }
@@ -322,8 +270,16 @@ onMounted(async () => {
           </div>
         </div>
 
+        <!-- Summary unavailable: never claim "no documents" when the list
+             could not be read at all. -->
+        <div v-if="summaryUnavailable" class="bg-white dark:bg-dark-card rounded-lg shadow-sm border border-light-border dark:border-dark-border p-6 text-center">
+          <p class="text-light-muted dark:text-dark-muted">
+            Document lists are unavailable for this document type right now.
+          </p>
+        </div>
+
         <!-- Empty state -->
-        <div v-if="uniqueAnnouncements.length === 0 && relatedInstruments.length === 0" class="bg-white dark:bg-dark-card rounded-lg shadow-sm border border-light-border dark:border-dark-border p-6 text-center">
+        <div v-else-if="uniqueAnnouncements.length === 0 && relatedInstruments.length === 0" class="bg-white dark:bg-dark-card rounded-lg shadow-sm border border-light-border dark:border-dark-border p-6 text-center">
           <p class="text-light-muted dark:text-dark-muted">
             No documents found with this document type.
           </p>

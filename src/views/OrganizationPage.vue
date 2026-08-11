@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
-import { toNodeIri } from '@/utils/normalizeNode'
+import {
+  organizationSummaryUrl,
+  summaryList,
+  toAnnouncementRows,
+  type AnnouncementSummary,
+  type OrganizationSummary
+} from '@/utils/summarySlice'
 
 const route = useRoute()
 
@@ -22,39 +28,16 @@ interface Organization {
   url?: string
 }
 
-/** A localized title as the producer may publish it. */
-type LocalizedTitle = string | Array<{ value: string; lang: string } | { [key: string]: string }>
-
-/**
- * One announcement as the publishing pipeline aggregated it.
- *
- * The gem emits `by-organization/{identifier}.jsonld` with the documents
- * this organization published, signed and authorized, already deduplicated
- * and counted. `title` arrives raw, because this page and DocumentTypePage
- * resolve a localized title differently and the producer must not pick for
- * them.
- */
-interface AnnouncementSummary {
-  documentId: string
-  title?: LocalizedTitle
-  publishDate: string
-  url?: string
-  groupId?: string
-  entryCount: number
-}
-
-interface OrganizationSummary {
-  published?: AnnouncementSummary[]
-  signed?: AnnouncementSummary[]
-  authorized?: AnnouncementSummary[]
-}
-
 const organization = ref<Organization | null>(null)
 const publishedAnnouncements = ref<AnnouncementSummary[]>([])
 const signedAnnouncements = ref<AnnouncementSummary[]>([])
 const authorizedAnnouncements = ref<AnnouncementSummary[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
+// Distinguishes "this organization has no documents" from "the summary could
+// not be read". Without it, an artifact published before these slices
+// existed would render as a confident, wrong empty page.
+const summaryUnavailable = ref(false)
 
 const orgId = computed(() => route.params.id as string)
 
@@ -112,38 +95,8 @@ const getAnnouncementTitle = (announcement: AnnouncementSummary): string => {
   return 'Untitled'
 }
 
-/** One rendered row. */
-interface UniqueAnnouncement {
-  document_id: string
-  title: string
-  publish_date: string
-  url?: string
-  entry_count: number
-  group_id?: string
-}
-
-/**
- * Resolve summaries into rendered rows.
- *
- * Grouping, deduplication and counting already happened in the publishing
- * pipeline. What stays here is what only this page can decide: which
- * language its title falls back to, and the ordering — kept as the same
- * `localeCompare` comparison over the same values, so the sequence a
- * visitor sees is produced by the comparison that always produced it.
- * `group_id` goes through `toNodeIri` because that is the validation
- * `normalizeNode` used to apply while these rows came from entry nodes.
- */
-const toRows = (summaries: AnnouncementSummary[]): UniqueAnnouncement[] =>
-  summaries
-    .map((summary) => ({
-      document_id: summary.documentId,
-      title: getAnnouncementTitle(summary),
-      publish_date: summary.publishDate,
-      url: summary.url,
-      entry_count: summary.entryCount,
-      group_id: toNodeIri(summary.groupId, 'group') ?? undefined
-    }))
-    .sort((a, b) => b.publish_date.localeCompare(a.publish_date))
+const toRows = (summaries: AnnouncementSummary[]) =>
+  toAnnouncementRows(summaries, getAnnouncementTitle)
 
 const uniquePublishedAnnouncements = computed(() => toRows(publishedAnnouncements.value))
 const uniqueSignedAnnouncements = computed(() => toRows(signedAnnouncements.value))
@@ -165,9 +118,6 @@ const getGroupRef = (groupId?: string): string | null => {
   return groupId.replace('https://www.ammitto.org/group/', '')
 }
 
-const summaryList = (value: unknown): AnnouncementSummary[] =>
-  Array.isArray(value) ? (value as AnnouncementSummary[]) : []
-
 /**
  * Load the documents this organization published, signed and authorized.
  *
@@ -176,17 +126,21 @@ const summaryList = (value: unknown): AnnouncementSummary[] =>
  * never painted. The publishing pipeline now emits the same three lists
  * per organization, so the page reads its own summary and nothing else.
  */
-const loadRelatedEntries = async (orgIdentifier: string) => {
+const loadSummary = async (orgIdentifier: string) => {
   try {
-    const response = await fetch(`/api/v1/by-organization/${orgIdentifier}.jsonld`)
-    if (!response.ok) return
+    const response = await fetch(organizationSummaryUrl(orgIdentifier))
+    if (!response.ok) {
+      summaryUnavailable.value = true
+      return
+    }
 
     const summary: OrganizationSummary = await response.json()
-    publishedAnnouncements.value = summaryList(summary.published)
-    signedAnnouncements.value = summaryList(summary.signed)
-    authorizedAnnouncements.value = summaryList(summary.authorized)
+    publishedAnnouncements.value = summaryList<AnnouncementSummary>(summary.published)
+    signedAnnouncements.value = summaryList<AnnouncementSummary>(summary.signed)
+    authorizedAnnouncements.value = summaryList<AnnouncementSummary>(summary.authorized)
   } catch (e) {
-    console.error('Failed to load related entries:', e)
+    summaryUnavailable.value = true
+    console.error('Failed to load organization summary:', e)
   }
 }
 
@@ -198,9 +152,9 @@ onMounted(async () => {
     const response = await fetch(`/api/v1/node/organization/${id}.jsonld`)
     if (response.ok) {
       organization.value = await response.json()
-      // Load related entries
+      // Load the published summary
       if (organization.value?.identifier) {
-        await loadRelatedEntries(organization.value.identifier)
+        await loadSummary(organization.value.identifier)
       }
     } else {
       error.value = 'Organization not found'
@@ -287,6 +241,13 @@ onMounted(async () => {
               <dd class="mt-1 text-light-fg dark:text-dark-fg">{{ organization.parentId }}</dd>
             </div>
           </dl>
+        </div>
+
+        <!-- Summary unavailable -->
+        <div v-if="summaryUnavailable" class="bg-white dark:bg-dark-card rounded-lg shadow-sm border border-light-border dark:border-dark-border p-6 text-center">
+          <p class="text-light-muted dark:text-dark-muted">
+            Document lists are unavailable for this organization right now.
+          </p>
         </div>
 
         <!-- Documents Published -->
