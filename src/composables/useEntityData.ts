@@ -143,6 +143,17 @@ const API_BASE = import.meta.env.BASE_URL || '/'
 // not resolvable against the API tree
 const ENTITY_IRI_BASE = 'https://www.ammitto.org/'
 
+// Entry nodes in flight at once.
+//
+// The cap exists to stop an entity with many entries from firing an
+// unbounded burst of requests. Six is a conservative default, not a
+// measured optimum — an earlier draft of this comment justified it by
+// the six-connections-per-host limit of HTTP/1.1, which does not apply:
+// the deployed site negotiates HTTP/2 and multiplexes. Raising it may
+// well be faster; that should be settled by timing against the full
+// dataset rather than by a number chosen here.
+const ENTRY_FETCH_CONCURRENCY = 6
+
 export function useEntityData() {
   const route = useRoute()
   const { loadFullEntity, loadSearchIndex, isLoaded, isLoading } = useSearchIndex()
@@ -188,31 +199,72 @@ export function useEntityData() {
       return
     }
 
+    // The IRI tail becomes a fetch path verbatim, so it must be a
+    // resolvable entry node IRI. A non-string would otherwise be iterated
+    // character by character, one bogus fetch per character.
+    const iris: string[] = []
     for (const rawIri of entryIris) {
-      // The IRI tail becomes a fetch path verbatim, so it must be a
-      // resolvable entry node IRI. A non-string would otherwise be iterated
-      // character by character, one bogus fetch per character.
       const entryIri = toNodeIri(rawIri, 'entry')
-      if (!entryIri) {
-        console.warn('Skipping unrecognised entry reference:', rawIri)
-        continue
-      }
+      if (entryIri) iris.push(entryIri)
+      else console.warn('Skipping unrecognised entry reference:', rawIri)
+    }
 
-      try {
-        // Convert IRI to API path
-        // IRI: https://www.ammitto.org/entry/cn/import-export-control-list/202535-csbc-corporation-taiwan
-        // Path: api/v1/node/entry/cn/import-export-control-list/202535-csbc-corporation-taiwan.jsonld
-        const entryPath = `api/v1/node/${entryIri.slice(ENTITY_IRI_BASE.length)}`
-        const response = await fetch(`${API_BASE}${entryPath}.jsonld`)
+    // Fetched with bounded concurrency rather than one at a time.
+    //
+    // This loop used to await each entry in turn, so an entity carrying n
+    // entries cost n sequential round-trips. Most entities carry a handful,
+    // so this is a latency improvement rather than a repair of a broken
+    // page — the entity page was never one of the two that time out. Those
+    // are the organization and document-type pages, which scan the whole
+    // corpus through their own separate loops and are not fixed here.
+    //
+    // Unbounded parallelism is the wrong cure regardless: an entity with an
+    // unusually long entry list would otherwise open one request per entry
+    // at once.
+    //
+    // Results are written by index and appended afterwards so display
+    // order still follows the entity's own `sanction_entry_ids`. Appending
+    // as each response lands would order the list by network latency,
+    // which is a visible behaviour change rather than a speed-up.
+    const results: (Entry | null)[] = new Array(iris.length).fill(null)
+    let cursor = 0
 
-        if (response.ok) {
-          // Entry nodes arrive in the producer's JSON-LD vocabulary
-          const data = normalizeNode<Entry>(await response.json())
-          if (data) entries.value.push(data)
-        }
-      } catch {
-        console.warn('Failed to load entry:', entryIri)
+    const worker = async () => {
+      while (cursor < iris.length) {
+        const index = cursor
+        cursor += 1
+        results[index] = await fetchEntry(iris[index])
       }
+    }
+
+    await Promise.all(
+      Array.from({ length: Math.min(ENTRY_FETCH_CONCURRENCY, iris.length) }, worker),
+    )
+
+    for (const entry of results) {
+      if (entry) entries.value.push(entry)
+    }
+  }
+
+  // One entry node, or null. Behaviour is unchanged from the sequential
+  // version: a thrown error is warned about, a non-OK response is skipped
+  // silently, and either way one unreachable entry must not empty the
+  // whole list. The silent skip is pre-existing and deliberately preserved
+  // here rather than fixed alongside a performance change.
+  const fetchEntry = async (entryIri: string): Promise<Entry | null> => {
+    try {
+      // Convert IRI to API path
+      // IRI: https://www.ammitto.org/entry/cn/import-export-control-list/202535-csbc-corporation-taiwan
+      // Path: api/v1/node/entry/cn/import-export-control-list/202535-csbc-corporation-taiwan.jsonld
+      const entryPath = `api/v1/node/${entryIri.slice(ENTITY_IRI_BASE.length)}`
+      const response = await fetch(`${API_BASE}${entryPath}.jsonld`)
+      if (!response.ok) return null
+
+      // Entry nodes arrive in the producer's JSON-LD vocabulary
+      return normalizeNode<Entry>(await response.json())
+    } catch {
+      console.warn('Failed to load entry:', entryIri)
+      return null
     }
   }
 
