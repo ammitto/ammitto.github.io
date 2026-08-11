@@ -73,6 +73,14 @@ for (const viewport of NARROW_VIEWPORTS) {
     page,
     request,
   }) => {
+    // Pin the theme like every other test in the suite. Without this the
+    // app falls back to the runner's OS prefers-color-scheme when
+    // localStorage is empty, so the layout under measurement would depend
+    // on a machine setting — a CI-only flake waiting to happen. Light is
+    // chosen because the defect is geometric, not chromatic, and one
+    // theme is enough; the per-route sweep above covers both.
+    await useTheme(page, 'light')
+
     const response = await request.get('/api/v1/search-index.json')
     expect(response.ok(), 'the committed search index must be servable').toBeTruthy()
     const real = await response.json()

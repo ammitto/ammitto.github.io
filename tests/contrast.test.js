@@ -517,9 +517,22 @@ test('no text utility fades a tested colour below AA', () => {
       }
     }
   }
-  // Nothing to report is a legitimate outcome — but say so, rather than
-  // leaving a silent zero-iteration pass that looks like coverage.
-  assert.ok(checked >= 0, 'unreachable')
+  // Zero iterations is a legitimate outcome — the utilities may simply
+  // have been removed — but it must not masquerade as coverage. The
+  // previous `assert.ok(checked >= 0)` could never fail and printed
+  // nothing, so a scan that silently found no candidates read exactly
+  // like a scan that checked hundreds and approved them all.
+  assert.ok(
+    Number.isInteger(checked) && checked >= 0,
+    `opacity-utility scan produced a non-count: ${checked}`,
+  )
+  if (checked === 0) {
+    console.log(
+      'note: no text-*/NN opacity utilities found in src/ — this test ' +
+        'checked nothing. That is fine if they were removed deliberately; ' +
+        'if not, the scan or its glob has drifted.',
+    )
+  }
 })
 
 test('the light-mode brand blue is untouched and dark mode differs from it', () => {

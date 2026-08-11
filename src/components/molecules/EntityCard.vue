@@ -44,7 +44,7 @@ const goToEntity = () => {
     page with it: 1044px of scrollWidth in a 390px viewport on /search and
     /browse/entities. min-w-0 lets the track ignore that intrinsic width, and
     the truncation then does its job inside the card.
-    tests/e2e/overflow.spec.ts holds this at 320px and 390px on every route.
+    tests/e2e/overflow.spec.js holds this at 320px and 390px on every route.
   -->
   <article
     class="glass-card min-w-0 p-4 hover:border-brand-primary/50 cursor-pointer transition-all group"
