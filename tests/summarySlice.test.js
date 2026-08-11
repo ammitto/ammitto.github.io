@@ -147,5 +147,16 @@ test('treats an absent or malformed list as empty rather than throwing', () => {
   assert.deepEqual(summaryList(undefined), [])
   assert.deepEqual(summaryList(null), [])
   assert.deepEqual(summaryList({ nope: true }), [])
-  assert.deepEqual(summaryList([1, 2]), [1, 2])
+})
+
+// The earlier version of this test asserted that [1, 2] passed through
+// unchanged, which contradicted the name above it: a primitive is exactly
+// the malformed case, and every consumer reads properties off these
+// members. One bad member now costs its own row, not the page.
+test('drops list members that are not objects', () => {
+  assert.deepEqual(summaryList([1, 2]), [])
+  assert.deepEqual(summaryList([null, undefined, 'x']), [])
+
+  const good = { '@id': 'https://www.ammitto.org/announcement/cn/14' }
+  assert.deepEqual(summaryList([good, 7, null]), [good])
 })

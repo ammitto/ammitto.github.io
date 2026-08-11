@@ -89,9 +89,19 @@ export function documentTypeSummaryUrl(identifier: string): string {
   return `/api/v1/by-document-type/${identifier}.jsonld`
 }
 
-/** A published list, or an empty one when the field is absent or malformed. */
+/**
+ * A published list, or an empty one when the field is absent or malformed.
+ *
+ * Members are filtered to non-null objects, because every consumer reads
+ * properties off them. Letting a primitive through would satisfy
+ * `Array.isArray` and then fail at the first property access — the
+ * producer would be wrong, but the page would be what broke, and the
+ * error would name a component rather than the data. Dropping the member
+ * degrades one row instead.
+ */
 export function summaryList<T>(value: unknown): T[] {
-  return Array.isArray(value) ? (value as T[]) : []
+  if (!Array.isArray(value)) return []
+  return value.filter((member) => typeof member === 'object' && member !== null) as T[]
 }
 
 /**
