@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
-import { normalizeNode } from '@/utils/normalizeNode'
+import { toNodeIri } from '@/utils/normalizeNode'
 
 const route = useRoute()
 
@@ -19,19 +19,25 @@ interface DocumentType {
   name: LocalizedName[]
 }
 
-interface Entry {
-  id: string
-  entity_id?: string
-  status?: string
-  group_id?: string
-  announcement?: {
-    title?: string | Array<{ value: string; lang: string }>
-    publish_date?: string
-    document_id?: string
-    url?: string
-    document_type?: string
-    language?: string
-  }
+/** A localized title as the producer may publish it. */
+type LocalizedTitle = string | Array<{ value: string; lang: string } | { [key: string]: string }>
+
+/**
+ * One announcement as the publishing pipeline aggregated it.
+ *
+ * The gem emits `by-document-type/{identifier}.jsonld` carrying the
+ * announcements of this type and the legal instruments declaring it,
+ * already deduplicated and counted. `title` arrives raw: this page resolves
+ * English only, OrganizationPage falls back to Chinese, and the producer
+ * must not choose between them.
+ */
+interface AnnouncementSummary {
+  documentId: string
+  title?: LocalizedTitle
+  publishDate: string
+  url?: string
+  groupId?: string
+  entryCount: number
 }
 
 interface LegalInstrument {
@@ -45,8 +51,13 @@ interface LegalInstrument {
   lang?: string
 }
 
+interface DocumentTypeSummary {
+  announcements?: AnnouncementSummary[]
+  legalInstruments?: LegalInstrument[]
+}
+
 const documentType = ref<DocumentType | null>(null)
-const relatedEntries = ref<Entry[]>([])
+const relatedAnnouncements = ref<AnnouncementSummary[]>([])
 const relatedInstruments = ref<LegalInstrument[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -76,9 +87,9 @@ const formatDate = (dateStr?: string): string => {
   }
 }
 
-const getAnnouncementTitle = (entry: Entry): string => {
-  if (!entry.announcement?.title) return 'Untitled'
-  const title = entry.announcement.title
+const getAnnouncementTitle = (announcement: AnnouncementSummary): string => {
+  if (!announcement.title) return 'Untitled'
+  const title = announcement.title
   if (typeof title === 'string') return title
   if (Array.isArray(title)) {
     const enTitle = title.find(t => {
@@ -95,41 +106,39 @@ const getAnnouncementTitle = (entry: Entry): string => {
   return 'Untitled'
 }
 
-// Unique announcements grouped by document_id
+/** One rendered row. */
 interface UniqueAnnouncement {
   document_id: string
   title: string
   publish_date: string
   url?: string
-  entity_count: number
+  entry_count: number
   group_id?: string
-  lang?: string
 }
 
-const uniqueAnnouncements = computed<UniqueAnnouncement[]>(() => {
-  const grouped = new Map<string, UniqueAnnouncement>()
-
-  for (const entry of relatedEntries.value) {
-    const docId = entry.announcement?.document_id || 'unknown'
-    if (!grouped.has(docId)) {
-      grouped.set(docId, {
-        document_id: docId,
-        title: getAnnouncementTitle(entry),
-        publish_date: entry.announcement?.publish_date || '',
-        url: entry.announcement?.url,
-        entity_count: 0,
-        group_id: entry.group_id,
-        lang: entry.announcement?.language
-      })
-    }
-    grouped.get(docId)!.entity_count++
-  }
-
-  // Sort by date descending
-  return Array.from(grouped.values()).sort((a, b) =>
-    b.publish_date.localeCompare(a.publish_date)
-  )
-})
+/**
+ * Resolve summaries into rendered rows.
+ *
+ * Grouping, deduplication and counting already happened in the publishing
+ * pipeline. What stays here is what only this page can decide: its
+ * English-only title fallback, and the ordering — kept as the same
+ * `localeCompare` comparison over the same values, so the sequence a
+ * visitor sees is produced by the comparison that always produced it.
+ * `group_id` goes through `toNodeIri` because that is the validation
+ * `normalizeNode` used to apply while these rows came from entry nodes.
+ */
+const uniqueAnnouncements = computed<UniqueAnnouncement[]>(() =>
+  relatedAnnouncements.value
+    .map((summary) => ({
+      document_id: summary.documentId,
+      title: getAnnouncementTitle(summary),
+      publish_date: summary.publishDate,
+      url: summary.url,
+      entry_count: summary.entryCount,
+      group_id: toNodeIri(summary.groupId, 'group') ?? undefined
+    }))
+    .sort((a, b) => b.publish_date.localeCompare(a.publish_date))
+)
 
 const getInstrumentTitle = (instrument: LegalInstrument): string => {
   if (instrument.title) {
@@ -156,66 +165,25 @@ const getGroupRef = (groupId?: string): string | null => {
   return groupId.replace('https://www.ammitto.org/group/', '')
 }
 
-// Load entries with this document type
-const loadRelatedEntries = async (docTypeIdentifier: string) => {
+/**
+ * Load the announcements and legal instruments carrying this document type.
+ *
+ * One request. This page used to run two full corpus scans — every entry
+ * node for the announcements, then every legal-instrument node — so at
+ * ~25k entries it never painted. The publishing pipeline now emits both
+ * lists per document type, so the page reads its own summary and nothing
+ * else.
+ */
+const loadSummary = async (docTypeIdentifier: string) => {
   try {
-    // Load entry index
-    const entryIndexResponse = await fetch('/api/v1/node/entry/index.jsonld')
-    if (!entryIndexResponse.ok) return
+    const response = await fetch(`/api/v1/by-document-type/${docTypeIdentifier}.jsonld`)
+    if (!response.ok) return
 
-    const entryIndex = await entryIndexResponse.json()
-    const entryNodes = entryIndex.nodes || []
-
-    for (const entryNode of entryNodes) {
-      const entryRef = entryNode['@id'].replace('https://www.ammitto.org/entry/', '')
-      const entryResponse = await fetch(`/api/v1/node/entry/${entryRef}.jsonld`)
-      if (!entryResponse.ok) continue
-
-      // Entry nodes arrive in the producer's JSON-LD vocabulary
-      const entryData = normalizeNode<Entry>(await entryResponse.json())
-
-      // Check if this entry has the matching document type
-      if (entryData?.announcement?.document_type === docTypeIdentifier) {
-        relatedEntries.value.push(entryData)
-      }
-    }
-
-    // Deduplicate
-    const seen = new Set()
-    relatedEntries.value = relatedEntries.value.filter(e => {
-      if (seen.has(e.id)) return false
-      seen.add(e.id)
-      return true
-    })
+    const summary: DocumentTypeSummary = await response.json()
+    relatedAnnouncements.value = Array.isArray(summary.announcements) ? summary.announcements : []
+    relatedInstruments.value = Array.isArray(summary.legalInstruments) ? summary.legalInstruments : []
   } catch (e) {
-    console.error('Failed to load related entries:', e)
-  }
-}
-
-// Load legal instruments with this document type
-const loadRelatedInstruments = async (docTypeIdentifier: string) => {
-  try {
-    // Load instrument index
-    const instrumentIndexResponse = await fetch('/api/v1/node/legal-instrument/index.jsonld')
-    if (!instrumentIndexResponse.ok) return
-
-    const instrumentIndex = await instrumentIndexResponse.json()
-    const instrumentNodes = instrumentIndex.nodes || []
-
-    for (const instrumentNode of instrumentNodes) {
-      const instrumentRef = instrumentNode['@id'].replace('https://www.ammitto.org/legal-instrument/', '')
-      const instrumentResponse = await fetch(`/api/v1/node/legal-instrument/${instrumentRef}.jsonld`)
-      if (!instrumentResponse.ok) continue
-
-      const instrumentData: LegalInstrument = await instrumentResponse.json()
-
-      // Check if this instrument has the matching type
-      if (instrumentData.type === docTypeIdentifier) {
-        relatedInstruments.value.push(instrumentData)
-      }
-    }
-  } catch (e) {
-    console.error('Failed to load related instruments:', e)
+    console.error('Failed to load document type summary:', e)
   }
 }
 
@@ -227,13 +195,10 @@ onMounted(async () => {
     const response = await fetch(`/api/v1/node/document-type/${id}.jsonld`)
     if (response.ok) {
       documentType.value = await response.json()
-      // Load related entries and instruments
+      // Load related announcements and instruments
       const identifier = documentType.value?.identifier
       if (identifier) {
-        await Promise.all([
-          loadRelatedEntries(identifier),
-          loadRelatedInstruments(identifier)
-        ])
+        await loadSummary(identifier)
       }
     } else {
       error.value = 'Document type not found'
@@ -345,7 +310,7 @@ onMounted(async () => {
                     <span v-if="announcement.document_id" class="font-mono">{{ announcement.document_id }}</span>
                     <span v-if="announcement.publish_date">{{ formatDate(announcement.publish_date) }}</span>
                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
-                      {{ announcement.entity_count }} {{ announcement.entity_count === 1 ? 'entity' : 'entities' }}
+                      {{ announcement.entry_count }} {{ announcement.entry_count === 1 ? 'entity' : 'entities' }}
                     </span>
                   </div>
                 </div>
