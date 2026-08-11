@@ -31,6 +31,6 @@
   },
   // Only the modules the tests import. Anything reachable from them is pulled
   // in automatically; unrelated application code is not compiled.
-  "include": ["src/utils/normalizeNode.ts"],
+  "include": ["src/utils/normalizeNode.ts", "src/utils/summarySlice.ts"],
   "references": []
 }
