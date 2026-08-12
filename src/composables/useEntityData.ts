@@ -2,6 +2,7 @@ import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useSearchIndex } from './useSearchIndex'
 import { normalizeNode, toNodeIri } from '@/utils/normalizeNode'
+import { mapWithPool } from '@/utils/entryFetchPool'
 import { selectBirthCountry } from '@/utils/birthDisplay'
 import { entityBirthClaims } from '@/utils/birthAdapters'
 
@@ -198,31 +199,54 @@ export function useEntityData() {
       return
     }
 
+    // The IRI tail becomes a fetch path verbatim, so it must be a
+    // resolvable entry node IRI. A non-string would otherwise be iterated
+    // character by character, one bogus fetch per character.
+    const iris: string[] = []
     for (const rawIri of entryIris) {
-      // The IRI tail becomes a fetch path verbatim, so it must be a
-      // resolvable entry node IRI. A non-string would otherwise be iterated
-      // character by character, one bogus fetch per character.
       const entryIri = toNodeIri(rawIri, 'entry')
-      if (!entryIri) {
-        console.warn('Skipping unrecognised entry reference:', rawIri)
-        continue
-      }
+      if (entryIri) iris.push(entryIri)
+      else console.warn('Skipping unrecognised entry reference:', rawIri)
+    }
 
-      try {
-        // Convert IRI to API path
-        // IRI: https://www.ammitto.org/entry/cn/import-export-control-list/202535-csbc-corporation-taiwan
-        // Path: api/v1/node/entry/cn/import-export-control-list/202535-csbc-corporation-taiwan.jsonld
-        const entryPath = `api/v1/node/${entryIri.slice(ENTITY_IRI_BASE.length)}`
-        const response = await fetch(`${API_BASE}${entryPath}.jsonld`)
+    // Fetched with bounded concurrency rather than one at a time.
+    //
+    // This loop used to await each entry in turn, so an entity carrying n
+    // entries cost n sequential round-trips. Every entity published today
+    // carries exactly one entry, so no page gets faster on the current
+    // data — and the entity page was never one of the two that time out.
+    // Those are the organization and document-type pages, which scan the
+    // whole corpus through their own separate loops and are not fixed
+    // here. What this removes is the cost of a case the model allows and
+    // the sources have not yet produced.
+    //
+    // The pool itself, including the cap and the ordering guarantee, is
+    // `mapWithPool` — kept in its own module so the unit tests can run it.
+    const loaded = await mapWithPool(iris, fetchEntry)
+    for (const entry of loaded) {
+      entries.value.push(entry)
+    }
+  }
 
-        if (response.ok) {
-          // Entry nodes arrive in the producer's JSON-LD vocabulary
-          const data = normalizeNode<Entry>(await response.json())
-          if (data) entries.value.push(data)
-        }
-      } catch {
-        console.warn('Failed to load entry:', entryIri)
-      }
+  // One entry node, or null. Behaviour is unchanged from the sequential
+  // version: a thrown error is warned about, a non-OK response is skipped
+  // silently, and either way one unreachable entry must not empty the
+  // whole list. The silent skip is pre-existing and deliberately preserved
+  // here rather than fixed alongside a performance change.
+  const fetchEntry = async (entryIri: string): Promise<Entry | null> => {
+    try {
+      // Convert IRI to API path
+      // IRI: https://www.ammitto.org/entry/cn/import-export-control-list/202535-csbc-corporation-taiwan
+      // Path: api/v1/node/entry/cn/import-export-control-list/202535-csbc-corporation-taiwan.jsonld
+      const entryPath = `api/v1/node/${entryIri.slice(ENTITY_IRI_BASE.length)}`
+      const response = await fetch(`${API_BASE}${entryPath}.jsonld`)
+      if (!response.ok) return null
+
+      // Entry nodes arrive in the producer's JSON-LD vocabulary
+      return normalizeNode<Entry>(await response.json())
+    } catch {
+      console.warn('Failed to load entry:', entryIri)
+      return null
     }
   }
 
