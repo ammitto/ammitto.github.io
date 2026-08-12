@@ -5,6 +5,8 @@ import { normalizeNode, toNodeIri } from '@/utils/normalizeNode'
 import { mapWithPool } from '@/utils/entryFetchPool'
 import { selectBirthCountry } from '@/utils/birthDisplay'
 import { entityBirthClaims } from '@/utils/birthAdapters'
+import { identificationTable } from '@/utils/identificationDisplay'
+import type { IdentificationRecord } from '@/utils/identificationDisplay'
 
 // Full entity interface matching new data-cn JSON-LD node structure
 export interface FullEntity {
@@ -70,14 +72,10 @@ export interface FullEntity {
     country_code?: string
     postal_code?: string
   }>
-  identifications?: Array<{
-    type?: string
-    document_type?: string
-    number?: string
-    value?: string
-    identification?: string
-    issuing_country?: string
-  }>
+  // The producer's Identification, after normalizeNode. The `document_type`,
+  // `value` and `identification` declared here since the field was added are
+  // attributes Ammitto::Identification has never had, under any spelling.
+  identifications?: IdentificationRecord[]
   contact_info?: {
     phone?: string[]
     email?: string[]
@@ -451,7 +449,7 @@ export function useEntityData() {
       if (!entity.value?.citizenships) return []
       return entity.value.citizenships.map(c => c.country || c.country_code || '').filter(Boolean)
     }),
-    identifications: computed(() => entity.value?.identifications || []),
+    identificationTable: computed(() => identificationTable(entity.value?.identifications)),
     position: computed(() => entity.value?.position || null),
     // Every distinct claim, not the first record's. Several records are
     // several assertions about one person, and the page shows them all.
