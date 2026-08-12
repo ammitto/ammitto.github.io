@@ -50,7 +50,8 @@ function identificationsMarkup() {
 }
 
 test('the identifications table renders the published fields', () => {
-  const flat = flatten(identificationsMarkup())
+  const markup = identificationsMarkup()
+  const flat = flatten(markup)
 
   // Each field the producer publishes and this table shows.
   for (const expression of [
@@ -74,7 +75,16 @@ test('the identifications table renders the published fields', () => {
 
   // The column heading names what the cell holds. "Value" over a column of
   // numbers is what the old markup promised and never delivered.
-  assert.ok(flat.includes('>Number</th>'), 'the number column must be headed "Number"')
+  //
+  // Matched against the RAW markup, not the flattened copy: `flatten`
+  // collapses whitespace to a single space rather than removing it, so a
+  // substring check for `>Number</th>` breaks on the common reformat
+  // `> Number </th>` while the heading is still correct.
+  assert.match(
+    markup,
+    /<th\b[^>]*>\s*Number\s*<\/th>/,
+    'the number column must be headed "Number"',
+  )
 })
 
 test('the identifications table does not read a field the producer never emits', () => {
@@ -117,10 +127,15 @@ test('useSanctionsData declares no identification fields', () => {
   // never read them; the interface that claimed otherwise described three
   // fields that do not exist, and drifted unnoticed because nothing
   // consumed it.
-  assert.equal(
-    read('src/composables/useSanctionsData.ts').includes('identification'),
-    false,
-    'useSanctionsData declares identification fields nothing reads',
+  //
+  // Anchored to a property declaration rather than the bare word: a
+  // substring check for 'identification' also matches a comment that
+  // merely mentions the field, and the longer word 'identifications' in
+  // any prose the module grows.
+  assert.doesNotMatch(
+    read('src/composables/useSanctionsData.ts'),
+    /^[ \t]*(?:readonly[ \t]+)?identifications[ \t]*\??[ \t]*:/m,
+    'useSanctionsData declares an identifications field nothing reads',
   )
 })
 
