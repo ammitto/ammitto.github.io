@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
-import { normalizeNode } from '@/utils/normalizeNode'
+import {
+  organizationSummaryUrl,
+  summaryList,
+  toAnnouncementRows,
+  type AnnouncementSummary,
+  type OrganizationSummary
+} from '@/utils/summarySlice'
 
 const route = useRoute()
 
@@ -22,29 +28,16 @@ interface Organization {
   url?: string
 }
 
-interface Entry {
-  id: string
-  entity_id?: string
-  status?: string
-  group_id?: string
-  announcement?: {
-    title?: string | Array<{ value: string; lang: string } | { [key: string]: string }>
-    publish_date?: string
-    document_id?: string
-    url?: string
-    authority?: string
-    publisher?: string
-    signatory?: string
-    document_type?: string
-  }
-}
-
 const organization = ref<Organization | null>(null)
-const publishedEntries = ref<Entry[]>([])
-const signedEntries = ref<Entry[]>([])
-const authorizedEntries = ref<Entry[]>([])
+const publishedAnnouncements = ref<AnnouncementSummary[]>([])
+const signedAnnouncements = ref<AnnouncementSummary[]>([])
+const authorizedAnnouncements = ref<AnnouncementSummary[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
+// Distinguishes "this organization has no documents" from "the summary could
+// not be read". Without it, an artifact published before these slices
+// existed would render as a confident, wrong empty page.
+const summaryUnavailable = ref(false)
 
 const orgId = computed(() => route.params.id as string)
 
@@ -74,9 +67,9 @@ const orgTypeLabel = computed(() => {
   return labels[organization.value.type] || organization.value.type
 })
 
-const getAnnouncementTitle = (entry: Entry): string => {
-  if (!entry.announcement?.title) return 'Untitled'
-  const title = entry.announcement.title
+const getAnnouncementTitle = (announcement: AnnouncementSummary): string => {
+  if (!announcement.title) return 'Untitled'
+  const title = announcement.title
   if (typeof title === 'string') return title
   if (Array.isArray(title)) {
     // Handle both {value, lang} and {"zh-Hans": ..., "en": ...} formats
@@ -102,43 +95,12 @@ const getAnnouncementTitle = (entry: Entry): string => {
   return 'Untitled'
 }
 
-// Unique announcement interface
-interface UniqueAnnouncement {
-  document_id: string
-  title: string
-  publish_date: string
-  url?: string
-  entity_count: number
-  group_id?: string
-}
+const toRows = (summaries: AnnouncementSummary[]) =>
+  toAnnouncementRows(summaries, getAnnouncementTitle)
 
-// Helper to deduplicate entries into unique announcements
-const deduplicateToAnnouncements = (entries: Entry[]): UniqueAnnouncement[] => {
-  const grouped = new Map<string, UniqueAnnouncement>()
-
-  for (const entry of entries) {
-    const docId = entry.announcement?.document_id || 'unknown'
-    if (!grouped.has(docId)) {
-      grouped.set(docId, {
-        document_id: docId,
-        title: getAnnouncementTitle(entry),
-        publish_date: entry.announcement?.publish_date || '',
-        url: entry.announcement?.url,
-        entity_count: 0,
-        group_id: entry.group_id
-      })
-    }
-    grouped.get(docId)!.entity_count++
-  }
-
-  return Array.from(grouped.values()).sort((a, b) =>
-    b.publish_date.localeCompare(a.publish_date)
-  )
-}
-
-const uniquePublishedAnnouncements = computed(() => deduplicateToAnnouncements(publishedEntries.value))
-const uniqueSignedAnnouncements = computed(() => deduplicateToAnnouncements(signedEntries.value))
-const uniqueAuthorizedAnnouncements = computed(() => deduplicateToAnnouncements(authorizedEntries.value))
+const uniquePublishedAnnouncements = computed(() => toRows(publishedAnnouncements.value))
+const uniqueSignedAnnouncements = computed(() => toRows(signedAnnouncements.value))
+const uniqueAuthorizedAnnouncements = computed(() => toRows(authorizedAnnouncements.value))
 
 const formatDate = (dateStr?: string): string => {
   if (!dateStr) return ''
@@ -156,59 +118,29 @@ const getGroupRef = (groupId?: string): string | null => {
   return groupId.replace('https://www.ammitto.org/group/', '')
 }
 
-// Load entries where this organization is publisher, signatory, or authority
-const loadRelatedEntries = async (orgIdentifier: string) => {
+/**
+ * Load the documents this organization published, signed and authorized.
+ *
+ * One request. This page used to fetch the entry index and then every entry
+ * node in the corpus — tens of thousands of sequential requests, so the page
+ * never painted. The publishing pipeline now emits the same three lists
+ * per organization, so the page reads its own summary and nothing else.
+ */
+const loadSummary = async (orgIdentifier: string) => {
   try {
-    // Load entry index
-    const entryIndexResponse = await fetch('/api/v1/node/entry/index.jsonld')
-    if (!entryIndexResponse.ok) return
-
-    const entryIndex = await entryIndexResponse.json()
-    const entryNodes = entryIndex.nodes || []
-
-    // Check each entry for relationships
-    for (const entryNode of entryNodes) {
-      const entryRef = entryNode['@id'].replace('https://www.ammitto.org/entry/', '')
-      const entryResponse = await fetch(`/api/v1/node/entry/${entryRef}.jsonld`)
-      if (!entryResponse.ok) continue
-
-      // Entry nodes arrive in the producer's JSON-LD vocabulary
-      const entryData = normalizeNode<Entry>(await entryResponse.json())
-      const announcement = entryData?.announcement
-
-      if (!entryData || !announcement) continue
-
-      // Check if this org is publisher
-      if (announcement.publisher === orgIdentifier || announcement.publisher?.includes(orgIdentifier)) {
-        publishedEntries.value.push(entryData)
-      }
-
-      // Check if this org is signatory
-      if (announcement.signatory === orgIdentifier || announcement.signatory?.includes(orgIdentifier)) {
-        signedEntries.value.push(entryData)
-      }
-
-      // Check if this org is authority
-      if (announcement.authority === orgIdentifier || announcement.authority?.includes(orgIdentifier)) {
-        authorizedEntries.value.push(entryData)
-      }
+    const response = await fetch(organizationSummaryUrl(orgIdentifier))
+    if (!response.ok) {
+      summaryUnavailable.value = true
+      return
     }
 
-    // Deduplicate entries
-    const dedupe = (entries: Entry[]) => {
-      const seen = new Set()
-      return entries.filter(e => {
-        if (seen.has(e.id)) return false
-        seen.add(e.id)
-        return true
-      })
-    }
-
-    publishedEntries.value = dedupe(publishedEntries.value)
-    signedEntries.value = dedupe(signedEntries.value)
-    authorizedEntries.value = dedupe(authorizedEntries.value)
+    const summary: OrganizationSummary = await response.json()
+    publishedAnnouncements.value = summaryList<AnnouncementSummary>(summary.published)
+    signedAnnouncements.value = summaryList<AnnouncementSummary>(summary.signed)
+    authorizedAnnouncements.value = summaryList<AnnouncementSummary>(summary.authorized)
   } catch (e) {
-    console.error('Failed to load related entries:', e)
+    summaryUnavailable.value = true
+    console.error('Failed to load organization summary:', e)
   }
 }
 
@@ -220,9 +152,9 @@ onMounted(async () => {
     const response = await fetch(`/api/v1/node/organization/${id}.jsonld`)
     if (response.ok) {
       organization.value = await response.json()
-      // Load related entries
+      // Load the published summary
       if (organization.value?.identifier) {
-        await loadRelatedEntries(organization.value.identifier)
+        await loadSummary(organization.value.identifier)
       }
     } else {
       error.value = 'Organization not found'
@@ -311,6 +243,13 @@ onMounted(async () => {
           </dl>
         </div>
 
+        <!-- Summary unavailable -->
+        <div v-if="summaryUnavailable" class="bg-white dark:bg-dark-card rounded-lg shadow-sm border border-light-border dark:border-dark-border p-6 text-center">
+          <p class="text-light-muted dark:text-dark-muted">
+            Document lists are unavailable for this organization right now.
+          </p>
+        </div>
+
         <!-- Documents Published -->
         <div v-if="uniquePublishedAnnouncements.length > 0" class="bg-white dark:bg-dark-card rounded-lg shadow-sm border border-light-border dark:border-dark-border p-6">
           <h2 class="text-lg font-semibold text-light-fg dark:text-dark-fg mb-4">
@@ -333,7 +272,7 @@ onMounted(async () => {
                     <span v-if="announcement.document_id" class="font-mono">{{ announcement.document_id }}</span>
                     <span v-if="announcement.publish_date">{{ formatDate(announcement.publish_date) }}</span>
                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
-                      {{ announcement.entity_count }} {{ announcement.entity_count === 1 ? 'entity' : 'entities' }}
+                      {{ announcement.entry_count }} {{ announcement.entry_count === 1 ? 'entity' : 'entities' }}
                     </span>
                   </div>
                 </div>
@@ -367,7 +306,7 @@ onMounted(async () => {
                     <span v-if="announcement.document_id" class="font-mono">{{ announcement.document_id }}</span>
                     <span v-if="announcement.publish_date">{{ formatDate(announcement.publish_date) }}</span>
                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
-                      {{ announcement.entity_count }} {{ announcement.entity_count === 1 ? 'entity' : 'entities' }}
+                      {{ announcement.entry_count }} {{ announcement.entry_count === 1 ? 'entity' : 'entities' }}
                     </span>
                   </div>
                 </div>
@@ -401,7 +340,7 @@ onMounted(async () => {
                     <span v-if="announcement.document_id" class="font-mono">{{ announcement.document_id }}</span>
                     <span v-if="announcement.publish_date">{{ formatDate(announcement.publish_date) }}</span>
                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
-                      {{ announcement.entity_count }} {{ announcement.entity_count === 1 ? 'entity' : 'entities' }}
+                      {{ announcement.entry_count }} {{ announcement.entry_count === 1 ? 'entity' : 'entities' }}
                     </span>
                   </div>
                 </div>

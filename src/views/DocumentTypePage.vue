@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
-import { normalizeNode } from '@/utils/normalizeNode'
+import {
+  documentTypeSummaryUrl,
+  summaryList,
+  toAnnouncementRows,
+  type AnnouncementSummary,
+  type DocumentTypeSummary,
+  type LegalInstrumentSummary
+} from '@/utils/summarySlice'
 
 const route = useRoute()
 
@@ -19,37 +26,15 @@ interface DocumentType {
   name: LocalizedName[]
 }
 
-interface Entry {
-  id: string
-  entity_id?: string
-  status?: string
-  group_id?: string
-  announcement?: {
-    title?: string | Array<{ value: string; lang: string }>
-    publish_date?: string
-    document_id?: string
-    url?: string
-    document_type?: string
-    language?: string
-  }
-}
-
-interface LegalInstrument {
-  '@id': string
-  identifier?: string
-  name?: string
-  title?: Array<{ 'zh-Hans'?: string; 'en'?: string }> | string
-  type?: string
-  publishDate?: string
-  url?: string
-  lang?: string
-}
-
 const documentType = ref<DocumentType | null>(null)
-const relatedEntries = ref<Entry[]>([])
-const relatedInstruments = ref<LegalInstrument[]>([])
+const relatedAnnouncements = ref<AnnouncementSummary[]>([])
+const relatedInstruments = ref<LegalInstrumentSummary[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
+// Distinguishes "nothing carries this document type" from "the summary could
+// not be read". Without it the empty state below would state, falsely and
+// confidently, that no documents exist.
+const summaryUnavailable = ref(false)
 
 const docTypeId = computed(() => route.params.id as string)
 
@@ -76,9 +61,9 @@ const formatDate = (dateStr?: string): string => {
   }
 }
 
-const getAnnouncementTitle = (entry: Entry): string => {
-  if (!entry.announcement?.title) return 'Untitled'
-  const title = entry.announcement.title
+const getAnnouncementTitle = (announcement: AnnouncementSummary): string => {
+  if (!announcement.title) return 'Untitled'
+  const title = announcement.title
   if (typeof title === 'string') return title
   if (Array.isArray(title)) {
     const enTitle = title.find(t => {
@@ -95,43 +80,11 @@ const getAnnouncementTitle = (entry: Entry): string => {
   return 'Untitled'
 }
 
-// Unique announcements grouped by document_id
-interface UniqueAnnouncement {
-  document_id: string
-  title: string
-  publish_date: string
-  url?: string
-  entity_count: number
-  group_id?: string
-  lang?: string
-}
+const uniqueAnnouncements = computed(() =>
+  toAnnouncementRows(relatedAnnouncements.value, getAnnouncementTitle)
+)
 
-const uniqueAnnouncements = computed<UniqueAnnouncement[]>(() => {
-  const grouped = new Map<string, UniqueAnnouncement>()
-
-  for (const entry of relatedEntries.value) {
-    const docId = entry.announcement?.document_id || 'unknown'
-    if (!grouped.has(docId)) {
-      grouped.set(docId, {
-        document_id: docId,
-        title: getAnnouncementTitle(entry),
-        publish_date: entry.announcement?.publish_date || '',
-        url: entry.announcement?.url,
-        entity_count: 0,
-        group_id: entry.group_id,
-        lang: entry.announcement?.language
-      })
-    }
-    grouped.get(docId)!.entity_count++
-  }
-
-  // Sort by date descending
-  return Array.from(grouped.values()).sort((a, b) =>
-    b.publish_date.localeCompare(a.publish_date)
-  )
-})
-
-const getInstrumentTitle = (instrument: LegalInstrument): string => {
+const getInstrumentTitle = (instrument: LegalInstrumentSummary): string => {
   if (instrument.title) {
     if (typeof instrument.title === 'string') return instrument.title
     if (Array.isArray(instrument.title)) {
@@ -156,66 +109,29 @@ const getGroupRef = (groupId?: string): string | null => {
   return groupId.replace('https://www.ammitto.org/group/', '')
 }
 
-// Load entries with this document type
-const loadRelatedEntries = async (docTypeIdentifier: string) => {
+/**
+ * Load the announcements and legal instruments carrying this document type.
+ *
+ * One request. This page used to run two full corpus scans — every entry
+ * node for the announcements, then every legal-instrument node — so at
+ * ~25k entries it never painted. The publishing pipeline now emits both
+ * lists per document type, so the page reads its own summary and nothing
+ * else.
+ */
+const loadSummary = async (docTypeIdentifier: string) => {
   try {
-    // Load entry index
-    const entryIndexResponse = await fetch('/api/v1/node/entry/index.jsonld')
-    if (!entryIndexResponse.ok) return
-
-    const entryIndex = await entryIndexResponse.json()
-    const entryNodes = entryIndex.nodes || []
-
-    for (const entryNode of entryNodes) {
-      const entryRef = entryNode['@id'].replace('https://www.ammitto.org/entry/', '')
-      const entryResponse = await fetch(`/api/v1/node/entry/${entryRef}.jsonld`)
-      if (!entryResponse.ok) continue
-
-      // Entry nodes arrive in the producer's JSON-LD vocabulary
-      const entryData = normalizeNode<Entry>(await entryResponse.json())
-
-      // Check if this entry has the matching document type
-      if (entryData?.announcement?.document_type === docTypeIdentifier) {
-        relatedEntries.value.push(entryData)
-      }
+    const response = await fetch(documentTypeSummaryUrl(docTypeIdentifier))
+    if (!response.ok) {
+      summaryUnavailable.value = true
+      return
     }
 
-    // Deduplicate
-    const seen = new Set()
-    relatedEntries.value = relatedEntries.value.filter(e => {
-      if (seen.has(e.id)) return false
-      seen.add(e.id)
-      return true
-    })
+    const summary: DocumentTypeSummary = await response.json()
+    relatedAnnouncements.value = summaryList<AnnouncementSummary>(summary.announcements)
+    relatedInstruments.value = summaryList<LegalInstrumentSummary>(summary.legalInstruments)
   } catch (e) {
-    console.error('Failed to load related entries:', e)
-  }
-}
-
-// Load legal instruments with this document type
-const loadRelatedInstruments = async (docTypeIdentifier: string) => {
-  try {
-    // Load instrument index
-    const instrumentIndexResponse = await fetch('/api/v1/node/legal-instrument/index.jsonld')
-    if (!instrumentIndexResponse.ok) return
-
-    const instrumentIndex = await instrumentIndexResponse.json()
-    const instrumentNodes = instrumentIndex.nodes || []
-
-    for (const instrumentNode of instrumentNodes) {
-      const instrumentRef = instrumentNode['@id'].replace('https://www.ammitto.org/legal-instrument/', '')
-      const instrumentResponse = await fetch(`/api/v1/node/legal-instrument/${instrumentRef}.jsonld`)
-      if (!instrumentResponse.ok) continue
-
-      const instrumentData: LegalInstrument = await instrumentResponse.json()
-
-      // Check if this instrument has the matching type
-      if (instrumentData.type === docTypeIdentifier) {
-        relatedInstruments.value.push(instrumentData)
-      }
-    }
-  } catch (e) {
-    console.error('Failed to load related instruments:', e)
+    summaryUnavailable.value = true
+    console.error('Failed to load document type summary:', e)
   }
 }
 
@@ -227,13 +143,10 @@ onMounted(async () => {
     const response = await fetch(`/api/v1/node/document-type/${id}.jsonld`)
     if (response.ok) {
       documentType.value = await response.json()
-      // Load related entries and instruments
+      // Load related announcements and instruments
       const identifier = documentType.value?.identifier
       if (identifier) {
-        await Promise.all([
-          loadRelatedEntries(identifier),
-          loadRelatedInstruments(identifier)
-        ])
+        await loadSummary(identifier)
       }
     } else {
       error.value = 'Document type not found'
@@ -345,7 +258,7 @@ onMounted(async () => {
                     <span v-if="announcement.document_id" class="font-mono">{{ announcement.document_id }}</span>
                     <span v-if="announcement.publish_date">{{ formatDate(announcement.publish_date) }}</span>
                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
-                      {{ announcement.entity_count }} {{ announcement.entity_count === 1 ? 'entity' : 'entities' }}
+                      {{ announcement.entry_count }} {{ announcement.entry_count === 1 ? 'entity' : 'entities' }}
                     </span>
                   </div>
                 </div>
@@ -357,8 +270,16 @@ onMounted(async () => {
           </div>
         </div>
 
+        <!-- Summary unavailable: never claim "no documents" when the list
+             could not be read at all. -->
+        <div v-if="summaryUnavailable" class="bg-white dark:bg-dark-card rounded-lg shadow-sm border border-light-border dark:border-dark-border p-6 text-center">
+          <p class="text-light-muted dark:text-dark-muted">
+            Document lists are unavailable for this document type right now.
+          </p>
+        </div>
+
         <!-- Empty state -->
-        <div v-if="uniqueAnnouncements.length === 0 && relatedInstruments.length === 0" class="bg-white dark:bg-dark-card rounded-lg shadow-sm border border-light-border dark:border-dark-border p-6 text-center">
+        <div v-else-if="uniqueAnnouncements.length === 0 && relatedInstruments.length === 0" class="bg-white dark:bg-dark-card rounded-lg shadow-sm border border-light-border dark:border-dark-border p-6 text-center">
           <p class="text-light-muted dark:text-dark-muted">
             No documents found with this document type.
           </p>
