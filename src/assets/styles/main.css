@@ -15,19 +15,26 @@
   --color-status-suspended: #f97316;
   --color-status-delisted: #6b7280;
 
+  /*
+   * Theme palette variables are bare RGB triplets (not hex) so the Tailwind
+   * tokens in tailwind.config.js can wrap them as
+   * rgb(var(--color-x) / <alpha-value>) and support opacity modifiers
+   * (bg-light-surface/50, ...). Plain CSS usage wraps them in rgb().
+   */
+
   /* Light mode */
-  --color-light-bg: #f5f5f7;
-  --color-light-surface: #ffffff;
-  --color-light-text: #1a1a2e;
-  --color-light-muted: #6b7280;
-  --color-light-border: #e5e7eb;
+  --color-light-bg: 245 245 247; /* #f5f5f7 */
+  --color-light-surface: 255 255 255; /* #ffffff */
+  --color-light-text: 26 26 46; /* #1a1a2e */
+  --color-light-muted: 107 114 128; /* #6b7280 */
+  --color-light-border: 229 231 235; /* #e5e7eb */
 
   /* Dark mode */
-  --color-dark-bg: #0f0f1a;
-  --color-dark-surface: #1a1a2e;
-  --color-dark-text: #f5f5f7;
-  --color-dark-muted: #9ca3af;
-  --color-dark-border: #2d2d44;
+  --color-dark-bg: 15 15 26; /* #0f0f1a */
+  --color-dark-surface: 26 26 46; /* #1a1a2e */
+  --color-dark-text: 245 245 247; /* #f5f5f7 */
+  --color-dark-muted: 156 163 175; /* #9ca3af */
+  --color-dark-border: 45 45 68; /* #2d2d44 */
 }
 
 /* Base styles */
@@ -35,27 +42,17 @@ html {
   scroll-behavior: smooth;
 }
 
+/*
+ * Theme colors are applied by the Tailwind utilities on <body> in index.html
+ * (bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text); the
+ * palette is defined in tailwind.config.js from the variables above.
+ */
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: var(--color-light-bg);
-  color: var(--color-light-text);
   transition: background-color 0.2s, color 0.2s;
 }
-
-/* Dark mode body styles */
-html.dark body {
-  background-color: var(--color-dark-bg);
-  color: var(--color-dark-text);
-}
-
-/* Dark mode utility class overrides */
-html.dark .bg-light-bg { background-color: var(--color-dark-bg); }
-html.dark .bg-light-surface { background-color: var(--color-dark-surface); }
-html.dark .text-light-text { color: var(--color-dark-text); }
-html.dark .text-light-muted { color: var(--color-dark-muted); }
-html.dark .border-light-border { border-color: var(--color-dark-border); }
 
 /* Dark mode transition */
 html.dark {
@@ -90,13 +87,13 @@ html.dark {
   background-color: rgba(255, 255, 255, 0.8);
   backdrop-filter: blur(8px);
   border-radius: 0.75rem;
-  border: 1px solid var(--color-light-border);
+  border: 1px solid rgb(var(--color-light-border));
   transition: all 0.2s;
 }
 
 .dark .glass-card {
   background-color: rgba(26, 26, 46, 0.8);
-  border-color: var(--color-dark-border);
+  border-color: rgb(var(--color-dark-border));
 }
 
 .glass-card:hover {
@@ -130,16 +127,16 @@ html.dark {
   align-items: center;
   justify-content: center;
   padding: 0.5rem 1rem;
-  background-color: var(--color-light-surface);
-  border: 1px solid var(--color-light-border);
+  background-color: rgb(var(--color-light-surface));
+  border: 1px solid rgb(var(--color-light-border));
   font-weight: 500;
   border-radius: 0.5rem;
   transition: all 0.15s;
 }
 
 .dark .btn-secondary {
-  background-color: var(--color-dark-surface);
-  border-color: var(--color-dark-border);
+  background-color: rgb(var(--color-dark-surface));
+  border-color: rgb(var(--color-dark-border));
 }
 
 .btn-secondary:hover {
@@ -156,68 +153,16 @@ html.dark {
 }
 
 .dark .btn-secondary:focus {
-  box-shadow: 0 0 0 2px var(--color-brand-primary), 0 0 0 4px var(--color-dark-bg);
+  box-shadow: 0 0 0 2px var(--color-brand-primary), 0 0 0 4px rgb(var(--color-dark-bg));
 }
-
-/* Tailwind-compatible utility classes */
-.text-brand-primary { color: var(--color-brand-primary); }
-.text-brand-secondary { color: var(--color-brand-secondary); }
-.text-brand-accent { color: var(--color-brand-accent); }
-.text-status-active { color: var(--color-status-active); }
-.text-status-suspended { color: var(--color-status-suspended); }
-.text-status-delisted { color: var(--color-status-delisted); }
-.text-light-bg { color: var(--color-light-bg); }
-.text-light-surface { color: var(--color-light-surface); }
-.text-light-text { color: var(--color-light-text); }
-.text-light-muted { color: var(--color-light-muted); }
-.text-light-border { color: var(--color-light-border); }
-.text-dark-bg { color: var(--color-dark-bg); }
-.text-dark-surface { color: var(--color-dark-surface); }
-.text-dark-text { color: var(--color-dark-text); }
-.text-dark-muted { color: var(--color-dark-muted); }
-.text-dark-border { color: var(--color-dark-border); }
-
-.bg-brand-primary { background-color: var(--color-brand-primary); }
-.bg-brand-secondary { background-color: var(--color-brand-secondary); }
-.bg-brand-accent { background-color: var(--color-brand-accent); }
-.bg-status-active { background-color: var(--color-status-active); }
-.bg-status-suspended { background-color: var(--color-status-suspended); }
-.bg-status-delisted { background-color: var(--color-status-delisted); }
-.bg-light-bg { background-color: var(--color-light-bg); }
-.bg-light-surface { background-color: var(--color-light-surface); }
-.bg-light-text { background-color: var(--color-light-text); }
-.bg-light-muted { background-color: var(--color-light-muted); }
-.bg-light-border { background-color: var(--color-light-border); }
-.bg-dark-bg { background-color: var(--color-dark-bg); }
-.bg-dark-surface { background-color: var(--color-dark-surface); }
-.bg-dark-text { background-color: var(--color-dark-text); }
-.bg-dark-muted { background-color: var(--color-dark-muted); }
-.bg-dark-border { background-color: var(--color-dark-border); }
-
-.border-brand-primary { border-color: var(--color-brand-primary); }
-.border-brand-secondary { border-color: var(--color-brand-secondary); }
-.border-brand-accent { border-color: var(--color-brand-accent); }
-.border-status-active { border-color: var(--color-status-active); }
-.border-status-suspended { border-color: var(--color-status-suspended); }
-.border-status-delisted { border-color: var(--color-status-delisted); }
-.border-light-bg { border-color: var(--color-light-bg); }
-.border-light-surface { border-color: var(--color-light-surface); }
-.border-light-text { border-color: var(--color-light-text); }
-.border-light-muted { border-color: var(--color-light-muted); }
-.border-light-border { border-color: var(--color-light-border); }
-.border-dark-bg { border-color: var(--color-dark-bg); }
-.border-dark-surface { border-color: var(--color-dark-surface); }
-.border-dark-text { border-color: var(--color-dark-text); }
-.border-dark-muted { border-color: var(--color-dark-muted); }
-.border-dark-border { border-color: var(--color-dark-border); }
 
 /* Prose styles for content pages */
 .prose-custom {
-  color: var(--color-light-text);
+  color: rgb(var(--color-light-text));
 }
 
 .dark .prose-custom {
-  color: var(--color-dark-text);
+  color: rgb(var(--color-dark-text));
 }
 
 .prose-custom h1 {
@@ -242,11 +187,11 @@ html.dark {
 
 .prose-custom p {
   margin-bottom: 1rem;
-  color: var(--color-light-muted);
+  color: rgb(var(--color-light-muted));
 }
 
 .dark .prose-custom p {
-  color: var(--color-dark-muted);
+  color: rgb(var(--color-dark-muted));
 }
 
 .prose-custom ul {
@@ -270,7 +215,7 @@ html.dark {
 }
 
 .prose-custom code {
-  background-color: var(--color-light-surface);
+  background-color: rgb(var(--color-light-surface));
   padding: 0.125rem 0.375rem;
   border-radius: 0.25rem;
   font-size: 0.875rem;
@@ -278,12 +223,12 @@ html.dark {
 }
 
 .dark .prose-custom code {
-  background-color: var(--color-dark-surface);
+  background-color: rgb(var(--color-dark-surface));
 }
 
 .prose-custom pre {
-  background-color: var(--color-dark-bg);
-  color: var(--color-dark-text);
+  background-color: rgb(var(--color-dark-bg));
+  color: rgb(var(--color-dark-text));
   padding: 1rem;
   border-radius: 0.5rem;
   overflow-x: auto;
@@ -310,23 +255,23 @@ html.dark {
 }
 
 .prose-custom th {
-  background-color: var(--color-light-surface);
+  background-color: rgb(var(--color-light-surface));
   text-align: left;
   padding: 0.75rem;
-  border: 1px solid var(--color-light-border);
+  border: 1px solid rgb(var(--color-light-border));
   font-weight: 600;
 }
 
 .dark .prose-custom th {
-  background-color: var(--color-dark-surface);
-  border-color: var(--color-dark-border);
+  background-color: rgb(var(--color-dark-surface));
+  border-color: rgb(var(--color-dark-border));
 }
 
 .prose-custom td {
   padding: 0.75rem;
-  border: 1px solid var(--color-light-border);
+  border: 1px solid rgb(var(--color-light-border));
 }
 
 .dark .prose-custom td {
-  border-color: var(--color-dark-border);
+  border-color: rgb(var(--color-dark-border));
 }
