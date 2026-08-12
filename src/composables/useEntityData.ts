@@ -3,6 +3,8 @@ import { useRoute } from 'vue-router'
 import { useSearchIndex } from './useSearchIndex'
 import { normalizeNode, toNodeIri } from '@/utils/normalizeNode'
 import { mapWithPool } from '@/utils/entryFetchPool'
+import { selectBirthCountry } from '@/utils/birthDisplay'
+import { entityBirthClaims } from '@/utils/birthAdapters'
 
 // Full entity interface matching new data-cn JSON-LD node structure
 export interface FullEntity {
@@ -31,9 +33,17 @@ export interface FullEntity {
   }>
   same_as?: string[]
   // Person-specific fields
+  // The producer sends `year` and both bounds as JSON numbers; the older
+  // published snapshot sends strings. Both are declared, because a
+  // formatter that assumed either would be wrong against live data half
+  // the time while `vue-tsc` stayed green.
   birth_info?: Array<{
     date?: string
-    year?: string
+    year?: number | string
+    year_range_from?: number | string
+    year_range_to?: number | string
+    city?: string
+    region?: string
     country?: string
     country_code?: string
     circa?: boolean
@@ -276,12 +286,9 @@ export function useEntityData() {
       return entity.value.addresses[0].country
     }
 
-    // From birth info
-    if (entity.value.birth_info?.length) {
-      return entity.value.birth_info[0].country
-    }
-
-    return null
+    // From birth info: the first record that states a country, which is
+    // not necessarily the first record.
+    return selectBirthCountry(entity.value.birth_info)
   })
 
   // Get source code from entity
@@ -298,12 +305,6 @@ export function useEntityData() {
 
   // Get entity type
   const entityType = computed(() => entity.value?.entity_type || null)
-
-  // Get birth date
-  const birthDate = computed(() => {
-    if (!entity.value?.birth_info?.length) return null
-    return entity.value.birth_info[0].date || null
-  })
 
   // Get remarks
   const remarks = computed(() => entity.value?.remarks || null)
@@ -426,7 +427,6 @@ export function useEntityData() {
     source,
     sourceReference,
     entityType,
-    birthDate,
     remarks,
     contact,
     addresses,
@@ -453,14 +453,8 @@ export function useEntityData() {
     }),
     identifications: computed(() => entity.value?.identifications || []),
     position: computed(() => entity.value?.position || null),
-    birthInfo: computed(() => {
-      if (!entity.value?.birth_info?.length) return null
-      const info = entity.value.birth_info[0]
-      const parts: string[] = []
-      if (info.date) parts.push(info.date)
-      if (info.year && !info.date) parts.push(info.year + (info.circa ? ' (circa)' : ''))
-      if (info.country) parts.push(info.country)
-      return parts.length > 0 ? parts.join(', ') : null
-    }),
+    // Every distinct claim, not the first record's. Several records are
+    // several assertions about one person, and the page shows them all.
+    birthInfo: computed(() => entityBirthClaims(entity.value)),
   }
 }
