@@ -1,6 +1,7 @@
 import { ref, computed } from 'vue'
 import FlexSearch from 'flexsearch'
 import { normalizeNode } from '@/utils/normalizeNode'
+import { searchRowText } from '@/utils/birthAdapters'
 
 /**
  * Lightweight search entity from search-index.json.
@@ -29,6 +30,11 @@ export interface SearchEntity {
   authority?: string
   status?: string
   birthYear?: string
+  // Bounds of a stated span of birth years. The producer excludes the span
+  // keys from the lookup that fills `birthYear`, so a span-only person has
+  // NO `birthYear` at all and these are the row's only birth signal.
+  birthYearFrom?: string
+  birthYearTo?: string
   imo?: string
 }
 
@@ -114,14 +120,7 @@ async function loadSearchIndex(): Promise<void> {
     // Index each entity
     data.entities.forEach((entity) => {
       // Build searchable text
-      const text = [
-        ...entity.names,
-        entity.country,
-        entity.regime,
-        entity.authority,
-        entity.imo,
-        entity.birthYear,
-      ].filter(Boolean).join(' ')
+      const text = searchRowText(entity)
 
       index.add(entity.id, text)
       entities.value.set(entity.id, entity)
