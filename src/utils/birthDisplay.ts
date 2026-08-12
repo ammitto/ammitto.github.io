@@ -28,9 +28,13 @@
  * fact in one product is how a reader ends up believing they are looking at
  * two datasets.
  *
- * Entity nodes carry `year` and the bounds as JSON NUMBERS; the search index
- * carries the same facts as STRINGS. Both are accepted and coerced here
+ * Entity nodes carry `year` and the year bounds as JSON NUMBERS; the search
+ * index carries the same facts as STRINGS. Both are accepted and coerced here
  * rather than at each call site.
+ *
+ * The date bounds are strings everywhere: `json_ld_serializer.rb` puts the
+ * model's `Date` object into the node, which generates as `"1961-01-01"`, and
+ * a day has no numeric spelling to be confused with.
  */
 
 /**
@@ -43,6 +47,8 @@
 export interface BirthRecord {
   date?: string
   year?: number | string
+  date_range_from?: string
+  date_range_to?: string
   year_range_from?: number | string
   year_range_to?: number | string
   circa?: boolean
@@ -59,6 +65,11 @@ export interface BirthRecord {
  * `birthYear` is absent for a span-only person by the producer's deliberate
  * choice — the span keys are excluded from its exact-value lookup — so the
  * bounds are the only birth signal such a person has.
+ *
+ * There are no date-bound columns to add here. `search_index_exporter.rb`
+ * builds a row from three birth keys only, and a date span reaches it as the
+ * year bounds the transformer derives from the endpoints — which is what
+ * keeps such a person findable in a year-only index at all.
  */
 export interface SearchBirthFields {
   birthYear?: string
@@ -73,9 +84,26 @@ function text(value: unknown): string | null {
   return rendered === '' ? null : rendered
 }
 
-/** Whether the record states a span on either side. */
-function hasRange(record: BirthRecord): boolean {
+/** Whether the record states a span of complete dates, on either side. */
+function hasDateRange(record: BirthRecord): boolean {
+  return text(record.date_range_from) !== null || text(record.date_range_to) !== null
+}
+
+/** Whether the record states a span of years, on either side. */
+function hasYearRange(record: BirthRecord): boolean {
   return text(record.year_range_from) !== null || text(record.year_range_to) !== null
+}
+
+/**
+ * Whether the record states a span at all.
+ *
+ * Either pair alone qualifies. A published date span always carries derived
+ * year bounds too, so the year check would find it anyway; asking about both
+ * means a record that ever arrives with only its date bounds is still
+ * rendered rather than silently dropped for stating nothing.
+ */
+function hasRange(record: BirthRecord): boolean {
+  return hasDateRange(record) || hasYearRange(record)
 }
 
 /** Whether the record states an exact date or a single year. */
@@ -90,6 +118,11 @@ function hasExact(record: BirthRecord): boolean {
  * is never mistaken for a closed one — `${from}-${to}` on an open-below
  * record would print "-1980", which reads as a negative year. The producer
  * states either bound alone, so both open shapes are reachable.
+ *
+ * One helper serves date and year bounds alike. The gem keeps
+ * `formatted_date_range` and `formatted_year_range` as separate methods, but
+ * their wording is identical apart from the values, and a second copy here
+ * would be one more place for the two spans to drift out of step.
  */
 function formatRange(from: string | null, to: string | null): string | null {
   if (from && to) return `${from}-${to}`
@@ -108,12 +141,18 @@ function withCirca(label: string, circa?: boolean): string {
 }
 
 /**
- * The temporal half of a record: span, else year-without-date, else date.
+ * The temporal half of a record: date span, else year span, else
+ * year-without-date, else date.
  *
- * Span-first matches `BirthInfo#formatted_date`. The producer nils `date`
- * and `year` whenever it stores a span, so the branches cannot collide on
- * the publish path; the order is kept anyway so the two renderers agree if
- * a hand-built record ever carries both.
+ * The order is `BirthInfo#formatted_date`'s, and the first two branches are
+ * why it matters. A date span publishes the endpoint years as year bounds as
+ * well, so BOTH pairs sit on the one record: reading the year pair first
+ * would print "1961-1962" for a span the source stated to the day, losing
+ * the precision the bounds exist to carry.
+ *
+ * The producer also keeps `year` on a date span whose endpoints share one
+ * year, so a span can co-occur with an exact value too. Span-first is what
+ * stops the finer claim from losing to the coarser one in either collision.
  *
  * `year` is checked only when `date` is absent because every dated record
  * ALSO carries its own year — the transformer fills `year` from the parsed
@@ -122,7 +161,12 @@ function withCirca(label: string, circa?: boolean): string {
 export function formatBirthTemporal(record: BirthRecord | null | undefined): string | null {
   if (!record) return null
 
-  if (hasRange(record)) {
+  if (hasDateRange(record)) {
+    const span = formatRange(text(record.date_range_from), text(record.date_range_to))
+    return span ? withCirca(span, record.circa) : null
+  }
+
+  if (hasYearRange(record)) {
     const span = formatRange(text(record.year_range_from), text(record.year_range_to))
     return span ? withCirca(span, record.circa) : null
   }
@@ -205,6 +249,15 @@ export function formatBirthRecords(
  * stating an exact date or year answers if one exists, otherwise the
  * earliest record stating a span. Bounds are read from that one record, so
  * a span is never assembled out of two different sources' claims.
+ *
+ * A date span adds no third rank. The scans decide WHICH record answers and
+ * `formatBirthTemporal` decides how it reads, so a date span reaches this
+ * line at full precision without a rule of its own. Treating date bounds as
+ * an exact value here would be the harmful change: it would rank a span
+ * above an earlier record's stated year and contradict the producer's
+ * earliest-qualifying rule. A same-year date span needs no such rank either
+ * — the producer keeps its `year`, so the exact scan already stops on that
+ * record, and it renders as the span rather than as the bare year.
  *
  * Temporal only — no place. The cards that show this already render country
  * in a badge of its own, and repeating it would read as two facts.

@@ -100,6 +100,100 @@ test('keeps a span whole rather than assembling one from two records', () => {
   )
 })
 
+test('renders a date span ahead of the year bounds derived from it', () => {
+  // The gem publishes BOTH pairs on one record: `birth_info_for_date_range`
+  // fills year_range_from/to from the endpoint years so a year-only index
+  // keeps the person. Reading the year pair first prints "1961-1962" for a
+  // span the source stated to the day, which is the precision the date
+  // bounds exist to carry.
+  assert.equal(
+    formatBirthTemporal({
+      date_range_from: '1961-01-01',
+      date_range_to: '1962-12-31',
+      year_range_from: 1961,
+      year_range_to: 1962,
+    }),
+    '1961-01-01-1962-12-31',
+  )
+})
+
+test('renders an open date bound as the direction it leaves open', () => {
+  // The same two shapes the year span has, in the same words: the gem's
+  // formatted_date_range and formatted_year_range differ only in values.
+  assert.equal(formatBirthTemporal({ date_range_from: '1961-01-01' }), '1961-01-01 or later')
+  assert.equal(formatBirthTemporal({ date_range_to: '1962-12-31' }), 'no later than 1962-12-31')
+})
+
+test('prefixes circa on the date span branch too', () => {
+  assert.equal(
+    formatBirthTemporal({
+      date_range_from: '1961-01-01',
+      date_range_to: '1962-12-31',
+      circa: true,
+    }),
+    'c. 1961-01-01-1962-12-31',
+  )
+  assert.equal(
+    formatBirthTemporal({ date_range_to: '1962-12-31', circa: true }),
+    'c. no later than 1962-12-31',
+  )
+})
+
+test('leaves the year span alone when no date bounds are stated', () => {
+  assert.equal(formatBirthTemporal({ year_range_from: 1959, year_range_to: 1965 }), '1959-1965')
+  // Blank is not a bound. A record carrying empty date keys must still
+  // render its year span rather than falling into the date branch and
+  // rendering nothing.
+  assert.equal(
+    formatBirthTemporal({
+      date_range_from: '',
+      date_range_to: '  ',
+      year_range_from: 1959,
+      year_range_to: 1965,
+    }),
+    '1959-1965',
+  )
+})
+
+test('keeps a same-year date span at day precision on the card line', () => {
+  // OFAC states spans like "28 Feb 1962 to 28 Dec 1962". The whole interval
+  // lies inside one year, so the gem keeps that year as the scalar as well
+  // as the bounds — the exact scan therefore stops on this record, and it
+  // must still read as the span rather than as a bare "1962".
+  const SAME_YEAR = [{
+    circa: false,
+    year: 1962,
+    date_range_from: '1962-02-28',
+    date_range_to: '1962-12-28',
+    year_range_from: 1962,
+    year_range_to: 1962,
+  }]
+  assert.equal(selectBirthScalar(SAME_YEAR), '1962-02-28-1962-12-28')
+  assert.deepEqual(formatBirthRecords(SAME_YEAR), ['1962-02-28-1962-12-28'])
+})
+
+test('finds a span stated only as dates, without outranking an exact year', () => {
+  // Derived year bounds are the producer's doing, not this module's, so the
+  // span scan asks about both pairs and a record arriving with date bounds
+  // alone is still found.
+  assert.equal(
+    selectBirthScalar([
+      { city: 'Tehran' },
+      { date_range_from: '1961-01-01', date_range_to: '1962-12-31' },
+    ]),
+    '1961-01-01-1962-12-31',
+  )
+  // Earliest qualifying, not most precise: an earlier record's stated year
+  // still answers, as the producer's own spec pins.
+  assert.equal(
+    selectBirthScalar([
+      { year: 1984 },
+      { date_range_from: '1961-01-01', date_range_to: '1962-12-31' },
+    ]),
+    '1984',
+  )
+})
+
 test('renders an open bound as the direction it leaves open', () => {
   // The producer states either bound alone, so both open shapes are
   // reachable. `${from}-${to}` would print "-1980", a negative year.
@@ -213,6 +307,21 @@ test('handles an absent, empty or malformed list rather than throwing', () => {
 
 test('reads the search row, which is flat and carries no list', () => {
   assert.equal(formatSearchBirth({ birthYear: '1964' }), '1964')
+})
+
+test('reads a date span from a search row as the year bounds the index carries', () => {
+  // The search index has NO date columns: `search_index_exporter.rb` builds
+  // a row from birthYear, birthYearFrom and birthYearTo alone, and a date
+  // span arrives there as the year bounds derived from its endpoints. That
+  // derivation is what keeps such a person findable in a year-only index,
+  // and it is why this path needs nothing for date spans.
+  assert.equal(formatSearchBirth({ birthYearFrom: '1961', birthYearTo: '1962' }), '1961-1962')
+  // A same-year date span also fills the row's birthYear, because the gem
+  // retains the year the whole interval lies in.
+  assert.equal(
+    formatSearchBirth({ birthYear: '1962', birthYearFrom: '1962', birthYearTo: '1962' }),
+    '1962',
+  )
 })
 
 test('gives a search row its span when the producer left birthYear out', () => {

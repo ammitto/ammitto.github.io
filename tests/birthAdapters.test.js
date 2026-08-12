@@ -101,6 +101,50 @@ test('the detail projection reads what normalizeNode actually delivers', () => {
   assert.deepEqual(entityBirthClaims(normalized), ['c. 1959-1965'])
 })
 
+test('the detail projection reads a date span as normalizeNode delivers it', () => {
+  // The producer's names are dateRangeFrom / dateRangeTo — declared xsd:date
+  // in the JSON-LD context and generated as ISO strings, since the node
+  // holds real Date objects — and normalizeNode snake_cases them at the
+  // fetch boundary. Going through the real conversion means a respelling on
+  // either side of the repo boundary fails here rather than rendering the
+  // coarser year span in production.
+  const normalized = normalizeNode({
+    '@id': 'https://www.ammitto.org/entity/us/dated-span',
+    entityType: 'person',
+    birthInfo: [{
+      '@type': 'BirthInfo',
+      circa: false,
+      dateRangeFrom: '1961-01-01',
+      dateRangeTo: '1962-12-31',
+      yearRangeFrom: 1961,
+      yearRangeTo: 1962,
+      city: 'Tehran',
+    }],
+  })
+  assert.deepEqual(entityBirthClaims(normalized), ['1961-01-01-1962-12-31, Tehran'])
+  assert.equal(resolveEntityBirthFields(normalized).birthDate, '1961-01-01-1962-12-31')
+})
+
+test('the sanctions view model keeps a same-year date span at day precision', () => {
+  // A span inside one year carries a scalar `year` as well as both pairs of
+  // bounds, so this record answers the exact scan. The card must still show
+  // the days the source stated.
+  const normalized = normalizeNode({
+    '@id': 'https://www.ammitto.org/entity/us/same-year-span',
+    entityType: 'person',
+    birthInfo: [{
+      '@type': 'BirthInfo',
+      circa: false,
+      year: 1962,
+      dateRangeFrom: '1962-02-28',
+      dateRangeTo: '1962-12-28',
+      yearRangeFrom: 1962,
+      yearRangeTo: 1962,
+    }],
+  })
+  assert.equal(resolveEntityBirthFields(normalized).birthDate, '1962-02-28-1962-12-28')
+})
+
 test('the search card renders a span for a row the producer gave no birthYear', () => {
   const card = searchRowToCard({
     id: 'https://www.ammitto.org/entity/eu/spanned',
