@@ -41,7 +41,8 @@
     "src/utils/summarySlice.ts",
     "src/utils/entryFetchPool.ts",
     "src/utils/birthDisplay.ts",
-    "src/utils/birthAdapters.ts"
+    "src/utils/birthAdapters.ts",
+    "src/utils/searchFilters.ts"
   ],
   "references": []
 }
