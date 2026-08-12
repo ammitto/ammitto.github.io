@@ -1,6 +1,7 @@
 import { ref, computed } from 'vue'
 import FlexSearch from 'flexsearch'
 import { normalizeGraph } from '@/utils/normalizeNode'
+import { resolveEntityBirthFields } from '@/utils/birthAdapters'
 
 // Entity interface matching internal format
 export interface SanctionEntity {
@@ -39,9 +40,15 @@ interface JsonLdEntity {
     reference_number: string
   }>
   country?: string
+  // Numbers from the producer, strings from the older snapshot — see the
+  // matching note on FullEntity in useEntityData.
   birth_info?: Array<{
     date?: string
-    year?: string
+    year?: number | string
+    year_range_from?: number | string
+    year_range_to?: number | string
+    city?: string
+    region?: string
     country?: string
     circa?: boolean
   }>
@@ -113,14 +120,9 @@ function transformEntity(entity: JsonLdEntity, sourceCode: string): SanctionEnti
   const source = sourceRef?.source_code || sourceCode
   const refNumber = sourceRef?.reference_number
 
-  // Get country from addresses, birthInfo, or nationalities
-  const country = entity.country ||
-    entity.addresses?.[0]?.country ||
-    entity.birth_info?.[0]?.country ||
-    (typeof entity.nationalities?.[0] === 'string' ? entity.nationalities[0] : entity.nationalities?.[0]?.country)
-
-  // Get birth date from birthInfo
-  const birthDate = entity.birth_info?.[0]?.date || entity.birth_info?.[0]?.year
+  // Country (its existing fallback chain) and birth date, resolved by two
+  // separate scans over the birth records — see birthAdapters.
+  const { country, birthDate } = resolveEntityBirthFields(entity)
 
   // Transform names to internal format
   const names = entity.names?.map(n => ({

@@ -8,6 +8,7 @@ import SearchFilters from '@/components/organisms/SearchFilters.vue'
 import { useScrollAnimation } from '@/composables/useScrollAnimation'
 import { useSearchIndex, type SearchEntity } from '@/composables/useSearchIndex'
 import { normalizeSourceCode } from '@/config'
+import { searchRowToCard } from '@/utils/birthAdapters'
 
 // Initialize scroll animations
 useScrollAnimation()
@@ -103,17 +104,7 @@ watch([searchQuery, filters], () => {
 }, { deep: true })
 
 // Transform SearchEntity format for EntityCard
-const entityAdapter = (entity: SearchEntity) => ({
-  id: entity.id,
-  ref: entity.ref, // Short reference for clean URLs
-  names: entity.names,
-  entityType: entity.type,
-  source: entity.authority || 'unknown',
-  status: (entity.status || 'active') as 'active' | 'suspended' | 'delisted',
-  listedDate: undefined,
-  country: entity.country,
-  birthDate: entity.birthYear,
-})
+const entityAdapter = (entity: SearchEntity) => searchRowToCard(entity)
 
 // Filtered results with debounced search
 const filteredEntities = computed(() => {

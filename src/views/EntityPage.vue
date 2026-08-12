@@ -14,7 +14,6 @@ const {
   source,
   sourceReference,
   entityType,
-  birthDate,
   remarks,
   contact,
   addresses,
@@ -313,13 +312,21 @@ onMounted(async () => {
               <dt class="text-sm text-light-muted dark:text-dark-muted">Entity Type</dt>
               <dd class="font-medium text-light-text dark:text-dark-text capitalize">{{ entity.entity_type }}</dd>
             </div>
-            <div v-if="birthInfo">
-              <dt class="text-sm text-light-muted dark:text-dark-muted">Birth Information</dt>
-              <dd class="font-medium text-light-text dark:text-dark-text">{{ birthInfo }}</dd>
-            </div>
-            <div v-if="birthDate && !birthInfo">
-              <dt class="text-sm text-light-muted dark:text-dark-muted">Birth Date</dt>
-              <dd class="font-medium text-light-text dark:text-dark-text">{{ birthDate }}</dd>
+            <!--
+              Every claim the sources made, not just the first. Where they
+              disagree, the disagreement is the information: a reader
+              screening a subject needs to see that one list says 1957 and
+              another says 1958.
+            -->
+            <div v-if="birthInfo.length">
+              <dt class="text-sm text-light-muted dark:text-dark-muted">
+                {{ birthInfo.length > 1 ? 'Birth Information (stated)' : 'Birth Information' }}
+              </dt>
+              <dd
+                v-for="claim in birthInfo"
+                :key="claim"
+                class="font-medium text-light-text dark:text-dark-text"
+              >{{ claim }}</dd>
             </div>
             <div v-if="sourceReference">
               <dt class="text-sm text-light-muted dark:text-dark-muted">Reference Number</dt>
