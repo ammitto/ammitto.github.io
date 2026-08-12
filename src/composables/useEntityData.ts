@@ -2,6 +2,7 @@ import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useSearchIndex } from './useSearchIndex'
 import { normalizeNode, toNodeIri } from '@/utils/normalizeNode'
+import { mapWithPool } from '@/utils/entryFetchPool'
 
 // Full entity interface matching new data-cn JSON-LD node structure
 export interface FullEntity {
@@ -143,17 +144,6 @@ const API_BASE = import.meta.env.BASE_URL || '/'
 // not resolvable against the API tree
 const ENTITY_IRI_BASE = 'https://www.ammitto.org/'
 
-// Entry nodes in flight at once.
-//
-// The cap exists to stop an entity with many entries from firing an
-// unbounded burst of requests. Six is a conservative default, not a
-// measured optimum — an earlier draft of this comment justified it by
-// the six-connections-per-host limit of HTTP/1.1, which does not apply:
-// the deployed site negotiates HTTP/2 and multiplexes. Raising it may
-// well be faster; that should be settled by timing against the full
-// dataset rather than by a number chosen here.
-const ENTRY_FETCH_CONCURRENCY = 6
-
 export function useEntityData() {
   const route = useRoute()
   const { loadFullEntity, loadSearchIndex, isLoaded, isLoading } = useSearchIndex()
@@ -212,37 +202,19 @@ export function useEntityData() {
     // Fetched with bounded concurrency rather than one at a time.
     //
     // This loop used to await each entry in turn, so an entity carrying n
-    // entries cost n sequential round-trips. Most entities carry a handful,
-    // so this is a latency improvement rather than a repair of a broken
-    // page — the entity page was never one of the two that time out. Those
-    // are the organization and document-type pages, which scan the whole
-    // corpus through their own separate loops and are not fixed here.
+    // entries cost n sequential round-trips. Every entity published today
+    // carries exactly one entry, so no page gets faster on the current
+    // data — and the entity page was never one of the two that time out.
+    // Those are the organization and document-type pages, which scan the
+    // whole corpus through their own separate loops and are not fixed
+    // here. What this removes is the cost of a case the model allows and
+    // the sources have not yet produced.
     //
-    // Unbounded parallelism is the wrong cure regardless: an entity with an
-    // unusually long entry list would otherwise open one request per entry
-    // at once.
-    //
-    // Results are written by index and appended afterwards so display
-    // order still follows the entity's own `sanction_entry_ids`. Appending
-    // as each response lands would order the list by network latency,
-    // which is a visible behaviour change rather than a speed-up.
-    const results: (Entry | null)[] = new Array(iris.length).fill(null)
-    let cursor = 0
-
-    const worker = async () => {
-      while (cursor < iris.length) {
-        const index = cursor
-        cursor += 1
-        results[index] = await fetchEntry(iris[index])
-      }
-    }
-
-    await Promise.all(
-      Array.from({ length: Math.min(ENTRY_FETCH_CONCURRENCY, iris.length) }, worker),
-    )
-
-    for (const entry of results) {
-      if (entry) entries.value.push(entry)
+    // The pool itself, including the cap and the ordering guarantee, is
+    // `mapWithPool` — kept in its own module so the unit tests can run it.
+    const loaded = await mapWithPool(iris, fetchEntry)
+    for (const entry of loaded) {
+      entries.value.push(entry)
     }
   }
 
