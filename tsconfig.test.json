@@ -8,7 +8,7 @@
 // devDependency (vue-tsc needs it), and the tests import the emitted module.
 //
 // This is type erasure, not a second implementation: the output is the very
-// module `src/utils/normalizeNode.ts` compiles to, so the tests exercise the
+// module each `src/utils/*.ts` entry compiles to, so the tests exercise the
 // shipped code rather than a copy of it.
 //
 // Compiler options are inherited from tsconfig.json, so the module is emitted
@@ -21,8 +21,13 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "noEmit": false,
-    // Incompatible with emitting; the module under test has no imports, so
-    // turning it off changes nothing about the output.
+    // Incompatible with emitting. This is why a module listed below must
+    // spell its own imports with the '.js' extension the emitted JavaScript
+    // needs — `./x.ts` type-checks under tsconfig.json (which allows the
+    // extension) and then fails here, and an extensionless specifier passes
+    // both tsc runs and fails only at `node --test`. An `@/` alias fails
+    // there too: tsc does not rewrite paths on emit and the Node runner has
+    // no Vite to resolve them.
     "allowImportingTsExtensions": false,
     "rootDir": "src",
     "outDir": ".test-build",
@@ -34,6 +39,9 @@
   "include": [
     "src/utils/normalizeNode.ts",
     "src/utils/summarySlice.ts",
+    "src/utils/entryFetchPool.ts",
+    "src/utils/birthDisplay.ts",
+    "src/utils/birthAdapters.ts",
     "src/utils/identificationDisplay.ts"
   ],
   "references": []
