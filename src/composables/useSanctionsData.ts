@@ -56,12 +56,6 @@ interface JsonLdEntity {
     postal_code?: string
   }>
   nationalities?: Array<string | { country_code?: string; country?: string }>
-  identifications?: Array<{
-    type?: string
-    document_type?: string
-    value?: string
-    identification?: string
-  }>
 }
 
 interface JsonLdResponse {
