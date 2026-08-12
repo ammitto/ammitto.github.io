@@ -2,6 +2,9 @@ import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useSearchIndex } from './useSearchIndex'
 import { normalizeNode, toNodeIri } from '@/utils/normalizeNode'
+import { mapWithPool } from '@/utils/entryFetchPool'
+import { selectBirthCountry } from '@/utils/birthDisplay'
+import { entityBirthClaims } from '@/utils/birthAdapters'
 
 // Full entity interface matching new data-cn JSON-LD node structure
 export interface FullEntity {
@@ -30,9 +33,17 @@ export interface FullEntity {
   }>
   same_as?: string[]
   // Person-specific fields
+  // The producer sends `year` and both bounds as JSON numbers; the older
+  // published snapshot sends strings. Both are declared, because a
+  // formatter that assumed either would be wrong against live data half
+  // the time while `vue-tsc` stayed green.
   birth_info?: Array<{
     date?: string
-    year?: string
+    year?: number | string
+    year_range_from?: number | string
+    year_range_to?: number | string
+    city?: string
+    region?: string
     country?: string
     country_code?: string
     circa?: boolean
@@ -188,31 +199,54 @@ export function useEntityData() {
       return
     }
 
+    // The IRI tail becomes a fetch path verbatim, so it must be a
+    // resolvable entry node IRI. A non-string would otherwise be iterated
+    // character by character, one bogus fetch per character.
+    const iris: string[] = []
     for (const rawIri of entryIris) {
-      // The IRI tail becomes a fetch path verbatim, so it must be a
-      // resolvable entry node IRI. A non-string would otherwise be iterated
-      // character by character, one bogus fetch per character.
       const entryIri = toNodeIri(rawIri, 'entry')
-      if (!entryIri) {
-        console.warn('Skipping unrecognised entry reference:', rawIri)
-        continue
-      }
+      if (entryIri) iris.push(entryIri)
+      else console.warn('Skipping unrecognised entry reference:', rawIri)
+    }
 
-      try {
-        // Convert IRI to API path
-        // IRI: https://www.ammitto.org/entry/cn/import-export-control-list/202535-csbc-corporation-taiwan
-        // Path: api/v1/node/entry/cn/import-export-control-list/202535-csbc-corporation-taiwan.jsonld
-        const entryPath = `api/v1/node/${entryIri.slice(ENTITY_IRI_BASE.length)}`
-        const response = await fetch(`${API_BASE}${entryPath}.jsonld`)
+    // Fetched with bounded concurrency rather than one at a time.
+    //
+    // This loop used to await each entry in turn, so an entity carrying n
+    // entries cost n sequential round-trips. Every entity published today
+    // carries exactly one entry, so no page gets faster on the current
+    // data — and the entity page was never one of the two that time out.
+    // Those are the organization and document-type pages, which scan the
+    // whole corpus through their own separate loops and are not fixed
+    // here. What this removes is the cost of a case the model allows and
+    // the sources have not yet produced.
+    //
+    // The pool itself, including the cap and the ordering guarantee, is
+    // `mapWithPool` — kept in its own module so the unit tests can run it.
+    const loaded = await mapWithPool(iris, fetchEntry)
+    for (const entry of loaded) {
+      entries.value.push(entry)
+    }
+  }
 
-        if (response.ok) {
-          // Entry nodes arrive in the producer's JSON-LD vocabulary
-          const data = normalizeNode<Entry>(await response.json())
-          if (data) entries.value.push(data)
-        }
-      } catch {
-        console.warn('Failed to load entry:', entryIri)
-      }
+  // One entry node, or null. Behaviour is unchanged from the sequential
+  // version: a thrown error is warned about, a non-OK response is skipped
+  // silently, and either way one unreachable entry must not empty the
+  // whole list. The silent skip is pre-existing and deliberately preserved
+  // here rather than fixed alongside a performance change.
+  const fetchEntry = async (entryIri: string): Promise<Entry | null> => {
+    try {
+      // Convert IRI to API path
+      // IRI: https://www.ammitto.org/entry/cn/import-export-control-list/202535-csbc-corporation-taiwan
+      // Path: api/v1/node/entry/cn/import-export-control-list/202535-csbc-corporation-taiwan.jsonld
+      const entryPath = `api/v1/node/${entryIri.slice(ENTITY_IRI_BASE.length)}`
+      const response = await fetch(`${API_BASE}${entryPath}.jsonld`)
+      if (!response.ok) return null
+
+      // Entry nodes arrive in the producer's JSON-LD vocabulary
+      return normalizeNode<Entry>(await response.json())
+    } catch {
+      console.warn('Failed to load entry:', entryIri)
+      return null
     }
   }
 
@@ -252,12 +286,9 @@ export function useEntityData() {
       return entity.value.addresses[0].country
     }
 
-    // From birth info
-    if (entity.value.birth_info?.length) {
-      return entity.value.birth_info[0].country
-    }
-
-    return null
+    // From birth info: the first record that states a country, which is
+    // not necessarily the first record.
+    return selectBirthCountry(entity.value.birth_info)
   })
 
   // Get source code from entity
@@ -274,12 +305,6 @@ export function useEntityData() {
 
   // Get entity type
   const entityType = computed(() => entity.value?.entity_type || null)
-
-  // Get birth date
-  const birthDate = computed(() => {
-    if (!entity.value?.birth_info?.length) return null
-    return entity.value.birth_info[0].date || null
-  })
 
   // Get remarks
   const remarks = computed(() => entity.value?.remarks || null)
@@ -402,7 +427,6 @@ export function useEntityData() {
     source,
     sourceReference,
     entityType,
-    birthDate,
     remarks,
     contact,
     addresses,
@@ -429,14 +453,8 @@ export function useEntityData() {
     }),
     identifications: computed(() => entity.value?.identifications || []),
     position: computed(() => entity.value?.position || null),
-    birthInfo: computed(() => {
-      if (!entity.value?.birth_info?.length) return null
-      const info = entity.value.birth_info[0]
-      const parts: string[] = []
-      if (info.date) parts.push(info.date)
-      if (info.year && !info.date) parts.push(info.year + (info.circa ? ' (circa)' : ''))
-      if (info.country) parts.push(info.country)
-      return parts.length > 0 ? parts.join(', ') : null
-    }),
+    // Every distinct claim, not the first record's. Several records are
+    // several assertions about one person, and the page shows them all.
+    birthInfo: computed(() => entityBirthClaims(entity.value)),
   }
 }
