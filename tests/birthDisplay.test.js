@@ -139,6 +139,16 @@ test('reads a value whether the producer sent a number or a string', () => {
   assert.equal(formatBirthTemporal({ year_range_from: '1959', year_range_to: 1965 }), '1959-1965')
 })
 
+test('trims a value and drops one that is only whitespace', () => {
+  // Live data carries both: trailing spaces on a country, and a leading
+  // space on a city. Invisible in the rendered HTML, but they change the
+  // key the claim list deduplicates on.
+  assert.equal(formatBirthPlace({ country: 'Sudan ' }), 'Sudan')
+  assert.equal(formatBirthPlace({ country: 'Russian Federation  ' }), 'Russian Federation')
+  assert.equal(formatBirthPlace({ city: ' ', country: 'Yemen' }), 'Yemen')
+  assert.equal(formatBirthTemporal({ year: ' ' }), null)
+})
+
 test('joins place as city, region, country', () => {
   // LIVE shape — city and region are published and were never rendered.
   assert.equal(

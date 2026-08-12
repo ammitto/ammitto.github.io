@@ -128,7 +128,14 @@ test('the search card prefers an exact birthYear when the row carries both', () 
     birthYearTo: '1970',
   })
   assert.equal(card.birthDate, '1964')
-  // The rest of the card is unchanged by this work.
+  // The rest of the card is unchanged by this work, and is asserted
+  // because this adapter's whole job is field mapping: `ref` drives
+  // navigation (EntityCard routes to '/entity/' + ref), `names` is the
+  // card's title, and `id` is its identity. A mapping mistake in any of
+  // them is silent — the card still renders, just wrongly.
+  assert.equal(card.id, 'https://www.ammitto.org/entity/us/11018')
+  assert.equal(card.ref, 'us/11018')
+  assert.deepEqual(card.names, ['Test Person'])
   assert.equal(card.country, 'Uganda')
   assert.equal(card.source, 'us')
   assert.equal(card.status, 'active')

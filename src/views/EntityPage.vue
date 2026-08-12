@@ -318,9 +318,17 @@ onMounted(async () => {
               screening a subject needs to see that one list says 1957 and
               another says 1958.
             -->
+            <!--
+              No "(stated)" qualifier on the multi-line case. Several
+              records do not reliably mean several claims: sources also
+              split one address across records, and repeat one date under
+              two transliterations of the same city. Labelling those as
+              stated variants would assert a disagreement the source did
+              not make.
+            -->
             <div v-if="birthInfo.length">
               <dt class="text-sm text-light-muted dark:text-dark-muted">
-                {{ birthInfo.length > 1 ? 'Birth Information (stated)' : 'Birth Information' }}
+                Birth Information
               </dt>
               <dd
                 v-for="claim in birthInfo"
