@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { sources } from '@/config'
+import { pillToneVars, tileToneVars } from '@/config/palette'
 
 const browseOptions = [
   {
@@ -89,12 +90,12 @@ const dataObjects = [
           class="glass-card p-6 hover:border-brand-primary/50 transition-all group"
         >
           <div
-            class="w-12 h-12 rounded-lg flex items-center justify-center text-2xl mb-4"
-            :style="{ backgroundColor: option.color + '20' }"
+            class="tone-pill w-12 h-12 rounded-lg flex items-center justify-center text-2xl mb-4"
+            :style="pillToneVars(option.color)"
           >
             {{ option.icon }}
           </div>
-          <h3 class="font-semibold text-lg mb-2 text-light-text dark:text-dark-text group-hover:text-brand-primary transition-colors">
+          <h3 class="font-semibold text-lg mb-2 text-light-text dark:text-dark-text group-hover:text-brand-link transition-colors">
             {{ option.title }}
           </h3>
           <p class="text-light-muted dark:text-dark-muted text-sm">
@@ -117,8 +118,8 @@ const dataObjects = [
           >
             <div class="flex items-start justify-between mb-4">
               <div
-                class="w-12 h-12 rounded-lg flex items-center justify-center text-2xl"
-                :style="{ backgroundColor: obj.color + '20' }"
+                class="tone-pill w-12 h-12 rounded-lg flex items-center justify-center text-2xl"
+                :style="pillToneVars(obj.color)"
               >
                 {{ obj.icon }}
               </div>
@@ -126,7 +127,7 @@ const dataObjects = [
                 {{ obj.count }}
               </span>
             </div>
-            <h3 class="font-semibold text-lg mb-2 text-light-text dark:text-dark-text group-hover:text-brand-primary transition-colors">
+            <h3 class="font-semibold text-lg mb-2 text-light-text dark:text-dark-text group-hover:text-brand-link transition-colors">
               {{ obj.title }}
             </h3>
             <p class="text-light-muted dark:text-dark-muted text-sm">
@@ -149,12 +150,12 @@ const dataObjects = [
             class="glass-card p-4 hover:border-brand-primary/50 transition-all group"
           >
             <div
-              class="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm mb-3"
-              :style="{ backgroundColor: source.color }"
+              class="tone-tile w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm mb-3"
+              :style="tileToneVars(source.color)"
             >
               {{ source.country }}
             </div>
-            <h3 class="font-semibold text-light-text dark:text-dark-text group-hover:text-brand-primary transition-colors">
+            <h3 class="font-semibold text-light-text dark:text-dark-text group-hover:text-brand-link transition-colors">
               {{ source.name }}
             </h3>
           </RouterLink>

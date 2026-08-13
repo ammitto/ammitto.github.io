@@ -23,6 +23,28 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Measured on 2026-08-13 (run 31681782113): 7m16s end to end. Sixteen
+    # shallow clones took 5s, Ruby setup 8s, npm ci 2s, unit tests 2s,
+    # harmonize 3m05s, the output verification 15s, the Vite build 37s,
+    # Playwright chromium 28s, the browser suite 2m13s, artifact upload 10s.
+    #
+    # Thirty is a little over four times that, and the headroom is aimed at
+    # the two steps that grow with the data rather than with this repository:
+    # harmonize and the browser suite together are three quarters of the run,
+    # and both scale with an entity count that is upstream of us — 60,981 at
+    # the last calibration, the figure the composed proof recorded against
+    # the pin below, and the scale the 7m16s above was already measured at.
+    # (25,128 was the count on 2026-08-06; the data repositories themselves
+    # grew, at an unchanged gem.) The dataset can roughly triple before the
+    # timeout, rather than a real defect, becomes the thing that fails the
+    # job — and long before that, a run drifting toward thirty minutes is the
+    # signal that publishing has outgrown one job.
+    #
+    # Anything beyond that is a hang: a clone against an unresponsive remote,
+    # or a harmonize that stopped making progress. Six hours of a stuck
+    # runner is the alternative, and this workflow does not cancel in
+    # progress, so a wedged run also holds every later publish behind it.
+    timeout-minutes: 30
     defaults:
       run:
         # Explicit bash adds -o pipefail, so a failing producer in a
@@ -281,6 +303,35 @@ jobs:
           pending=$(jq -er '.pending_sources | keys_unsorted | join(" ")' "$thresholds")
           echo "Publishing sources: ${publishing}"
           echo "Pending sources:    ${pending}"
+          # Vocabulary reachability. The node index loop above only proves
+          # these files are non-empty, and non-empty is what a uk-only
+          # document-type index is: for weeks the gem loaded the first
+          # requested source's sources/supporting/ directory and stopped, the
+          # graph carried uk's six document types and five organizations and
+          # nothing from ch, cn, jp, ru or us, and this step passed every day.
+          # The entity floors could not see it either — vocabularies come
+          # from sources/supporting/, not from the entity corpus, so no
+          # gated count moves when one vanishes. ru proves the two are
+          # independent in both directions: it is a pending source held at
+          # zero entities that nonetheless publishes a vocabulary.
+          # BOTH source lists are passed, for that reason.
+          #
+          # The expectation is derived from the clones this run already made
+          # rather than written down here: a repository shipping
+          # sources/supporting/document-types.yml is declaring those
+          # identifiers belong in the graph, so each must appear in the index
+          # AND have the node file the browse page fetches for it. Adding a
+          # row passes, deleting one passes, a source going dark fails and is
+          # named. A count in the threshold manifest would have to be
+          # hand-revised the day a repository starts or stops shipping a
+          # vocabulary, with nothing to prompt it.
+          #
+          # Node and its devDependencies are installed two steps above, and
+          # the check reads only the workspace, so this adds no network use.
+          node scripts/verify-source-vocabularies.js \
+            --sources-root . \
+            --api-dir public/api/v1 \
+            --sources "${publishing} ${pending}"
           # A pending source must harmonize to exactly zero and ship no
           # aggregate. Anything else means its input came back and its floor
           # has to be recalibrated before it can be published.
@@ -477,6 +528,39 @@ jobs:
           # the stale CN-only copy from data-cn.
           SKIP_API_DATA: '1'
 
+      - name: Install Playwright chromium
+        # Only chromium, and only its dependencies. The browser version is
+        # pinned by the exact @playwright/test version in package-lock.json.
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser tests against the harmonized build
+        # ci.yml runs the same suite, but against the committed CN-only
+        # snapshot. This is the only place the tests see the artifact that
+        # actually deploys: fifteen sources, real per-source endpoints, real
+        # names. The layout defect these tests exist for — a long sanctioned
+        # name stretching a card grid past a phone viewport — is exactly the
+        # kind that only shows up with the full dataset, so gating the upload
+        # on it is the point rather than an inconvenience.
+        #
+        # Every route in the router is measured here. Two used to be dropped
+        # at this scale, through an E2E_FULL_DATASET environment variable
+        # this step used to set: the organization and document-type pages
+        # rebuilt their document lists from every entry node in the corpus
+        # and never finished painting. Both now read one published summary,
+        # so the exclusion and the variable that carried it are gone. See the
+        # note in tests/routes.js before adding either back.
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-harmonized
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
       - name: Setup Pages
         id: pages
         uses: actions/configure-pages@v4
@@ -494,6 +578,18 @@ jobs:
     if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     needs: build
+    # This job builds nothing and uploads nothing: it hands the artifact
+    # build already produced to the Pages API and waits. The last three
+    # deployments from main took 23s, 30s and 24s, so five minutes is ten
+    # times the observed cost and there is no step here that could
+    # legitimately grow into it.
+    #
+    # It is the tightest timeout in either workflow on purpose. The
+    # concurrency group above deliberately does not cancel in progress, so a
+    # deployment stuck waiting on the Pages API blocks every subsequent
+    # publish for as long as it hangs — with the default ceiling, a whole
+    # working day of daily data publishes queued behind one wedged call.
+    timeout-minutes: 5
     steps:
       - name: Deploy to GitHub Pages
         id: deployment

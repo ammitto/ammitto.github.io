@@ -9,25 +9,28 @@
     "build:api": "node scripts/build-api-data.js",
     "preview": "vite preview",
     "typecheck": "vue-tsc -b",
-    "test:unit": "tsc -p tsconfig.test.json && node --test tests/*.test.js"
+    "test:unit": "tsc -p tsconfig.test.json && node --test tests/*.test.js",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
-    "vue": "^3.4.21",
-    "vue-router": "^4.3.0",
-    "vite-ssg": "^0.23.8",
+    "@unhead/vue": "^1.9.4",
     "flexsearch": "^0.7.43",
-    "@unhead/vue": "^1.9.4"
+    "vite-ssg": "^0.23.8",
+    "vue": "^3.4.21",
+    "vue-router": "^4.3.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.12.1",
+    "@playwright/test": "1.62.1",
+    "@types/flexsearch": "^0.7.6",
+    "@types/node": "^20.11.25",
     "@vitejs/plugin-vue": "^5.0.4",
+    "autoprefixer": "^10.4.18",
+    "postcss": "^8.4.35",
+    "tailwindcss": "^3.4.1",
     "typescript": "^5.4.2",
     "vite": "^5.2.0",
     "vue-tsc": "^2.0.6",
-    "@types/node": "^20.11.25",
-    "@types/flexsearch": "^0.7.6",
-    "tailwindcss": "^3.4.1",
-    "postcss": "^8.4.35",
-    "autoprefixer": "^10.4.18",
     "yaml": "^2.3.4"
   }
 }

@@ -71,7 +71,7 @@ const focus = () => inputRef.value?.focus()
     />
     <svg
       v-if="loading"
-      class="absolute top-1/2 -translate-y-1/2 right-4 w-5 h-5 text-brand-primary animate-spin"
+      class="absolute top-1/2 -translate-y-1/2 right-4 w-5 h-5 text-brand-link animate-spin"
       fill="none"
       viewBox="0 0 24 24"
     >

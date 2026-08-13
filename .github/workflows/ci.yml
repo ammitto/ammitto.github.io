@@ -1,0 +1,99 @@
+name: ci
+
+# The site's quality gates, separated from build_deploy on purpose.
+#
+# build_deploy clones the gem and fifteen data repositories and runs a Ruby
+# harmonize before it can build anything; that is the right shape for producing
+# a deployment, and the wrong shape for telling a contributor within a minute
+# that they broke a colour token. This workflow needs nothing but the checkout:
+# `public/api/v1` carries a committed snapshot, so the site builds and serves
+# real content on its own.
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    # Measured, not rounded off: this job ran in 1m59s on 2026-08-13 (run
+    # 31681782114) — npm ci 3s, typecheck 5s, unit 2s, build 10s, Playwright
+    # chromium 22s, and 1m07s for the 125 browser tests on two workers. The
+    # cold-cache version of that is a few minutes, not fifteen.
+    #
+    # Fifteen is therefore roughly seven times the real cost, which is the
+    # point: it is loose enough that a slow runner or an empty npm/Playwright
+    # cache never trips it, and tight enough to kill something that is stuck
+    # rather than slow. Without it the ceiling is GitHub's default of six
+    # hours, and the failure this guards is a hang, not a delay — a preview
+    # server that never binds, an apt mirror that never answers. Playwright's
+    # own webServer timeout (120s) and per-test timeout (30s) bound the
+    # ordinary failures well inside this.
+    timeout-minutes: 15
+    defaults:
+      run:
+        # Explicit bash adds -o pipefail, so a failing producer in a pipeline
+        # fails its step instead of being masked by the consumer's exit code.
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        # Includes tests/contrast.test.js: WCAG contrast over every colour pair
+        # the design system can produce, in both themes. Neither vue-tsc nor
+        # the build can catch an unreadable badge.
+        run: npm run test:unit
+
+      - name: Build
+        # SKIP_API_DATA keeps the committed public/api/v1 snapshot: there is no
+        # data-cn checkout here for scripts/build-api-data.js to copy from, and
+        # the snapshot is enough for the browser tests to render real pages.
+        env:
+          SKIP_API_DATA: '1'
+        run: npm run build
+
+      - name: Install Playwright chromium
+        # Only chromium, and only its own dependencies. The browser version is
+        # pinned by the exact @playwright/test version in package-lock.json.
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser tests
+        # Horizontal overflow at 320px and 390px on every route in the router,
+        # plus an axe colour-contrast scan of the rendered pages. These run
+        # against the production build served by `vite preview`.
+        #
+        # Scope, stated plainly: this build carries the committed CN-only
+        # snapshot, not the fifteen-source dataset that deploys. The same suite
+        # therefore runs again in build_deploy after the real harmonize, where
+        # it sees the artifact that ships.
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

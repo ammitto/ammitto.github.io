@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import CodeBlock from '@/components/molecules/CodeBlock.vue'
+import { pillToneVars, METHOD_SEED } from '@/config/palette'
 
 const baseUrl = 'https://ammitto.github.io/api/v1'
 
@@ -105,11 +106,19 @@ for node in data['@graph']:
         </h2>
         <div class="space-y-6">
           <div v-for="endpoint in endpoints" :key="endpoint.path" class="glass-card p-6">
-            <div class="flex items-center gap-3 mb-3">
-              <span class="px-2 py-1 rounded text-xs font-bold bg-green-500/20 text-green-600">
+            <!-- flex-wrap + break-all: endpoint paths are unbreakable strings
+                 and pushed the page past a 320px viewport. -->
+            <div class="flex flex-wrap items-center gap-3 mb-3">
+              <!-- Was bg-green-500/20 text-green-600: green on green, 2.74:1
+                   in light and 3.73:1 in dark. The method chip now takes the
+                   same per-theme tone derivation as the badges. -->
+              <span
+                class="tone-pill px-2 py-1 rounded text-xs font-bold"
+                :style="pillToneVars(METHOD_SEED)"
+              >
                 {{ endpoint.method }}
               </span>
-              <code class="font-mono text-light-text dark:text-dark-text">{{ endpoint.path }}</code>
+              <code class="font-mono break-all text-light-text dark:text-dark-text">{{ endpoint.path }}</code>
             </div>
             <p class="text-light-muted dark:text-dark-muted mb-4">
               {{ endpoint.description }}

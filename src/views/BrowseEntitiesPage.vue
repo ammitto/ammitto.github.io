@@ -59,7 +59,7 @@ const entityAdapter = (entity: any) => {
   <div class="min-h-screen">
     <div class="container-wide py-12">
       <div class="flex items-center gap-2 mb-6">
-        <RouterLink to="/browse" class="text-light-muted dark:text-dark-muted hover:text-brand-primary">
+        <RouterLink to="/browse" class="text-light-muted dark:text-dark-muted hover:text-brand-link">
           Browse
         </RouterLink>
         <span class="text-light-muted dark:text-dark-muted">/</span>

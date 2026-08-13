@@ -50,7 +50,14 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="relative py-20 overflow-hidden">
+  <!--
+    `hero-section` names the component in the DOM, the way `.ontology-browser`
+    and `.hierarchy-node` do elsewhere. ALLOWED_INCOMPLETE in
+    tests/e2e/contrast-dom.spec.js scopes its two entries to it: the gradient
+    below makes axe decline to judge the text over it, and without a container
+    to point at, that allowance would extend to the whole page.
+  -->
+  <section class="hero-section relative py-20 overflow-hidden">
     <div class="absolute inset-0 bg-gradient-to-br from-brand-primary/5 via-transparent to-brand-primary/10" />
 
     <div class="container-wide relative">
@@ -78,15 +85,15 @@ onMounted(async () => {
 
         <div class="flex flex-wrap justify-center gap-8">
           <div class="text-center">
-            <div class="text-3xl font-bold text-brand-primary">{{ entityCount.toLocaleString() }}</div>
+            <div class="text-3xl font-bold text-brand-link">{{ entityCount.toLocaleString() }}</div>
             <div class="text-sm text-light-muted dark:text-dark-muted">Entities</div>
           </div>
           <div class="text-center">
-            <div class="text-3xl font-bold text-brand-primary">{{ sourceCount }}</div>
+            <div class="text-3xl font-bold text-brand-link">{{ sourceCount }}</div>
             <div class="text-sm text-light-muted dark:text-dark-muted">Sources</div>
           </div>
           <div class="text-center">
-            <div class="text-3xl font-bold text-brand-primary">{{ typeCount }}</div>
+            <div class="text-3xl font-bold text-brand-link">{{ typeCount }}</div>
             <div class="text-sm text-light-muted dark:text-dark-muted">Types</div>
           </div>
         </div>

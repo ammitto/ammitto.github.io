@@ -2,6 +2,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { useOntologyData, type HierarchyNode } from '@/composables/useOntologyData'
 import CodeBlock from '@/components/molecules/CodeBlock.vue'
+import { entityTypes } from '@/config'
+import { inkToneVars, NEUTRAL_SEED } from '@/config/palette'
 
 const {
   isLoading,
@@ -77,15 +79,16 @@ function getNodeIcon(node: HierarchyNode): string {
   return 'folder'
 }
 
-// Get color for entity type
+/**
+ * Seed colour for an entity type, taken from the shared config so the
+ * hierarchy agrees with the badges elsewhere on the site. (This function used
+ * to carry a second, conflicting hex map: person was blue here and amber in
+ * `entityTypes`.) A node may also arrive from the ontology graph carrying its
+ * own colour; either way the value is a seed, and `inkToneVars` derives the
+ * per-theme text colour that is actually painted.
+ */
 function getTypeColor(type: string): string {
-  const colors: Record<string, string> = {
-    person: '#3b82f6',
-    organization: '#10b981',
-    vessel: '#8b5cf6',
-    aircraft: '#f59e0b',
-  }
-  return colors[type] || '#6b7280'
+  return entityTypes.find(t => t.code === type)?.color ?? NEUTRAL_SEED
 }
 
 // Check if node is expanded
@@ -102,14 +105,14 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="ontology-browser min-h-screen bg-gray-50 dark:bg-gray-900">
+  <div class="ontology-browser min-h-screen bg-light-bg dark:bg-dark-bg">
     <!-- Header -->
-    <header class="bg-white dark:bg-gray-800 shadow-sm">
+    <header class="bg-light-surface dark:bg-dark-surface shadow-sm">
       <div class="max-w-7xl mx-auto px-4 py-6">
-        <h1 class="text-3xl font-bold text-gray-900 dark:text-white">
+        <h1 class="text-3xl font-bold text-light-text dark:text-dark-text">
           Ontology Browser
         </h1>
-        <p class="mt-2 text-gray-600 dark:text-gray-400">
+        <p class="mt-2 text-light-muted dark:text-dark-muted">
           Explore the Ammitto knowledge graph schema - classes, properties, and relationships
         </p>
       </div>
@@ -126,34 +129,73 @@ onMounted(async () => {
 
         <!-- Left panel: Class Hierarchy -->
         <div class="lg:col-span-1">
-          <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+          <div class="bg-light-surface dark:bg-dark-surface rounded-lg shadow-sm p-4">
+            <h2 class="text-lg font-semibold text-light-text dark:text-dark-text mb-4">
               Class Hierarchy
             </h2>
 
-            <!-- Hierarchy tree -->
+            <!--
+              Two controls per row, side by side, and neither is a <div> with
+              a click handler.
+
+              Expanding a node and selecting it are separate actions, so they
+              are separate native buttons: a keyboard reaches both by Tab and
+              fires both with Enter or Space, and a screen reader announces
+              each with its own name and state. Nesting is not an option in
+              either direction — a <button> inside a <button> is invalid HTML
+              and browsers reparent it — so the expander cannot live inside
+              the selection control the way a search result card wraps its
+              whole content in one RouterLink. That pattern holds only while
+              nothing inside the card is itself interactive; here the expander
+              is, which is precisely why this row is two siblings instead.
+
+              The row container carries no handler at all. It used to: the
+              selectable region was the outer <div>, which also contained the
+              expanded subtree, so a click on a subclass ran its own handler
+              and then bubbled into the parent's and overwrote the selection
+              with the parent. Moving selection onto a button that wraps only
+              the row's own label ends that by construction.
+            -->
             <div class="space-y-1" v-if="hierarchy">
               <template v-for="child in hierarchy.children" :key="child.name">
-                <div
-                  class="hierarchy-node cursor-pointer p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
-                  :class="{ 'bg-blue-50 dark:bg-blue-900/20': selectedClass === child.name }"
-                  @click="selectClass(child.name)"
-                >
-                  <div class="flex items-center gap-2">
-                    <span
+                <div class="hierarchy-node">
+                  <div
+                    class="hierarchy-row flex items-center gap-2 p-2 rounded hover:bg-light-bg dark:hover:bg-dark-border"
+                    :class="{ 'bg-blue-50 dark:bg-blue-900/20': selectedClass === child.name }"
+                  >
+                    <!--
+                      This was a <span> whose entire content was a bare
+                      triangle glyph: not focusable, no role, and no name, so
+                      expand/collapse was reachable with a mouse only and a
+                      screen reader had nothing to announce but the shape. The
+                      glyph is decorative once the button carries the name and
+                      `aria-expanded` carries the state, so it is hidden from
+                      assistive technology rather than read out.
+                    -->
+                    <button
                       v-if="child.children && child.children.length > 0"
-                      @click.stop="toggleNode(child.name)"
-                      class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                      type="button"
+                      @click="toggleNode(child.name)"
+                      :aria-expanded="isExpanded(child.name)"
+                      :aria-label="`Subclasses of ${child.label}`"
+                      class="text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text"
                     >
-                      {{ isExpanded(child.name) ? '▼' : '▶' }}
-                    </span>
+                      <span aria-hidden="true">{{ isExpanded(child.name) ? '▼' : '▶' }}</span>
+                    </button>
                     <span v-else class="w-4"></span>
 
-                    <span class="text-gray-600 dark:text-gray-300">{{ getNodeIcon(child) }}</span>
-                    <span class="font-medium text-gray-900 dark:text-white">{{ child.label }}</span>
-                    <span class="text-xs text-gray-500 dark:text-gray-400">
-                      ({{ child.count.toLocaleString() }})
-                    </span>
+                    <button
+                      type="button"
+                      class="hierarchy-select flex flex-1 items-center gap-2 text-left"
+                      :aria-current="selectedClass === child.name ? 'true' : undefined"
+                      @click="selectClass(child.name)"
+                    >
+                      <span aria-hidden="true" class="text-light-muted dark:text-dark-muted">{{ getNodeIcon(child) }}</span>
+                      <span class="hierarchy-label font-medium text-light-text dark:text-dark-text">{{ child.label }}</span>
+                      <span class="text-xs text-light-muted dark:text-dark-muted">
+                        ({{ child.count.toLocaleString() }})
+                      </span>
+                    </button>
                   </div>
 
                   <!-- Children -->
@@ -161,21 +203,30 @@ onMounted(async () => {
                     <div
                       v-for="subChild in child.children"
                       :key="subChild.name"
-                      class="hierarchy-node cursor-pointer p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
-                      :class="{ 'bg-blue-50 dark:bg-blue-900/20': selectedClass === subChild.name }"
-                      @click="selectClass(subChild.name)"
+                      class="hierarchy-node"
                     >
-                      <div class="flex items-center gap-2">
-                        <span
-                          :style="{ color: subChild.color || getTypeColor(subChild.code || '') }"
-                          class="text-gray-600 dark:text-gray-300"
+                      <div
+                        class="hierarchy-row flex items-center gap-2 p-2 rounded hover:bg-light-bg dark:hover:bg-dark-border"
+                        :class="{ 'bg-blue-50 dark:bg-blue-900/20': selectedClass === subChild.name }"
+                      >
+                        <button
+                          type="button"
+                          class="hierarchy-select flex flex-1 items-center gap-2 text-left"
+                          :aria-current="selectedClass === subChild.name ? 'true' : undefined"
+                          @click="selectClass(subChild.name)"
                         >
-                          {{ subChild.icon || '📄' }}
-                        </span>
-                        <span class="text-gray-900 dark:text-white">{{ subChild.label }}</span>
-                        <span class="text-xs text-gray-500 dark:text-gray-400">
-                          ({{ subChild.count.toLocaleString() }})
-                        </span>
+                          <span
+                            aria-hidden="true"
+                            :style="inkToneVars(subChild.color || getTypeColor(subChild.code || ''))"
+                            class="tone-ink"
+                          >
+                            {{ subChild.icon || '📄' }}
+                          </span>
+                          <span class="hierarchy-label text-light-text dark:text-dark-text">{{ subChild.label }}</span>
+                          <span class="text-xs text-light-muted dark:text-dark-muted">
+                            ({{ subChild.count.toLocaleString() }})
+                          </span>
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -187,16 +238,16 @@ onMounted(async () => {
 
         <!-- Right panel: Details -->
         <div class="lg:col-span-2">
-          <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+          <div class="bg-light-surface dark:bg-dark-surface rounded-lg shadow-sm">
             <!-- Tabs -->
-            <div class="border-b border-gray-200 dark:border-gray-700">
+            <div class="border-b border-light-border dark:border-dark-border">
               <nav class="flex -mb-px">
                 <button
                   @click="activeTab = 'classes'"
                   :class="[
                     activeTab === 'classes'
                       ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300',
+                      : 'border-transparent text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text',
                     'px-4 py-3 border-b-2 font-medium text-sm'
                   ]"
                 >
@@ -207,7 +258,7 @@ onMounted(async () => {
                   :class="[
                     activeTab === 'properties'
                       ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300',
+                      : 'border-transparent text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text',
                     'px-4 py-3 border-b-2 font-medium text-sm'
                   ]"
                 >
@@ -218,7 +269,7 @@ onMounted(async () => {
                   :class="[
                     activeTab === 'examples'
                       ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300',
+                      : 'border-transparent text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text',
                     'px-4 py-3 border-b-2 font-medium text-sm'
                   ]"
                 >
@@ -229,16 +280,16 @@ onMounted(async () => {
 
             <!-- Class details -->
             <div v-if="activeTab === 'classes' && selectedClassDetails" class="p-6">
-              <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-4">
+              <h3 class="text-xl font-bold text-light-text dark:text-dark-text mb-4">
                 {{ selectedClassDetails.label }}
               </h3>
-              <p class="text-gray-600 dark:text-gray-400 mb-6">
+              <p class="text-light-muted dark:text-dark-muted mb-6">
                 {{ selectedClassDetails.comment }}
               </p>
 
               <!-- Parent class -->
               <div v-if="selectedClassDetails.subClassOf" class="mb-4">
-                <span class="text-sm font-medium text-gray-500 dark:text-gray-400">Subclass of:</span>
+                <span class="text-sm font-medium text-light-muted dark:text-dark-muted">Subclass of:</span>
                 <button
                   @click="selectClass(selectedClassDetails.subClassOf?.split('/').pop() || '')"
                   class="ml-2 text-blue-600 dark:text-blue-400 hover:underline"
@@ -249,19 +300,19 @@ onMounted(async () => {
 
               <!-- Properties -->
               <div v-if="selectedClassProperties.length > 0" class="mb-6">
-                <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                <h4 class="text-sm font-semibold text-light-text dark:text-dark-text mb-2">
                   Properties
                 </h4>
                 <div class="space-y-2">
                   <div
                     v-for="prop in selectedClassProperties"
                     :key="prop['@id']"
-                    class="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-700/50 rounded"
+                    class="flex items-center gap-2 p-2 bg-light-bg dark:bg-dark-bg rounded"
                   >
-                    <span class="font-medium text-gray-900 dark:text-white">
+                    <span class="font-medium text-light-text dark:text-dark-text">
                       {{ prop.label }}
                     </span>
-                    <span class="text-xs text-gray-500 dark:text-gray-400">
+                    <span class="text-xs text-light-muted dark:text-dark-muted">
                       ({{ prop.range?.split('/').pop() || prop.range }})
                     </span>
                     <span v-if="prop.isArray" class="text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-1 rounded">
@@ -273,7 +324,7 @@ onMounted(async () => {
 
               <!-- Subclasses -->
               <div v-if="selectedClassSubclasses.length > 0">
-                <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                <h4 class="text-sm font-semibold text-light-text dark:text-dark-text mb-2">
                   Subclasses
                 </h4>
                 <div class="flex flex-wrap gap-2">
@@ -281,7 +332,7 @@ onMounted(async () => {
                     v-for="sub in selectedClassSubclasses"
                     :key="sub['@id']"
                     @click="selectClass(sub['@id'].split('/').pop() || '')"
-                    class="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600"
+                    class="px-3 py-1 bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text rounded-full hover:bg-light-border dark:hover:bg-dark-border"
                   >
                     {{ sub.label }}
                   </button>
@@ -295,26 +346,26 @@ onMounted(async () => {
                 <input
                   type="text"
                   placeholder="Search properties..."
-                  class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  class="w-full px-4 py-2 border border-light-border dark:border-dark-border rounded-lg bg-light-surface dark:bg-dark-surface text-light-text dark:text-dark-text"
                 />
               </div>
               <div class="space-y-3">
                 <div
                   v-for="[id, prop] in properties"
                   :key="id"
-                  class="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-300 dark:hover:border-blue-600 cursor-pointer"
+                  class="p-4 border border-light-border dark:border-dark-border rounded-lg hover:border-blue-300 dark:hover:border-blue-600 cursor-pointer"
                   @click="selectedProperty = id"
                 >
                   <div class="flex items-center justify-between">
-                    <span class="font-medium text-gray-900 dark:text-white">{{ prop.label }}</span>
-                    <span class="text-xs text-gray-500 dark:text-gray-400">{{ id }}</span>
+                    <span class="font-medium text-light-text dark:text-dark-text">{{ prop.label }}</span>
+                    <span class="text-xs text-light-muted dark:text-dark-muted">{{ id }}</span>
                   </div>
-                  <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">{{ prop.comment }}</p>
+                  <p class="text-sm text-light-muted dark:text-dark-muted mt-1">{{ prop.comment }}</p>
                   <div class="flex gap-4 mt-2 text-xs">
-                    <span v-if="prop.domain" class="text-gray-500 dark:text-gray-400">
+                    <span v-if="prop.domain" class="text-light-muted dark:text-dark-muted">
                       Domain: <span class="text-blue-600 dark:text-blue-400">{{ prop.domain.split('/').pop() }}</span>
                     </span>
-                    <span v-if="prop.range" class="text-gray-500 dark:text-gray-400">
+                    <span v-if="prop.range" class="text-light-muted dark:text-dark-muted">
                       Range: <span class="text-green-600 dark:text-green-400">{{ prop.range.split('#').pop() || prop.range.split('/').pop() }}</span>
                     </span>
                   </div>
@@ -330,7 +381,7 @@ onMounted(async () => {
                   :class="[
                     exampleType === 'person'
                       ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300',
+                      : 'bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text',
                     'px-4 py-2 rounded-lg font-medium'
                   ]"
                 >
@@ -341,7 +392,7 @@ onMounted(async () => {
                   :class="[
                     exampleType === 'organization'
                       ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300',
+                      : 'bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text',
                     'px-4 py-2 rounded-lg font-medium'
                   ]"
                 >
@@ -352,7 +403,7 @@ onMounted(async () => {
                   :class="[
                     exampleType === 'vessel'
                       ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300',
+                      : 'bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text',
                     'px-4 py-2 rounded-lg font-medium'
                   ]"
                 >
@@ -370,7 +421,7 @@ onMounted(async () => {
             </div>
 
             <!-- No selection -->
-            <div v-else class="p-6 text-center text-gray-500 dark:text-gray-400">
+            <div v-else class="p-6 text-center text-light-muted dark:text-dark-muted">
               Select a class from the hierarchy to view details
             </div>
           </div>
@@ -386,7 +437,10 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.hierarchy-node {
+/* The row, not the node: the node wraps the expanded subtree as well, and a
+   highlight that covered it would report the parent's selection over every
+   child. */
+.hierarchy-row {
   transition: background-color 0.15s ease;
 }
 </style>

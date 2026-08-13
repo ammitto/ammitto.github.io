@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { tileToneVars } from '@/config/palette'
 
 const props = defineProps<{
   name: string
@@ -24,8 +25,8 @@ const formattedCount = computed(() => {
     <div class="flex items-start justify-between mb-4">
       <div class="flex items-center gap-3">
         <div
-          class="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold"
-          :style="{ backgroundColor: color }"
+          class="tone-tile w-10 h-10 rounded-lg flex items-center justify-center font-bold shrink-0"
+          :style="tileToneVars(color)"
         >
           {{ country }}
         </div>
@@ -57,7 +58,7 @@ const formattedCount = computed(() => {
         :href="url"
         target="_blank"
         rel="noopener noreferrer"
-        class="text-brand-primary hover:underline text-sm font-medium"
+        class="text-brand-link hover:underline text-sm font-medium"
       >
         View Source →
       </a>

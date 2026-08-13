@@ -52,25 +52,25 @@ useHead({
 
           <div class="grid sm:grid-cols-2 gap-4 my-6">
             <div class="glass-card p-4">
-              <h3 class="font-semibold text-brand-primary mb-2">✓ No Attribution</h3>
+              <h3 class="font-semibold text-brand-link mb-2">✓ No Attribution</h3>
               <p class="text-sm text-light-muted dark:text-dark-muted">
                 Use our data without crediting us. We don't need marketing from forced attribution.
               </p>
             </div>
             <div class="glass-card p-4">
-              <h3 class="font-semibold text-brand-primary mb-2">✓ Commercial OK</h3>
+              <h3 class="font-semibold text-brand-link mb-2">✓ Commercial OK</h3>
               <p class="text-sm text-light-muted dark:text-dark-muted">
                 Build commercial products, charge for your services, keep all profits.
               </p>
             </div>
             <div class="glass-card p-4">
-              <h3 class="font-semibold text-brand-primary mb-2">✓ No Registration</h3>
+              <h3 class="font-semibold text-brand-link mb-2">✓ No Registration</h3>
               <p class="text-sm text-light-muted dark:text-dark-muted">
                 Download directly. No account, no API key, no tracking.
               </p>
             </div>
             <div class="glass-card p-4">
-              <h3 class="font-semibold text-brand-primary mb-2">✓ Open Formats</h3>
+              <h3 class="font-semibold text-brand-link mb-2">✓ Open Formats</h3>
               <p class="text-sm text-light-muted dark:text-dark-muted">
                 JSON-LD with documented schemas. No proprietary formats or undocumented fields.
               </p>

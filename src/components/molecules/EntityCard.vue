@@ -46,10 +46,20 @@ const typeInfo = computed(() => entityTypes.find(t => t.code === props.entity.en
     The path is interpolated rather than passed as a route param so that
     the slash in a ref like `uk/aqd0087` stays a separator instead of
     becoming %2F.
+
+    min-w-0 is load-bearing, not decoration. As a grid item this card defaults
+    to min-width:auto, so the track had to be at least as wide as the card's
+    min-content — and the name/alias lines are `truncate`, i.e. white-space:
+    nowrap, whose min-content is the FULL untruncated string. One long
+    sanctioned name therefore stretched the whole single-column grid and the
+    page with it: 1044px of scrollWidth in a 390px viewport on /search and
+    /browse/entities. min-w-0 lets the track ignore that intrinsic width, and
+    the truncation then does its job inside the card.
+    tests/e2e/overflow.spec.js holds this at 320px and 390px on every route.
   -->
   <RouterLink
     :to="`/entity/${entity.ref}`"
-    class="glass-card block p-4 hover:border-brand-primary/50 transition-all group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+    class="glass-card block min-w-0 p-4 hover:border-brand-primary/50 transition-all group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
   >
     <div class="flex items-start justify-between gap-3 mb-2">
       <div class="flex-1 min-w-0">
@@ -60,7 +70,7 @@ const typeInfo = computed(() => entityTypes.find(t => t.code === props.entity.en
           Also known as: {{ aliases.join(', ') }}
         </div>
       </div>
-      <div class="flex flex-col items-end gap-1">
+      <div class="flex flex-col items-end gap-1 min-w-0">
         <Badge :variant="entity.entityType as any">
           <!--
             Now that the whole card is one link, everything in it is read

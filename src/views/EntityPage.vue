@@ -227,7 +227,7 @@ onMounted(async () => {
     <div class="container-wide py-8">
       <RouterLink
         to="/search"
-        class="inline-flex items-center gap-2 text-light-muted dark:text-dark-muted hover:text-brand-primary mb-6"
+        class="inline-flex items-center gap-2 text-light-muted dark:text-dark-muted hover:text-brand-link mb-6"
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
@@ -283,7 +283,7 @@ onMounted(async () => {
           </h2>
           <div class="space-y-4">
             <div v-for="group in namesByScript" :key="group.script" class="border-l-2 border-brand-primary/30 pl-4">
-              <h3 class="text-sm font-medium text-brand-primary mb-2">
+              <h3 class="text-sm font-medium text-brand-link mb-2">
                 {{ group.scriptName }}
                 <span class="text-light-muted dark:text-dark-muted font-normal">
                   ({{ group.names.length }} {{ group.names.length === 1 ? 'name' : 'names' }})
@@ -417,6 +417,14 @@ onMounted(async () => {
               exactly when that instrument's node came back, so a reference
               to something unpublished stays a readable label instead of
               becoming a link to a page that is not there.
+
+              `brand-link`, not `brand-primary`, and underlined on hover
+              rather than faded — the same pair every other link on this page
+              uses. brand-primary is the opaque brand hex kept for solid fills
+              under white text; as TEXT it measures 3.06-3.42:1 on the dark
+              surfaces, and fading it to /80 for hover measures 3.61:1 on the
+              light page background. brand-link is theme-aware and clears AA
+              on both.
             -->
             <div v-if="legalBases.length > 0" class="sm:col-span-2">
               <dt class="text-sm text-light-muted dark:text-dark-muted mb-2">Legal Basis</dt>
@@ -425,7 +433,7 @@ onMounted(async () => {
                   <RouterLink
                     v-if="basis.route"
                     :to="basis.route"
-                    class="block text-brand-primary hover:text-brand-primary/80"
+                    class="block text-brand-link hover:underline"
                   >
                     {{ basis.label }}
                   </RouterLink>
@@ -472,7 +480,7 @@ onMounted(async () => {
           </h2>
           <ul class="space-y-3 text-light-text dark:text-dark-text">
             <li v-for="(reason, idx) in reasons" :key="idx" class="border-l-2 border-brand-primary/30 pl-3">
-              <div v-if="reason.category" class="text-xs uppercase text-brand-primary mb-1">
+              <div v-if="reason.category" class="text-xs uppercase text-brand-link mb-1">
                 {{ reason.category }}
               </div>
               <!-- Same guard as effects: v-for over a plain string iterates
@@ -499,11 +507,13 @@ onMounted(async () => {
             <div v-if="groupIds.length > 0">
               <dt class="text-sm text-light-muted dark:text-dark-muted mb-2">Sanction Groups</dt>
               <dd class="space-y-1">
+                <!-- break-all: the label is a full IRI with no space in it,
+                     which pushed the page 15px past a 320px viewport. -->
                 <RouterLink
                   v-for="groupId in groupIds"
                   :key="groupId"
                   :to="`/group/${extractIdFromIri(groupId)}`"
-                  class="block text-brand-primary hover:text-brand-primary/80 font-mono text-sm"
+                  class="block break-all text-brand-link hover:underline font-mono text-sm"
                 >
                   {{ groupId }}
                 </RouterLink>
@@ -540,7 +550,7 @@ onMounted(async () => {
                   <dd class="inline">
                     <RouterLink
                       :to="`/document-type/${announcement.document_type}`"
-                      class="text-brand-primary hover:text-brand-primary/80"
+                      class="text-brand-link hover:underline"
                     >
                       {{ getDocumentTypeName(announcement.document_type) }}
                     </RouterLink>
@@ -555,7 +565,7 @@ onMounted(async () => {
                   <dd class="inline">
                     <RouterLink
                       :to="`/organization/${announcement.authority}`"
-                      class="text-brand-primary hover:text-brand-primary/80"
+                      class="text-brand-link hover:underline"
                     >
                       {{ getOrganizationName(announcement.authority) }}
                     </RouterLink>
@@ -566,7 +576,7 @@ onMounted(async () => {
                   <dd class="inline">
                     <RouterLink
                       :to="`/organization/${announcement.signatory}`"
-                      class="text-brand-primary hover:text-brand-primary/80"
+                      class="text-brand-link hover:underline"
                     >
                       {{ getOrganizationName(announcement.signatory) }}
                     </RouterLink>
@@ -577,7 +587,7 @@ onMounted(async () => {
                   <dd class="inline">
                     <RouterLink
                       :to="`/organization/${announcement.publisher}`"
-                      class="text-brand-primary hover:text-brand-primary/80"
+                      class="text-brand-link hover:underline"
                     >
                       {{ getOrganizationName(announcement.publisher) }}
                     </RouterLink>
@@ -588,7 +598,7 @@ onMounted(async () => {
                 <RouterLink
                   v-if="groupIds.length > 0"
                   :to="`/announcement/${extractIdFromIri(groupIds[0])}`"
-                  class="inline-flex items-center gap-1 text-brand-primary hover:text-brand-primary/80 text-sm"
+                  class="inline-flex items-center gap-1 text-brand-link hover:underline text-sm"
                 >
                   View Full Announcement & All Entities
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -600,7 +610,7 @@ onMounted(async () => {
                   :href="announcement.url"
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="inline-flex items-center gap-1 text-brand-primary hover:text-brand-primary/80 text-sm"
+                  class="inline-flex items-center gap-1 text-brand-link hover:underline text-sm"
                 >
                   View Official Source
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -609,7 +619,7 @@ onMounted(async () => {
                 </a>
               </div>
               <details v-if="announcement.content" class="mt-3">
-                <summary class="cursor-pointer text-sm text-brand-primary hover:text-brand-primary/80">
+                <summary class="cursor-pointer text-sm text-brand-link hover:underline">
                   View Full Text
                 </summary>
                 <p class="mt-2 text-sm text-light-muted dark:text-dark-muted whitespace-pre-wrap bg-light-surface/50 dark:bg-dark-surface/50 p-3 rounded-lg">{{ announcement.content }}</p>
