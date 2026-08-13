@@ -15,20 +15,22 @@ const {
   sourceReference,
   entityType,
   remarks,
-  contact,
   addresses,
   effects,
   reasons,
-  effectiveDate,
+  periodRows,
+  entryRemarks,
   entryStatus,
   listTypes,
   regimes,
+  legalBases,
   announcements,
   groupIds,
   nationalities,
-  citizenships,
   identificationTable,
-  position,
+  roleClaims,
+  gender,
+  imoNumber,
   birthInfo,
   entries,
 } = useEntityData()
@@ -336,6 +338,35 @@ onMounted(async () => {
                 class="font-medium text-light-text dark:text-dark-text"
               >{{ claim }}</dd>
             </div>
+            <!--
+              Gender sits here, among the identity facts, and nowhere
+              else. A screening reader disambiguating two people with one
+              name needs every attribute the authority recorded, and this
+              is one of them — but it is a sensitive attribute to publish
+              about a named individual, so it is placed where it reads as
+              part of the record and not in the header, where a badge
+              beside the person's name would read as the site
+              characterising them rather than quoting a list.
+
+              Labelled "Gender", the producer's own term, so a reader
+              comparing this page against the API sees the same word.
+              Relabelling it "Sex" would be the site reinterpreting a
+              field the authorities did not define that way.
+            -->
+            <div v-if="gender">
+              <dt class="text-sm text-light-muted dark:text-dark-muted">Gender</dt>
+              <dd class="font-medium text-light-text dark:text-dark-text">{{ gender }}</dd>
+            </div>
+            <!--
+              Monospaced like the reference number above it: both are
+              identifiers read digit by digit against another document,
+              and a proportional font makes that harder than it needs to
+              be.
+            -->
+            <div v-if="imoNumber">
+              <dt class="text-sm text-light-muted dark:text-dark-muted">IMO Number</dt>
+              <dd class="font-medium text-light-text dark:text-dark-text font-mono">{{ imoNumber }}</dd>
+            </div>
             <div v-if="sourceReference">
               <dt class="text-sm text-light-muted dark:text-dark-muted">Reference Number</dt>
               <dd class="font-medium text-light-text dark:text-dark-text font-mono">{{ sourceReference }}</dd>
@@ -348,14 +379,21 @@ onMounted(async () => {
         </div>
 
         <!-- Sanctions Information (from entries) -->
-        <div v-if="effects.length > 0 || effectiveDate || listTypes.length > 0 || regimes.length > 0" class="glass-card p-8">
+        <div v-if="effects.length > 0 || periodRows.length > 0 || listTypes.length > 0 || regimes.length > 0 || legalBases.length > 0" class="glass-card p-8">
           <h2 class="text-xl font-semibold mb-4 text-light-text dark:text-dark-text">
             Sanctions Information
           </h2>
           <dl class="grid sm:grid-cols-2 gap-4">
-            <div v-if="effectiveDate">
-              <dt class="text-sm text-light-muted dark:text-dark-muted">Effective Date</dt>
-              <dd class="font-medium text-light-text dark:text-dark-text">{{ effectiveDate }}</dd>
+            <!--
+              One row per period field the sources actually stated, each
+              under its own name. Collapsing them into a single date under
+              one label would put a listing date behind the words
+              "Effective Date" for every source that publishes the two a
+              day apart.
+            -->
+            <div v-for="row in periodRows" :key="row.label">
+              <dt class="text-sm text-light-muted dark:text-dark-muted">{{ row.label }}</dt>
+              <dd class="font-medium text-light-text dark:text-dark-text">{{ row.value }}</dd>
             </div>
             <div v-if="entryStatus">
               <dt class="text-sm text-light-muted dark:text-dark-muted">Status</dt>
@@ -371,6 +409,30 @@ onMounted(async () => {
               <dt class="text-sm text-light-muted dark:text-dark-muted mb-2">Sanctions Regimes</dt>
               <dd class="flex flex-wrap gap-2">
                 <Badge v-for="regime in regimes" :key="regime" variant="source">{{ regime }}</Badge>
+              </dd>
+            </div>
+            <!--
+              The instrument the authority listed this subject under. Linked
+              only where the row carries a route: the composable sets one
+              exactly when that instrument's node came back, so a reference
+              to something unpublished stays a readable label instead of
+              becoming a link to a page that is not there.
+            -->
+            <div v-if="legalBases.length > 0" class="sm:col-span-2">
+              <dt class="text-sm text-light-muted dark:text-dark-muted mb-2">Legal Basis</dt>
+              <dd class="space-y-1">
+                <template v-for="basis in legalBases" :key="basis.id">
+                  <RouterLink
+                    v-if="basis.route"
+                    :to="basis.route"
+                    class="block text-brand-primary hover:text-brand-primary/80"
+                  >
+                    {{ basis.label }}
+                  </RouterLink>
+                  <span v-else class="block font-mono text-sm text-light-text dark:text-dark-text">
+                    {{ basis.label }}
+                  </span>
+                </template>
               </dd>
             </div>
             <div v-if="effects.length > 0" class="sm:col-span-2">
@@ -558,33 +620,39 @@ onMounted(async () => {
           </div>
         </div>
 
-        <!-- Nationalities & Citizenships -->
-        <div v-if="nationalities.length > 0 || citizenships.length > 0" class="glass-card p-8">
+        <!-- Nationalities -->
+        <div v-if="nationalities.length > 0" class="glass-card p-8">
           <h2 class="text-xl font-semibold mb-4 text-light-text dark:text-dark-text">
-            Nationality & Citizenship
+            Nationality
           </h2>
-          <div class="grid sm:grid-cols-2 gap-4">
-            <div v-if="nationalities.length > 0">
-              <dt class="text-sm text-light-muted dark:text-dark-muted mb-2">Nationalities</dt>
-              <dd class="flex flex-wrap gap-2">
-                <Badge v-for="nat in nationalities" :key="nat" variant="default">{{ nat }}</Badge>
-              </dd>
-            </div>
-            <div v-if="citizenships.length > 0">
-              <dt class="text-sm text-light-muted dark:text-dark-muted mb-2">Citizenships</dt>
-              <dd class="flex flex-wrap gap-2">
-                <Badge v-for="cit in citizenships" :key="cit" variant="default">{{ cit }}</Badge>
-              </dd>
-            </div>
+          <div class="flex flex-wrap gap-2">
+            <Badge v-for="nat in nationalities" :key="nat" variant="default">{{ nat }}</Badge>
           </div>
         </div>
 
-        <!-- Position -->
-        <div v-if="position" class="glass-card p-8">
+        <!-- Position / Title -->
+        <!--
+          The heading names two producer fields and the card now reads
+          both. It read only `position` before, so most people who carry
+          a title met a heading promising one above an empty card — the
+          heading was never the wrong half to keep, the missing field
+          was.
+
+          Each row is labelled with the field that stated it, even when
+          only one row is present, for the reason the Remarks card below
+          labels its two: an unlabelled line leaves a reader unable to
+          tell which of the two they are reading, and the two are not
+          interchangeable. Where both fields state the same string they
+          collapse to one row named for both.
+        -->
+        <div v-if="roleClaims.length > 0" class="glass-card p-8">
           <h2 class="text-xl font-semibold mb-4 text-light-text dark:text-dark-text">
             Position / Title
           </h2>
-          <p class="text-light-muted dark:text-dark-muted">{{ position }}</p>
+          <div v-for="claim in roleClaims" :key="claim.label" class="mb-4 last:mb-0">
+            <h3 class="text-sm text-light-muted dark:text-dark-muted mb-1">{{ claim.label }}</h3>
+            <p class="text-light-muted dark:text-dark-muted">{{ claim.value }}</p>
+          </div>
         </div>
 
         <!-- Identifications -->
@@ -664,20 +732,30 @@ onMounted(async () => {
           </div>
         </div>
 
-        <!-- Remarks -->
-        <div v-if="remarks" class="glass-card p-8">
+        <!--
+          Remarks: one card, two headings. The entity's remarks describe
+          the subject and a listing's describe that authority's action, so
+          they are never merged into one block of text. Both are labelled
+          even when only one is present — an unlabelled paragraph leaves a
+          reader unable to tell which of the two they are reading, which is
+          the whole reason for showing them apart.
+        -->
+        <div v-if="remarks || entryRemarks.length > 0" class="glass-card p-8">
           <h2 class="text-xl font-semibold mb-4 text-light-text dark:text-dark-text">
             Remarks
           </h2>
-          <p class="text-light-muted dark:text-dark-muted whitespace-pre-wrap">{{ remarks }}</p>
-        </div>
-
-        <!-- Contact -->
-        <div v-if="contact" class="glass-card p-8">
-          <h2 class="text-xl font-semibold mb-4 text-light-text dark:text-dark-text">
-            Contact Information
-          </h2>
-          <p class="text-light-muted dark:text-dark-muted whitespace-pre-wrap">{{ contact }}</p>
+          <div v-if="remarks" class="mb-4 last:mb-0">
+            <h3 class="text-sm text-light-muted dark:text-dark-muted mb-1">About this entity</h3>
+            <p class="text-light-muted dark:text-dark-muted whitespace-pre-wrap">{{ remarks }}</p>
+          </div>
+          <div v-if="entryRemarks.length > 0">
+            <h3 class="text-sm text-light-muted dark:text-dark-muted mb-1">About this listing</h3>
+            <p
+              v-for="note in entryRemarks"
+              :key="note"
+              class="text-light-muted dark:text-dark-muted whitespace-pre-wrap"
+            >{{ note }}</p>
+          </div>
         </div>
 
         <!-- Raw Data (for debugging/transparency) -->

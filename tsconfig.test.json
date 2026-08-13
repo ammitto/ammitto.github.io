@@ -42,8 +42,12 @@
     "src/utils/entryFetchPool.ts",
     "src/utils/birthDisplay.ts",
     "src/utils/birthAdapters.ts",
+    "src/utils/entityFacts.ts",
+    "src/utils/entryAdapters.ts",
+    "src/utils/legalBasisAdapters.ts",
     "src/utils/identificationDisplay.ts",
     "src/utils/searchFilters.ts",
+    "src/utils/sourceCatalog.ts",
     "src/config/palette.ts",
     "src/config/index.ts"
   ],

@@ -5,8 +5,16 @@ import { normalizeNode, toNodeIri } from '@/utils/normalizeNode'
 import { mapWithPool } from '@/utils/entryFetchPool'
 import { selectBirthCountry } from '@/utils/birthDisplay'
 import { entityBirthClaims } from '@/utils/birthAdapters'
+import { roleClaims, statedGender, vesselImoNumber } from '@/utils/entityFacts'
+import { entryPeriodRows, listingRemarks } from '@/utils/entryAdapters'
 import { identificationTable } from '@/utils/identificationDisplay'
 import type { IdentificationRecord } from '@/utils/identificationDisplay'
+import {
+  legalBasisIris,
+  legalBasisRows,
+  legalInstrumentNodeUrl,
+} from '@/utils/legalBasisAdapters'
+import type { LegalInstrumentNode } from '@/utils/legalBasisAdapters'
 
 // Full entity interface matching new data-cn JSON-LD node structure
 export interface FullEntity {
@@ -51,9 +59,17 @@ export interface FullEntity {
     circa?: boolean
   }>
   nationalities?: Array<string | { country_code?: string; country?: string }>
-  citizenships?: Array<{ country_code?: string; country?: string }>
   gender?: string
+  // Two producer fields, not one under two names. Sources fill them
+  // independently and sometimes disagree, so both are declared and the
+  // page reads both through `roleClaims`.
   position?: string
+  title?: string
+  // Vessel-specific fields. Only the IMO number, because it is the only
+  // vessel attribute any published vessel carries a value for — the
+  // dozen the producer emits beside it are enumerated, with why they are
+  // absent here, at the top of `@/utils/entityFacts`.
+  imo_number?: string
   // Organization-specific fields
   registration_number?: string
   incorporation_date?: string
@@ -76,12 +92,19 @@ export interface FullEntity {
   // `value` and `identification` declared here since the field was added are
   // attributes Ammitto::Identification has never had, under any spelling.
   identifications?: IdentificationRecord[]
+  // Declared but not rendered anywhere, on purpose. `contact_info` is a
+  // real attribute of the producer's PersonEntity and OrganizationEntity,
+  // so the shape belongs in this interface as a description of the
+  // contract — but no transformer populates it yet, so nothing published
+  // today carries it and there is nothing for a page to show. Keeping the
+  // declaration without markup is the honest pairing: the field is
+  // documented where a reader looks for the entity's shape, and the page
+  // grows a section when there is data to put in it.
   contact_info?: {
     phone?: string[]
     email?: string[]
     website?: string[]
   }
-  contact?: string
   beneficial_owners?: Array<{ entity_id: string; relationship_type: string }>
   directors?: Array<{ entity_id: string; relationship_type: string }>
 }
@@ -136,6 +159,11 @@ export interface Entry {
     content?: string
     language?: string
   }
+  // The instrument authorising this listing, published as a node reference
+  // and nothing more — the graph exporter strips the title and url the
+  // serializer emitted inline. Spelled snake_case because entries reach
+  // this file through normalizeNode; the producer's term is `legalBases`.
+  legal_bases?: Array<{ '@id'?: string }>
   legal_citations?: Array<{
     legal_instrument_id?: string
     articles?: string[]
@@ -144,6 +172,10 @@ export interface Entry {
     source_format?: string
     source_specific_fields?: Record<string, string>
   }
+  // What the LISTING says about itself, which is not what the entity's own
+  // `remarks` says about the subject. Both are published; the page reads
+  // both and keeps them apart.
+  remarks?: string
 }
 
 const API_BASE = import.meta.env.BASE_URL || '/'
@@ -161,10 +193,16 @@ export function useEntityData() {
   const entityLoading = ref(false)
   const entityError = ref<string | null>(null)
 
+  // Instrument nodes, keyed by the IRI the listing referenced. A key is
+  // present only when that node came back, which is what decides whether
+  // the basis is rendered as a link — see legalBasisRows.
+  const legalBasisNodes = ref(new Map<string, LegalInstrumentNode>())
+
   const loadEntity = async (ref: string) => {
     entityLoading.value = true
     entityError.value = null
     entries.value = []
+    legalBasisNodes.value = new Map()
 
     try {
       // Ensure search index is loaded (for ref lookup)
@@ -180,6 +218,9 @@ export function useEntityData() {
 
         // Load entry data for this entity (contains effects, period, announcement, etc.)
         await loadEntries()
+        // Resolved here rather than in the page, so the block renders once
+        // already named instead of flickering from slug to title.
+        await loadLegalBases()
       } else {
         entityError.value = 'Entity not found'
       }
@@ -248,6 +289,49 @@ export function useEntityData() {
     }
   }
 
+  // Name the instruments the listings cite.
+  //
+  // One request per DISTINCT instrument and nothing else. The published
+  // instrument index is deliberately not read: it carries `@id` and no
+  // other field, so it can neither name an instrument nor prove one is
+  // missing, and fetching it would add a six-figure download to every
+  // entity page in exchange for nothing. This is the shape the
+  // organization and document-type pages were rewritten to escape — the
+  // page must not walk an index to answer a question about one entity.
+  const loadLegalBases = async () => {
+    const iris = legalBasisIris(entries.value)
+    if (iris.length === 0) return
+
+    const resolved = await mapWithPool(iris, fetchLegalBasisNode)
+    legalBasisNodes.value = new Map(resolved)
+  }
+
+  // One instrument node paired with the IRI that referenced it, or null.
+  // Null is what makes the page render a plain label instead of a link, so
+  // an unreachable or unpublished instrument costs a link rather than a
+  // 404 — the same skip-one-item contract `fetchEntry` has.
+  const fetchLegalBasisNode = async (
+    iri: string,
+  ): Promise<[string, LegalInstrumentNode] | null> => {
+    try {
+      const response = await fetch(`${API_BASE}${legalInstrumentNodeUrl(iri)}`)
+      if (!response.ok) return null
+
+      // Instrument nodes are NOT normalized: this repo's other two readers
+      // take them in the producer's camelCase, and so does this one.
+      return [iri, (await response.json()) as LegalInstrumentNode]
+    } catch {
+      console.warn('Failed to load legal instrument:', iri)
+      return null
+    }
+  }
+
+  // The instruments authorising this entity's listings, each linked to its
+  // own page when that page has a node behind it.
+  const legalBases = computed(() =>
+    legalBasisRows(legalBasisIris(entries.value), legalBasisNodes.value),
+  )
+
   // Get primary name from entity
   const primaryName = computed(() => {
     if (!entity.value?.names?.length) return null
@@ -307,9 +391,6 @@ export function useEntityData() {
   // Get remarks
   const remarks = computed(() => entity.value?.remarks || null)
 
-  // Get contact info
-  const contact = computed(() => entity.value?.contact || null)
-
   // Get addresses
   const addresses = computed(() => entity.value?.addresses || [])
 
@@ -327,13 +408,15 @@ export function useEntityData() {
     return allEffects
   })
 
-  // Get effective date from entries
-  const effectiveDate = computed(() => {
-    for (const entry of entries.value) {
-      if (entry.period?.effective_date) return entry.period.effective_date
-    }
-    return null
-  })
+  // Every period field the entries state, each on its own labelled row.
+  // Reading only the effective date left entries that carry just a listed
+  // date showing no date at all.
+  const periodRows = computed(() => entryPeriodRows(entries.value))
+
+  // The listings' own remarks, kept separate from the entity's above.
+  const entryRemarks = computed(() =>
+    listingRemarks(entries.value, entity.value?.remarks),
+  )
 
   // Get status from entries
   const entryStatus = computed(() => {
@@ -426,15 +509,16 @@ export function useEntityData() {
     sourceReference,
     entityType,
     remarks,
-    contact,
     addresses,
     // Entry-specific data
     effects,
     reasons,
-    effectiveDate,
+    periodRows,
+    entryRemarks,
     entryStatus,
     listTypes,
     regimes,
+    legalBases,
     announcements,
     groupIds,
     // Expose additional computed properties
@@ -445,12 +529,15 @@ export function useEntityData() {
         return n.country || n.country_code || ''
       }).filter(Boolean)
     }),
-    citizenships: computed(() => {
-      if (!entity.value?.citizenships) return []
-      return entity.value.citizenships.map(c => c.country || c.country_code || '').filter(Boolean)
-    }),
     identificationTable: computed(() => identificationTable(entity.value?.identifications)),
-    position: computed(() => entity.value?.position || null),
+    // Both role fields, not just `position`. The page's heading named the
+    // title too and nothing ever read it.
+    roleClaims: computed(() => roleClaims(entity.value)),
+    // Stated by the listing authority, and expanded from the one-letter
+    // codes the sources publish.
+    gender: computed(() => statedGender(entity.value)),
+    // Indexed for search since the index existed, never shown until now.
+    imoNumber: computed(() => vesselImoNumber(entity.value)),
     // Every distinct claim, not the first record's. Several records are
     // several assertions about one person, and the page shows them all.
     birthInfo: computed(() => entityBirthClaims(entity.value)),
