@@ -10,6 +10,18 @@
   --color-brand-secondary: #1a1a2e;
   --color-brand-accent: #f59e0b;
 
+  /*
+   * Link/accent TEXT colour, as an RGB triplet for the Tailwind token
+   * `brand.link`. Deliberately separate from --color-brand-primary: the brand
+   * blue is also a solid fill under white text (.btn-primary,
+   * bg-brand-primary), and it is that fill, not the text, that must keep
+   * #0066cc. As text on the dark theme's near-black surfaces #0066cc measures
+   * 3.06-3.42:1, so html.dark below swaps in a lighter tint of the same hue.
+   * Single-sourced with linkTokens in src/config/palette.ts; the values are
+   * cross-checked by tests/contrast.test.js.
+   */
+  --color-brand-link: 0 102 204; /* #0066cc */
+
   /* Status colors */
   --color-status-active: #ef4444;
   --color-status-suspended: #f97316;
@@ -26,7 +38,13 @@
   --color-light-bg: 245 245 247; /* #f5f5f7 */
   --color-light-surface: 255 255 255; /* #ffffff */
   --color-light-text: 26 26 46; /* #1a1a2e */
-  --color-light-muted: 107 114 128; /* #6b7280 */
+  /*
+   * Was 107 114 128 (#6b7280), which measures 4.44:1 on the #f5f5f7 page
+   * background — under AA on 118 elements per page sweep (nav links, hero
+   * subtitle, stat labels, section blurbs). One shade darker clears it
+   * everywhere: 5.63:1 on the page background, 6.13:1 on white cards.
+   */
+  --color-light-muted: 91 98 112; /* #5b6270 */
   --color-light-border: 229 231 235; /* #e5e7eb */
 
   /* Dark mode */
@@ -57,6 +75,55 @@ body {
 /* Dark mode transition */
 html.dark {
   color-scheme: dark;
+  /* Lighter tint of the brand hue for link/accent TEXT only; see the
+   * --color-brand-link comment above. */
+  --color-brand-link: 108 176 245; /* #6cb0f5 */
+}
+
+/*
+ * Themed "tone" surfaces.
+ *
+ * Badges, filter pills, source tiles and the ontology type icons take their
+ * colour from a seed hex that lives in data (a source's flag colour, an entity
+ * type, a colour that arrived with the ontology graph). A seed cannot be
+ * expressed as a Tailwind class, so these used to be painted with inline
+ * `color`/`backgroundColor` — which one theme's palette then had to serve for
+ * both, leaving dark-mode badges at 1.24-1.55:1.
+ *
+ * Instead the components now emit BOTH themes' derived colours as custom
+ * properties (src/config/palette.ts: pillToneVars / tileToneVars /
+ * inkToneVars) and these rules choose between them. The theme is a class on
+ * <html> applied before hydration, so the choice is pure CSS: no JS reads the
+ * theme, and the prerendered markup is identical in both themes.
+ */
+.tone-pill {
+  color: var(--tone-fg);
+  background-color: var(--tone-bg);
+  border-color: var(--tone-border);
+}
+
+html.dark .tone-pill {
+  color: var(--tone-fg-dark);
+  background-color: var(--tone-bg-dark);
+  border-color: var(--tone-border-dark);
+}
+
+.tone-tile {
+  color: var(--tile-fg);
+  background-color: var(--tile-bg);
+}
+
+html.dark .tone-tile {
+  color: var(--tile-fg-dark);
+  background-color: var(--tile-bg-dark);
+}
+
+.tone-ink {
+  color: var(--ink-fg);
+}
+
+html.dark .tone-ink {
+  color: var(--ink-fg-dark);
 }
 
 /* Container */
@@ -241,7 +308,7 @@ html.dark {
 }
 
 .prose-custom a {
-  color: var(--color-brand-primary);
+  color: rgb(var(--color-brand-link));
 }
 
 .prose-custom a:hover {

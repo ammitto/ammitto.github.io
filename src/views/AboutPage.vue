@@ -212,7 +212,7 @@ useScrollAnimation()
 
           <p>
             Unlike many "open" data services, Ammitto is released under
-            <RouterLink to="/license" class="text-brand-primary hover:underline">CC0 (Public Domain)</RouterLink>.
+            <RouterLink to="/license" class="text-brand-link hover:underline">CC0 (Public Domain)</RouterLink>.
             No attribution required. No commercial restrictions. No catch.
           </p>
 

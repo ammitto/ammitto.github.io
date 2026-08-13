@@ -142,7 +142,7 @@ onMounted(async () => {
       <!-- Back link -->
       <RouterLink
         to="/browse"
-        class="inline-flex items-center gap-2 text-light-muted dark:text-dark-muted hover:text-brand-primary mb-6"
+        class="inline-flex items-center gap-2 text-light-muted dark:text-dark-muted hover:text-brand-link mb-6"
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
@@ -197,7 +197,7 @@ onMounted(async () => {
           v-for="announcement in filteredAnnouncements"
           :key="announcement.id"
           :to="`/announcement/${announcement.ref}`"
-          class="block bg-white dark:bg-dark-card rounded-lg shadow-sm border border-light-border dark:border-dark-border p-6 hover:border-brand-primary/50 transition-all"
+          class="block min-w-0 bg-white dark:bg-dark-card rounded-lg shadow-sm border border-light-border dark:border-dark-border p-6 hover:border-brand-primary/50 transition-all"
         >
           <div class="flex items-start justify-between gap-4">
             <div class="flex-1">

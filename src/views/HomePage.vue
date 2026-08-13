@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import HeroSection from '@/components/organisms/HeroSection.vue'
 import FeatureCard from '@/components/molecules/FeatureCard.vue'
 import { sources } from '@/config'
+import { tileToneVars } from '@/config/palette'
 import { useScrollAnimation } from '@/composables/useScrollAnimation'
 
 useScrollAnimation()
@@ -96,12 +97,12 @@ const features = [
             class="glass-card p-4 hover:border-brand-primary/50 transition-all text-center group"
           >
             <div
-              class="w-12 h-12 rounded-lg mx-auto mb-3 flex items-center justify-center text-white font-bold"
-              :style="{ backgroundColor: source.color }"
+              class="tone-tile w-12 h-12 rounded-lg mx-auto mb-3 flex items-center justify-center font-bold"
+              :style="tileToneVars(source.color)"
             >
               {{ source.country }}
             </div>
-            <h3 class="font-semibold text-light-text dark:text-dark-text group-hover:text-brand-primary transition-colors">
+            <h3 class="font-semibold text-light-text dark:text-dark-text group-hover:text-brand-link transition-colors">
               {{ source.name }}
             </h3>
             <p class="text-sm text-light-muted dark:text-dark-muted mt-1">
@@ -112,7 +113,7 @@ const features = [
         <div class="text-center mt-8">
           <RouterLink
             to="/sources"
-            class="text-brand-primary hover:underline font-medium"
+            class="text-brand-link hover:underline font-medium"
           >
             View all sources →
           </RouterLink>

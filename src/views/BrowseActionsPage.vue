@@ -13,7 +13,7 @@ onMounted(() => {
   <div class="min-h-screen">
     <div class="container-wide py-12">
       <div class="flex items-center gap-2 mb-6">
-        <RouterLink to="/browse" class="text-light-muted dark:text-dark-muted hover:text-brand-primary">
+        <RouterLink to="/browse" class="text-light-muted dark:text-dark-muted hover:text-brand-link">
           Browse
         </RouterLink>
         <span class="text-light-muted dark:text-dark-muted">/</span>
@@ -29,7 +29,7 @@ onMounted(() => {
 
       <div class="glass-card p-8 text-center mb-8">
         <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-brand-primary/20 flex items-center justify-center">
-          <svg class="w-8 h-8 text-brand-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-8 h-8 text-brand-link" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
           </svg>
         </div>
@@ -56,7 +56,7 @@ onMounted(() => {
           to="/search"
           class="glass-card p-6 hover:border-brand-primary/50 transition-all group"
         >
-          <h3 class="font-semibold text-lg mb-2 text-light-text dark:text-dark-text group-hover:text-brand-primary transition-colors">
+          <h3 class="font-semibold text-lg mb-2 text-light-text dark:text-dark-text group-hover:text-brand-link transition-colors">
             Search Database
           </h3>
           <p class="text-light-muted dark:text-dark-muted text-sm">
@@ -68,7 +68,7 @@ onMounted(() => {
           to="/sources"
           class="glass-card p-6 hover:border-brand-primary/50 transition-all group"
         >
-          <h3 class="font-semibold text-lg mb-2 text-light-text dark:text-dark-text group-hover:text-brand-primary transition-colors">
+          <h3 class="font-semibold text-lg mb-2 text-light-text dark:text-dark-text group-hover:text-brand-link transition-colors">
             View Sources
           </h3>
           <p class="text-light-muted dark:text-dark-muted text-sm">

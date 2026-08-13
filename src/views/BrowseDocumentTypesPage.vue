@@ -75,7 +75,7 @@ onMounted(async () => {
       <!-- Back link -->
       <RouterLink
         to="/browse"
-        class="inline-flex items-center gap-2 text-light-muted dark:text-dark-muted hover:text-brand-primary mb-6"
+        class="inline-flex items-center gap-2 text-light-muted dark:text-dark-muted hover:text-brand-link mb-6"
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
@@ -119,14 +119,14 @@ onMounted(async () => {
           v-for="docType in documentTypes"
           :key="docType['@id']"
           :to="`/document-type/${docType.identifier}`"
-          class="block bg-white dark:bg-dark-card rounded-lg shadow-sm border border-light-border dark:border-dark-border p-6 hover:border-brand-primary/50 transition-all"
+          class="block min-w-0 bg-white dark:bg-dark-card rounded-lg shadow-sm border border-light-border dark:border-dark-border p-6 hover:border-brand-primary/50 transition-all"
         >
           <div class="flex items-start gap-3">
             <div class="w-10 h-10 rounded-lg flex items-center justify-center text-xl bg-orange-100 dark:bg-orange-900/30 shrink-0">
               📄
             </div>
             <div class="flex-1 min-w-0">
-              <h3 class="font-semibold text-light-fg dark:text-dark-fg truncate group-hover:text-brand-primary transition-colors">
+              <h3 class="font-semibold text-light-fg dark:text-dark-fg truncate group-hover:text-brand-link transition-colors">
                 {{ getDisplayName(docType) }}
               </h3>
               <p v-if="getChineseName(docType)" class="text-sm text-light-muted dark:text-dark-muted truncate">

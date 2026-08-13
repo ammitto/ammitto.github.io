@@ -8,7 +8,7 @@
 // devDependency (vue-tsc needs it), and the tests import the emitted module.
 //
 // This is type erasure, not a second implementation: the output is the very
-// module each `src/utils/*.ts` entry compiles to, so the tests exercise the
+// module each `src/**/*.ts` entry compiles to, so the tests exercise the
 // shipped code rather than a copy of it.
 //
 // Compiler options are inherited from tsconfig.json, so the module is emitted
@@ -47,7 +47,9 @@
     "src/utils/legalBasisAdapters.ts",
     "src/utils/identificationDisplay.ts",
     "src/utils/searchFilters.ts",
-    "src/utils/sourceCatalog.ts"
+    "src/utils/sourceCatalog.ts",
+    "src/config/palette.ts",
+    "src/config/index.ts"
   ],
   "references": []
 }

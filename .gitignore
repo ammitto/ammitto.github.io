@@ -18,3 +18,7 @@ Gemfile.lock
 
 # Type-erased modules emitted for the unit tests (tsconfig.test.json)
 .test-build
+
+# Playwright output (traces, screenshots and the HTML report from test:e2e)
+test-results
+playwright-report

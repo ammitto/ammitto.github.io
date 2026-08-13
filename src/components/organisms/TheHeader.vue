@@ -38,7 +38,7 @@ const isActive = (item: typeof navItems[0]) => {
             :to="item.path"
             class="text-sm font-medium transition-colors"
             :class="isActive(item)
-              ? 'text-brand-primary'
+              ? 'text-brand-link'
               : 'text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text'"
           >
             {{ item.name }}
@@ -71,7 +71,7 @@ const isActive = (item: typeof navItems[0]) => {
             :to="item.path"
             class="px-4 py-2 rounded-lg transition-colors"
             :class="isActive(item)
-              ? 'bg-brand-primary/10 text-brand-primary'
+              ? 'bg-brand-primary/10 text-brand-link'
               : 'hover:bg-light-surface dark:hover:bg-dark-surface text-light-muted dark:text-dark-muted'"
             @click="mobileMenuOpen = false"
           >

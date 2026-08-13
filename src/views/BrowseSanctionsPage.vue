@@ -2,6 +2,7 @@
 import { onMounted } from 'vue'
 import { useSanctionsData } from '@/composables/useSanctionsData'
 import { sources } from '@/config'
+import { tileToneVars } from '@/config/palette'
 
 const { stats, loadStats } = useSanctionsData()
 
@@ -14,7 +15,7 @@ onMounted(() => {
   <div class="min-h-screen">
     <div class="container-wide py-12">
       <div class="flex items-center gap-2 mb-6">
-        <RouterLink to="/browse" class="text-light-muted dark:text-dark-muted hover:text-brand-primary">
+        <RouterLink to="/browse" class="text-light-muted dark:text-dark-muted hover:text-brand-link">
           Browse
         </RouterLink>
         <span class="text-light-muted dark:text-dark-muted">/</span>
@@ -30,7 +31,7 @@ onMounted(() => {
 
       <div class="glass-card p-8 text-center mb-8">
         <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-brand-primary/20 flex items-center justify-center">
-          <svg class="w-8 h-8 text-brand-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-8 h-8 text-brand-link" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
           </svg>
         </div>
@@ -49,8 +50,8 @@ onMounted(() => {
         <div v-for="source in sources" :key="source.code" class="glass-card p-6">
           <div class="flex items-center gap-3 mb-4">
             <div
-              class="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm"
-              :style="{ backgroundColor: source.color }"
+              class="tone-tile w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm shrink-0"
+              :style="tileToneVars(source.color)"
             >
               {{ source.country }}
             </div>
@@ -81,7 +82,7 @@ onMounted(() => {
 
           <RouterLink
             :to="{ name: 'search', query: { source: source.code } }"
-            class="text-brand-primary hover:underline text-sm font-medium"
+            class="text-brand-link hover:underline text-sm font-medium"
           >
             View entities →
           </RouterLink>

@@ -35,8 +35,19 @@ const goToEntity = () => {
 </script>
 
 <template>
+  <!--
+    min-w-0 is load-bearing, not decoration. As a grid item this card defaults
+    to min-width:auto, so the track had to be at least as wide as the card's
+    min-content — and the name/alias lines are `truncate`, i.e. white-space:
+    nowrap, whose min-content is the FULL untruncated string. One long
+    sanctioned name therefore stretched the whole single-column grid and the
+    page with it: 1044px of scrollWidth in a 390px viewport on /search and
+    /browse/entities. min-w-0 lets the track ignore that intrinsic width, and
+    the truncation then does its job inside the card.
+    tests/e2e/overflow.spec.js holds this at 320px and 390px on every route.
+  -->
   <article
-    class="glass-card p-4 hover:border-brand-primary/50 cursor-pointer transition-all group"
+    class="glass-card min-w-0 p-4 hover:border-brand-primary/50 cursor-pointer transition-all group"
     @click="goToEntity"
   >
     <div class="flex items-start justify-between gap-3 mb-2">
@@ -48,7 +59,7 @@ const goToEntity = () => {
           Also known as: {{ aliases.join(', ') }}
         </div>
       </div>
-      <div class="flex flex-col items-end gap-1">
+      <div class="flex flex-col items-end gap-1 min-w-0">
         <Badge :variant="entity.entityType as any">
           {{ typeInfo?.icon }} {{ typeInfo?.name }}
         </Badge>

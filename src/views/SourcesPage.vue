@@ -25,7 +25,7 @@ onMounted(() => {
       <div class="mb-8 p-4 glass-card">
         <div class="flex flex-wrap gap-8">
           <div>
-            <div class="text-2xl font-bold text-brand-primary">
+            <div class="text-2xl font-bold text-brand-link">
               {{ sources.length }}
             </div>
             <div class="text-sm text-light-muted dark:text-dark-muted">
@@ -33,7 +33,7 @@ onMounted(() => {
             </div>
           </div>
           <div>
-            <div class="text-2xl font-bold text-brand-primary">
+            <div class="text-2xl font-bold text-brand-link">
               {{ stats?.total_entities?.toLocaleString() || '—' }}
             </div>
             <div class="text-sm text-light-muted dark:text-dark-muted">
@@ -41,7 +41,7 @@ onMounted(() => {
             </div>
           </div>
           <div>
-            <div class="text-2xl font-bold text-brand-primary">
+            <div class="text-2xl font-bold text-brand-link">
               {{ stats?.total_entries?.toLocaleString() || '—' }}
             </div>
             <div class="text-sm text-light-muted dark:text-dark-muted">
