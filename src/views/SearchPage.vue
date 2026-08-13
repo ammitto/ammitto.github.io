@@ -7,7 +7,7 @@ import EntityCard from '@/components/molecules/EntityCard.vue'
 import SearchFilters from '@/components/organisms/SearchFilters.vue'
 import { useScrollAnimation } from '@/composables/useScrollAnimation'
 import { useSearchIndex, type SearchEntity } from '@/composables/useSearchIndex'
-import { normalizeSourceCode } from '@/config'
+import { normalizeSourceCode, listTypes } from '@/config'
 import { searchRowToCard } from '@/utils/birthAdapters'
 
 // Initialize scroll animations
@@ -22,6 +22,7 @@ const debouncedQuery = ref('')
 const filters = ref({
   sources: [] as string[],
   entityTypes: [] as string[],
+  listTypes: [] as string[],
   statuses: [] as string[],
 })
 
@@ -37,6 +38,7 @@ const {
   sourceCount,
   authorityFacets,
   typeFacets,
+  listTypeFacets,
   statusFacets,
   loadSearchIndex,
   loadFacets,
@@ -64,7 +66,7 @@ const queryList = (
 // Load data on mount
 onMounted(async () => {
   // Initialize from URL params
-  const { q, source, type, status } = route.query
+  const { q, source, type, list, status } = route.query
   const [firstQuery] = queryList(q)
   if (firstQuery) searchQuery.value = firstQuery
   // Parse unconditionally: null/empty scalar forms (?source) must also
@@ -76,6 +78,9 @@ onMounted(async () => {
     queryList(source).map(normalizeSourceCode),
   )]
   filters.value.entityTypes = queryList(type)
+  // No legacy-spelling map here, unlike sources: `?list=` ships with this
+  // change, so no bookmark can carry an older form of these codes.
+  filters.value.listTypes = queryList(list)
   filters.value.statuses = queryList(status)
 
   // Load search index and facets
@@ -99,6 +104,7 @@ watch([searchQuery, filters], () => {
   if (searchQuery.value) query.q = searchQuery.value
   if (filters.value.sources.length > 0) query.source = filters.value.sources
   if (filters.value.entityTypes.length > 0) query.type = filters.value.entityTypes
+  if (filters.value.listTypes.length > 0) query.list = filters.value.listTypes
   if (filters.value.statuses.length > 0) query.status = filters.value.statuses
   router.replace({ query })
 }, { deep: true })
@@ -115,6 +121,7 @@ const filteredEntities = computed(() => {
   results = filter(results, {
     authorities: filters.value.sources.length > 0 ? filters.value.sources : undefined,
     types: filters.value.entityTypes.length > 0 ? filters.value.entityTypes : undefined,
+    listTypes: filters.value.listTypes.length > 0 ? filters.value.listTypes : undefined,
     statuses: filters.value.statuses.length > 0 ? filters.value.statuses : undefined,
   })
 
@@ -142,6 +149,7 @@ const loadMore = () => {
 const counts = computed(() => {
   const sourceCountsMap: Record<string, number> = Object.create(null)
   const typeCountsMap: Record<string, number> = Object.create(null)
+  const listTypeCountsMap: Record<string, number> = Object.create(null)
   const statusCountsMap: Record<string, number> = Object.create(null)
 
   // Use facets for source counts (more accurate)
@@ -154,6 +162,11 @@ const counts = computed(() => {
     typeCountsMap[facet.code] = facet.count
   }
 
+  // Use facets for list type counts
+  for (const facet of listTypeFacets.value) {
+    listTypeCountsMap[facet.code] = facet.count
+  }
+
   // Use facets for status counts
   for (const facet of statusFacets.value) {
     statusCountsMap[facet.code] = facet.count
@@ -162,6 +175,7 @@ const counts = computed(() => {
   return {
     sources: sourceCountsMap,
     entityTypes: typeCountsMap,
+    listTypes: listTypeCountsMap,
     statuses: statusCountsMap,
   }
 })
@@ -174,6 +188,7 @@ const clearFilters = () => {
   filters.value = {
     sources: [],
     entityTypes: [],
+    listTypes: [],
     statuses: [],
   }
 }
@@ -182,6 +197,7 @@ const hasActiveFilters = computed(() =>
   searchQuery.value ||
   filters.value.sources.length > 0 ||
   filters.value.entityTypes.length > 0 ||
+  filters.value.listTypes.length > 0 ||
   filters.value.statuses.length > 0
 )
 
@@ -189,6 +205,7 @@ const activeFilterCount = computed(() =>
   (searchQuery.value ? 1 : 0) +
   filters.value.sources.length +
   filters.value.entityTypes.length +
+  filters.value.listTypes.length +
   filters.value.statuses.length
 )
 
@@ -204,6 +221,13 @@ const entityTypes = computed(() =>
 const statuses = computed(() =>
   statusFacets.value.map(f => ({ code: f.code, name: f.name || f.code }))
 )
+
+// List types have no computed here: their labels come from `@/config`,
+// imported above and used directly by the template. The three families
+// above can take the facet's own `name` because it matches what the
+// sidebar renders; for list types it does not — the producer title-cases
+// the code, so the facet would label `sdn-list` "Sdn List" in the chip
+// while the sidebar pill reads "SDN List". One source of names avoids that.
 </script>
 
 <template>
@@ -256,6 +280,18 @@ const statuses = computed(() =>
                 @click="filters.entityTypes = filters.entityTypes.filter(t => t !== code)"
               >
                 {{ entityTypes.find(t => t.code === code)?.name || code }}
+                <svg class="w-3 h-3 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </Badge>
+              <Badge
+                v-for="code in filters.listTypes"
+                :key="'list-' + code"
+                variant="default"
+                class="cursor-pointer"
+                @click="filters.listTypes = filters.listTypes.filter(l => l !== code)"
+              >
+                {{ listTypes.find(l => l.code === code)?.name || code }}
                 <svg class="w-3 h-3 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>

@@ -2,6 +2,10 @@ import { ref, computed } from 'vue'
 import FlexSearch from 'flexsearch'
 import { normalizeNode } from '@/utils/normalizeNode'
 import { searchRowText } from '@/utils/birthAdapters'
+import {
+  filterSearchEntities,
+  type SearchFilterSelection,
+} from '@/utils/searchFilters'
 
 /**
  * Lightweight search entity from search-index.json.
@@ -28,6 +32,11 @@ export interface SearchEntity {
   country?: string
   regime?: string
   authority?: string
+  // Which published list the entry appears on. Every live row carries one,
+  // but the producer compacts absent values, and it emits the literal
+  // 'unknown' for an entry it could not place — so a missing field and
+  // 'unknown' are different states and must not be conflated.
+  listType?: string
   status?: string
   birthYear?: string
   // Bounds of a stated span of birth years. The producer excludes the span
@@ -79,6 +88,7 @@ const regimeFacets = ref<FacetItem[]>([])
 const typeFacets = ref<FacetItem[]>([])
 const countryFacets = ref<FacetItem[]>([])
 const statusFacets = ref<FacetItem[]>([])
+const listTypeFacets = ref<FacetItem[]>([])
 
 // Base URL for API
 const API_BASE = import.meta.env.BASE_URL || '/'
@@ -144,12 +154,13 @@ async function loadFacets(): Promise<void> {
   if (!isBrowser) return
 
   try {
-    const [authRes, regRes, typeRes, countryRes, statusRes] = await Promise.all([
+    const [authRes, regRes, typeRes, countryRes, statusRes, listTypeRes] = await Promise.all([
       fetch(`${API_BASE}api/v1/facets/authorities.json`),
       fetch(`${API_BASE}api/v1/facets/regimes.json`),
       fetch(`${API_BASE}api/v1/facets/types.json`),
       fetch(`${API_BASE}api/v1/facets/countries.json`),
       fetch(`${API_BASE}api/v1/facets/statuses.json`),
+      fetch(`${API_BASE}api/v1/facets/list_types.json`),
     ])
 
     if (authRes.ok) {
@@ -176,6 +187,11 @@ async function loadFacets(): Promise<void> {
       const data: FacetsResponse = await statusRes.json()
       statusFacets.value = data.facets
     }
+
+    if (listTypeRes.ok) {
+      const data: FacetsResponse = await listTypeRes.json()
+      listTypeFacets.value = data.facets
+    }
   } catch (e) {
     console.error('Failed to load facets:', e)
   }
@@ -201,37 +217,9 @@ function search(query: string, limit = 100): SearchEntity[] {
  */
 function filter(
   entityList: SearchEntity[],
-  filters: {
-    authorities?: string[]
-    types?: string[]
-    regimes?: string[]
-    statuses?: string[]
-    countries?: string[]
-  }
+  filters: SearchFilterSelection,
 ): SearchEntity[] {
-  let result = entityList
-
-  if (filters.authorities && filters.authorities.length > 0) {
-    result = result.filter((e) => e.authority && filters.authorities!.includes(e.authority))
-  }
-
-  if (filters.types && filters.types.length > 0) {
-    result = result.filter((e) => filters.types!.includes(e.type))
-  }
-
-  if (filters.regimes && filters.regimes.length > 0) {
-    result = result.filter((e) => e.regime && filters.regimes!.includes(e.regime))
-  }
-
-  if (filters.statuses && filters.statuses.length > 0) {
-    result = result.filter((e) => e.status && filters.statuses!.includes(e.status))
-  }
-
-  if (filters.countries && filters.countries.length > 0) {
-    result = result.filter((e) => e.country && filters.countries!.includes(e.country))
-  }
-
-  return result
+  return filterSearchEntities(entityList, filters)
 }
 
 /**
@@ -310,6 +298,7 @@ export function useSearchIndex() {
     typeFacets,
     countryFacets,
     statusFacets,
+    listTypeFacets,
 
     // Methods
     loadSearchIndex,

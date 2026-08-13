@@ -27,7 +27,7 @@ const {
   groupIds,
   nationalities,
   citizenships,
-  identifications,
+  identificationTable,
   position,
   birthInfo,
   entries,
@@ -588,7 +588,16 @@ onMounted(async () => {
         </div>
 
         <!-- Identifications -->
-        <div v-if="identifications.length > 0" class="glass-card p-8">
+        <!--
+          Type and number are the document; the issuing country earns a
+          column only when some record on this entity states one, so an
+          entity whose source publishes none is not given a column of
+          dashes to read past. A note is prose — often the whole content of
+          a record that has no number — so it runs full width beneath its
+          row instead of being squeezed into a fourth column that most
+          records would leave empty.
+        -->
+        <div v-if="identificationTable.rows.length > 0" class="glass-card p-8">
           <h2 class="text-xl font-semibold mb-4 text-light-text dark:text-dark-text">
             Identifications
           </h2>
@@ -597,20 +606,36 @@ onMounted(async () => {
               <thead>
                 <tr class="border-b border-light-border dark:border-dark-border">
                   <th class="text-left py-2 text-light-muted dark:text-dark-muted font-medium">Type</th>
-                  <th class="text-left py-2 text-light-muted dark:text-dark-muted font-medium">Document Type</th>
-                  <th class="text-left py-2 text-light-muted dark:text-dark-muted font-medium">Value</th>
+                  <th class="text-left py-2 text-light-muted dark:text-dark-muted font-medium">Number</th>
+                  <th
+                    v-if="identificationTable.hasIssuingCountry"
+                    class="text-left py-2 text-light-muted dark:text-dark-muted font-medium"
+                  >
+                    Issuing Country
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                <tr
-                  v-for="(id, idx) in identifications"
-                  :key="idx"
-                  class="border-b border-light-border/50 dark:border-dark-border/50"
-                >
-                  <td class="py-2 text-light-text dark:text-dark-text">{{ id.type || '—' }}</td>
-                  <td class="py-2 text-light-text dark:text-dark-text">{{ id.document_type || '—' }}</td>
-                  <td class="py-2 text-light-text dark:text-dark-text font-mono">{{ id.value || id.identification || '—' }}</td>
-                </tr>
+                <template v-for="(row, idx) in identificationTable.rows" :key="idx">
+                  <tr :class="{ 'border-b border-light-border/50 dark:border-dark-border/50': !row.note }">
+                    <td class="py-2 pr-4 text-light-text dark:text-dark-text">{{ row.type || '—' }}</td>
+                    <td class="py-2 pr-4 text-light-text dark:text-dark-text font-mono break-all">{{ row.number || '—' }}</td>
+                    <td
+                      v-if="identificationTable.hasIssuingCountry"
+                      class="py-2 text-light-text dark:text-dark-text"
+                    >
+                      {{ row.issuingCountry || '—' }}
+                    </td>
+                  </tr>
+                  <tr v-if="row.note" class="border-b border-light-border/50 dark:border-dark-border/50">
+                    <td
+                      :colspan="identificationTable.hasIssuingCountry ? 3 : 2"
+                      class="pb-2 text-light-muted dark:text-dark-muted"
+                    >
+                      {{ row.note }}
+                    </td>
+                  </tr>
+                </template>
               </tbody>
             </table>
           </div>

@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import FilterPill from '@/components/molecules/FilterPill.vue'
-import { sources, entityTypes, statuses } from '@/config'
+import { sources, entityTypes, listTypes, statuses } from '@/config'
 
 interface Filters {
   sources: string[]
   entityTypes: string[]
+  listTypes: string[]
   statuses: string[]
 }
 
@@ -13,6 +14,7 @@ const props = defineProps<{
   counts: {
     sources: Record<string, number>
     entityTypes: Record<string, number>
+    listTypes: Record<string, number>
     statuses: Record<string, number>
   }
 }>()
@@ -34,6 +36,13 @@ const toggleEntityType = (code: string) => {
     ? props.filters.entityTypes.filter(t => t !== code)
     : [...props.filters.entityTypes, code]
   emit('update:filters', { ...props.filters, entityTypes: newTypes })
+}
+
+const toggleListType = (code: string) => {
+  const newListTypes = props.filters.listTypes.includes(code)
+    ? props.filters.listTypes.filter(l => l !== code)
+    : [...props.filters.listTypes, code]
+  emit('update:filters', { ...props.filters, listTypes: newListTypes })
 }
 
 const toggleStatus = (code: string) => {
@@ -87,6 +96,22 @@ const toggleStatus = (code: string) => {
             :active="filters.entityTypes.includes(type.code)"
             :color="type.color"
             @click="toggleEntityType(type.code)"
+          />
+        </div>
+      </div>
+
+      <div>
+        <h4 class="text-sm font-medium text-light-muted dark:text-dark-muted mb-3">
+          List Types ({{ listTypes.length }})
+        </h4>
+        <div class="flex flex-wrap gap-2">
+          <FilterPill
+            v-for="listType in listTypes"
+            :key="listType.code"
+            :label="listType.name"
+            :count="counts.listTypes[listType.code]"
+            :active="filters.listTypes.includes(listType.code)"
+            @click="toggleListType(listType.code)"
           />
         </div>
       </div>

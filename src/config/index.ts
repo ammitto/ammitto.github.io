@@ -186,6 +186,39 @@ export const entityTypes = [
   { code: 'aircraft', name: 'Aircraft', color: '#8b5cf6', icon: '✈️' },
 ] as const
 
+/**
+ * The published lists an entry can appear on, as carried in each
+ * search-index row's `listType`.
+ *
+ * The names are curated here rather than read from
+ * `api/v1/facets/list_types.json`, which does supply a `name` but derives
+ * it by title-casing the code: `sdn-list` arrives as "Sdn List", losing
+ * the acronym OFAC's list is universally known by, and the hyphenated
+ * forms this file already uses elsewhere ("Anti-Sanctions List").
+ *
+ * No `color` field: `sources`, `entityTypes` and `statuses` each colour by
+ * something real — a flag, an entity kind, a severity — and a list type has
+ * no such axis, so eight invented hex values would signal a meaning that is
+ * not there. FilterPill renders fine without one.
+ *
+ * A code absent from this list renders no pill, the same tradeoff `sources`
+ * and `statuses` already make against the facet files.
+ */
+export const listTypes = [
+  { code: 'consolidated-list', name: 'Consolidated List' },
+  { code: 'sdn-list', name: 'SDN List' },
+  { code: 'end-user-list', name: 'End-User List' },
+  { code: 'debarment-list', name: 'Debarment List' },
+  { code: 'vessel-sanctions-list', name: 'Vessel Sanctions List' },
+  { code: 'anti-sanction-list', name: 'Anti-Sanctions List' },
+  { code: 'unreliable-entity-list', name: 'Unreliable Entity List' },
+  // The producer's own value for an entry it could not place on a named
+  // list, distinct from a row carrying no `listType` at all. Kept
+  // selectable because every other selection excludes these rows, so
+  // dropping the pill would make them unreachable through this facet.
+  { code: 'unknown', name: 'Unknown' },
+] as const
+
 export const statuses = [
   { code: 'active', name: 'Active', color: '#ef4444' },
   { code: 'suspended', name: 'Suspended', color: '#f97316' },
