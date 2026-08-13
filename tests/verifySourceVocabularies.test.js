@@ -16,18 +16,23 @@
  * Plain JavaScript against the script itself — it is plain JavaScript too, so
  * unlike the src/utils modules it needs no tsc emit step first.
  */
-import { test } from 'node:test';
+import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   BASE_URI,
   declaredIds,
+  parseArgs,
   publishedIds,
   repoDirFor,
   verifySourceVocabularies,
 } from '../scripts/verify-source-vocabularies.js';
+
+const SCRIPT = fileURLToPath(new URL('../scripts/verify-source-vocabularies.js', import.meta.url));
 
 /**
  * LIVE — https://ammitto.org/api/v1/node/{document-type,organization}/index.jsonld
@@ -56,6 +61,20 @@ const YAML_FILE = { 'document-type': 'document-types.yml', organization: 'organi
 let counter = 0;
 
 /**
+ * Every workspace built here, removed once when the file finishes.
+ *
+ * mkdtempSync creates and never reclaims, and this file makes a workspace per
+ * test: without this the run leaves a dozen trees of several hundred files
+ * each in the system temp directory, permanently, once per invocation. On a
+ * developer machine that runs the suite all day it is unbounded growth in the
+ * one directory nothing else prunes.
+ */
+const workspaces = [];
+after(() => {
+  for (const root of workspaces) fs.rmSync(root, { recursive: true, force: true });
+});
+
+/**
  * Build a workspace shaped like the deploy runner's: data-* clones beside a
  * harmonized public/api/v1. `omit` drops identifiers from the published side
  * only, which is precisely what a vocabulary that never loaded looks like.
@@ -63,6 +82,7 @@ let counter = 0;
 function buildWorkspace({ omitFromIndex = {}, omitNodeFiles = {}, omitClones = [] } = {}) {
   counter += 1;
   const root = fs.mkdtempSync(path.join(os.tmpdir(), `ammitto-vocab-${counter}-`));
+  workspaces.push(root);
   const apiDir = path.join(root, 'public', 'api', 'v1');
   const published = { 'document-type': [], organization: [] };
 
@@ -165,7 +185,7 @@ test('fails on partial loss and says so rather than calling the source dark', ()
   const { failures } = run(workspace);
   assert.equal(failures.length, 1);
   assert.match(failures[0], /^Source us: 2 of 7 organizations/);
-  assert.match(failures[0], /us\/organization-2, us\/organization-5/);
+  assert.match(failures[0], /"us\/organization-2", "us\/organization-5"/);
   assert.match(failures[0], /loaded only in part/);
   assert.doesNotMatch(failures[0], /at all/);
 });
@@ -242,16 +262,105 @@ test('repoDirFor hyphenates the underscored vessel codes', () => {
   assert.equal(repoDirFor('uk'), 'data-uk');
 });
 
-test('declaredIds mirrors the loader: rows without a usable id are not declared', () => {
+test('declaredIds takes the loader\'s own test for a declared row', () => {
+  // `next unless type_data['id']` skips nil and false and nothing else, so
+  // the empty and whitespace ids below are loaded and published upstream.
+  // Filtering them out here is the gate agreeing to overlook a row that
+  // reaches the index and 404s; they are declared, and reported.
   const yaml = [
     'document_types:',
     '  - id: uk/act',
     '  - name: no id here',
     '  - id: ""',
+    '  - id: "   "',
+    '  - id:',
+    '  - id: 42',
     '  - id: uk/order',
   ].join('\n');
-  assert.deepEqual(declaredIds(yaml, 'document_types'), ['uk/act', 'uk/order']);
+  assert.deepEqual(
+    declaredIds(yaml, 'document_types'),
+    ['uk/act', '', '   ', '42', 'uk/order'],
+  );
   assert.deepEqual(declaredIds('other_key: []', 'document_types'), []);
+});
+
+test('an id the loader keeps but no page can fetch is reported, not overlooked', () => {
+  // The end of that road. An empty id interpolates to the IRI prefix bare,
+  // so the index carries it; export_document_type_nodes then splits that IRI
+  // and writes the file under its last surviving segment rather than under
+  // the empty one, leaving the row with nothing behind it. This is the
+  // malformed-id case reaching the operator instead of being filtered away.
+  const workspace = buildWorkspace();
+  fs.appendFileSync(
+    path.join(workspace.root, 'data-uk', 'sources', 'supporting', 'document-types.yml'),
+    '  - id: ""\n    name:\n      en: malformed\n',
+  );
+  const indexPath = path.join(workspace.apiDir, 'node', 'document-type', 'index.jsonld');
+  const index = JSON.parse(fs.readFileSync(indexPath, 'utf8'));
+  index.nodes.push({ '@id': `${BASE_URI}/document-type/` });
+  fs.writeFileSync(indexPath, JSON.stringify(index));
+
+  const { failures } = run(workspace);
+  assert.equal(failures.length, 1);
+  assert.match(failures[0], /^Source uk: 1 of 7 document-types are listed in/);
+  assert.match(failures[0], /no node file behind them/);
+  // Quoted, or an id with no printable characters names itself as a blank.
+  assert.match(failures[0], /them — ""\. /);
+});
+
+test('parseArgs names the option when its value is missing', () => {
+  // Trailing position is the case that reaches deploy.yml: the option takes
+  // undefined and path.join throws out of node:path, which reads as a bug in
+  // this script rather than in the line that invoked it.
+  assert.throws(
+    () => parseArgs(['--sources', 'uk', '--api-dir']),
+    /--api-dir requires a value, and none followed it/,
+  );
+  assert.throws(
+    () => parseArgs(['--sources-root']),
+    /--sources-root requires a value, and none followed it/,
+  );
+  assert.throws(
+    () => parseArgs(['--sources-root', '--api-dir', 'out', '--sources', 'uk']),
+    /--sources-root requires a value, but was followed by the option --api-dir/,
+  );
+  assert.throws(() => parseArgs(['--sources', 'uk', '--wat']), /Unknown argument: --wat/);
+  assert.throws(() => parseArgs(['--api-dir', 'out']), /--sources is required/);
+});
+
+test('parseArgs keeps the defaults and splits the source list', () => {
+  assert.deepEqual(parseArgs(['--sources', 'uk  jp\tus']), {
+    sourcesRoot: '.',
+    apiDir: 'public/api/v1',
+    sources: ['uk', 'jp', 'us'],
+  });
+  assert.deepEqual(
+    parseArgs(['--sources-root', '/clones', '--api-dir', '/out', '--sources', 'uk']),
+    { sourcesRoot: '/clones', apiDir: '/out', sources: ['uk'] },
+  );
+});
+
+test('the CLI exits 2 with a one-line message rather than a stack trace', () => {
+  // What the deploy step actually sees. A usage error has to be legible in a
+  // job log, so the contract is the exit code AND the absence of a trace.
+  //
+  // Both invocations reached ERR_INVALID_ARG_TYPE out of node:path before the
+  // option was checked, by different routes: a missing --sources-root throws
+  // on the first repoDir join, while a missing --api-dir survives until the
+  // index is read, so it needs a workspace whose clones exist to get there —
+  // which is the runner's condition, where every clone always does.
+  const workspace = buildWorkspace();
+  const invocations = [
+    ['--sources', 'uk', '--sources-root'],
+    ['--sources-root', workspace.root, '--sources', 'uk', '--api-dir'],
+  ];
+
+  for (const argv of invocations) {
+    const result = spawnSync(process.execPath, [SCRIPT, ...argv], { encoding: 'utf8' });
+    assert.equal(result.status, 2, `${argv.at(-1)} should be refused as a usage error`);
+    assert.match(result.stderr, /^verify-source-vocabularies: --[\w-]+ requires a value/m);
+    assert.doesNotMatch(result.stderr, /ERR_INVALID_ARG_TYPE|node:path/);
+  }
 });
 
 test('publishedIds strips the base IRI the browse pages strip', () => {

@@ -88,13 +88,32 @@ export function repoDirFor(source) {
 /**
  * Identifiers a supporting file declares, in file order.
  *
- * Mirrors the loader exactly: entries without an `id` are skipped there
- * (`next unless type_data['id']`) so they are not declared here either, and a
- * file whose top-level key is absent declares nothing. A file that fails to
- * parse is NOT treated as declaring nothing — the loader rescues the parse
- * error into a VERBOSE-gated warning and drops every identifier in it, which
- * is silent loss of a whole vocabulary and is exactly what this gate exists
- * to make loud.
+ * Takes the loader's own test for a declared row rather than a stricter one.
+ * `next unless type_data['id']` skips a row only when the value is falsey,
+ * and in Ruby that is nil and false alone: `id: ""`, `id: "   "` and `id: 42`
+ * are all kept, interpolated into the IRI, and published. Declaring only the
+ * ids that look well-formed would make this gate forgive precisely the row
+ * that breaks a page — an empty id publishes the IRI prefix bare, so it
+ * enters node/<kind>/index.jsonld, while export_document_type_nodes splits
+ * that IRI and writes the file under its last surviving segment instead, and
+ * the browse row 404s. A malformed id is a finding, not a row to look past.
+ *
+ * Stringified because the loader interpolates the value into the IRI, so a
+ * YAML scalar that parses as a number here has to be compared as the string
+ * the published index actually carries.
+ *
+ * The mirror stops at rows that are not mappings. Ruby reaches `['id']` on
+ * whatever the row is: on a String that is a substring search, on an Array a
+ * TypeError that the rescue turns into the loss of the whole file. Neither is
+ * modelled. Both directions are safe — a row dropped here can only cause the
+ * gate to expect less, never to blame a source for something it published,
+ * and a file the loader abandons entirely still fails loudly through the rows
+ * that did parse.
+ *
+ * A file that fails to parse is NOT treated as declaring nothing — the loader
+ * rescues the parse error into a VERBOSE-gated warning and drops every
+ * identifier in it, which is silent loss of a whole vocabulary and is exactly
+ * what this gate exists to make loud.
  */
 export function declaredIds(yamlText, yamlKey) {
   const data = parseYaml(yamlText);
@@ -102,8 +121,9 @@ export function declaredIds(yamlText, yamlKey) {
   const rows = data[yamlKey];
   if (!Array.isArray(rows)) return [];
   return rows
-    .filter((row) => row && typeof row === 'object' && typeof row.id === 'string' && row.id.trim() !== '')
-    .map((row) => row.id);
+    .filter((row) => row && typeof row === 'object' && !Array.isArray(row))
+    .filter((row) => row.id !== undefined && row.id !== null && row.id !== false)
+    .map((row) => String(row.id));
 }
 
 /**
@@ -256,20 +276,52 @@ export function verifySourceVocabularies({ sourcesRoot, apiDir, sources }) {
   return { failures, expectations };
 }
 
-/** Name the identifiers, capped so a whole-source loss does not bury the message. */
+/**
+ * Name the identifiers, capped so a whole-source loss does not bury the
+ * message. Quoted because the ids the loader keeps include ones with no
+ * printable characters at all — an empty or whitespace-only id is reported
+ * here, and unquoted it would render as a gap in the sentence and read like
+ * a formatting bug rather than the malformed row it is.
+ */
 function describeIds(ids) {
   const shown = ids.slice(0, 8);
-  return shown.join(', ') + (ids.length > shown.length ? `, and ${ids.length - shown.length} more` : '');
+  return shown.map((id) => JSON.stringify(id)).join(', ') +
+    (ids.length > shown.length ? `, and ${ids.length - shown.length} more` : '');
 }
 
-function parseArgs(argv) {
+/** The options below, so a value that is really the next flag can be spotted. */
+const OPTIONS = new Set(['--sources-root', '--api-dir', '--sources']);
+
+/**
+ * Parse the command line, refusing an option whose value is missing.
+ *
+ * Every caller is a bash step in deploy.yml, so the diagnosis happens in a
+ * job log rather than at a prompt. Left unchecked, `--api-dir` in final
+ * position sets the option to undefined and the first path.join throws
+ * `TypeError [ERR_INVALID_ARG_TYPE]` from deep inside node:path — a stack
+ * trace pointing at the standard library, several hundred lines into a step,
+ * for a typo in the line that invoked it. The option is named instead.
+ *
+ * A value that is itself one of the options is treated the same way: a
+ * directory named `--api-dir` does not exist, so the reading that makes the
+ * run silently wrong is never the one intended.
+ */
+export function parseArgs(argv) {
   const opts = { sourcesRoot: '.', apiDir: 'public/api/v1', sources: [] };
   for (let i = 0; i < argv.length; i += 1) {
+    const flag = argv[i];
+    if (!OPTIONS.has(flag)) throw new Error(`Unknown argument: ${flag}`);
+
     const value = argv[i + 1];
-    if (argv[i] === '--sources-root') { opts.sourcesRoot = value; i += 1; }
-    else if (argv[i] === '--api-dir') { opts.apiDir = value; i += 1; }
-    else if (argv[i] === '--sources') { opts.sources = (value || '').split(/\s+/).filter(Boolean); i += 1; }
-    else throw new Error(`Unknown argument: ${argv[i]}`);
+    if (value === undefined) throw new Error(`${flag} requires a value, and none followed it`);
+    if (OPTIONS.has(value)) {
+      throw new Error(`${flag} requires a value, but was followed by the option ${value}`);
+    }
+
+    if (flag === '--sources-root') opts.sourcesRoot = value;
+    else if (flag === '--api-dir') opts.apiDir = value;
+    else opts.sources = value.split(/\s+/).filter(Boolean);
+    i += 1;
   }
   if (opts.sources.length === 0) throw new Error('--sources is required and must name at least one source');
   return opts;
