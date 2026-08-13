@@ -27,7 +27,9 @@ const {
   groupIds,
   nationalities,
   identificationTable,
-  position,
+  roleClaims,
+  gender,
+  imoNumber,
   birthInfo,
   entries,
 } = useEntityData()
@@ -335,6 +337,35 @@ onMounted(async () => {
                 class="font-medium text-light-text dark:text-dark-text"
               >{{ claim }}</dd>
             </div>
+            <!--
+              Gender sits here, among the identity facts, and nowhere
+              else. A screening reader disambiguating two people with one
+              name needs every attribute the authority recorded, and this
+              is one of them — but it is a sensitive attribute to publish
+              about a named individual, so it is placed where it reads as
+              part of the record and not in the header, where a badge
+              beside the person's name would read as the site
+              characterising them rather than quoting a list.
+
+              Labelled "Gender", the producer's own term, so a reader
+              comparing this page against the API sees the same word.
+              Relabelling it "Sex" would be the site reinterpreting a
+              field the authorities did not define that way.
+            -->
+            <div v-if="gender">
+              <dt class="text-sm text-light-muted dark:text-dark-muted">Gender</dt>
+              <dd class="font-medium text-light-text dark:text-dark-text">{{ gender }}</dd>
+            </div>
+            <!--
+              Monospaced like the reference number above it: both are
+              identifiers read digit by digit against another document,
+              and a proportional font makes that harder than it needs to
+              be.
+            -->
+            <div v-if="imoNumber">
+              <dt class="text-sm text-light-muted dark:text-dark-muted">IMO Number</dt>
+              <dd class="font-medium text-light-text dark:text-dark-text font-mono">{{ imoNumber }}</dd>
+            </div>
             <div v-if="sourceReference">
               <dt class="text-sm text-light-muted dark:text-dark-muted">Reference Number</dt>
               <dd class="font-medium text-light-text dark:text-dark-text font-mono">{{ sourceReference }}</dd>
@@ -572,12 +603,29 @@ onMounted(async () => {
           </div>
         </div>
 
-        <!-- Position -->
-        <div v-if="position" class="glass-card p-8">
+        <!-- Position / Title -->
+        <!--
+          The heading names two producer fields and the card now reads
+          both. It read only `position` before, so most people who carry
+          a title met a heading promising one above an empty card — the
+          heading was never the wrong half to keep, the missing field
+          was.
+
+          Each row is labelled with the field that stated it, even when
+          only one row is present, for the reason the Remarks card below
+          labels its two: an unlabelled line leaves a reader unable to
+          tell which of the two they are reading, and the two are not
+          interchangeable. Where both fields state the same string they
+          collapse to one row named for both.
+        -->
+        <div v-if="roleClaims.length > 0" class="glass-card p-8">
           <h2 class="text-xl font-semibold mb-4 text-light-text dark:text-dark-text">
             Position / Title
           </h2>
-          <p class="text-light-muted dark:text-dark-muted">{{ position }}</p>
+          <div v-for="claim in roleClaims" :key="claim.label" class="mb-4 last:mb-0">
+            <h3 class="text-sm text-light-muted dark:text-dark-muted mb-1">{{ claim.label }}</h3>
+            <p class="text-light-muted dark:text-dark-muted">{{ claim.value }}</p>
+          </div>
         </div>
 
         <!-- Identifications -->

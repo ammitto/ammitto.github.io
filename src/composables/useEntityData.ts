@@ -5,6 +5,7 @@ import { normalizeNode, toNodeIri } from '@/utils/normalizeNode'
 import { mapWithPool } from '@/utils/entryFetchPool'
 import { selectBirthCountry } from '@/utils/birthDisplay'
 import { entityBirthClaims } from '@/utils/birthAdapters'
+import { roleClaims, statedGender, vesselImoNumber } from '@/utils/entityFacts'
 import { entryPeriodRows, listingRemarks } from '@/utils/entryAdapters'
 import { identificationTable } from '@/utils/identificationDisplay'
 import type { IdentificationRecord } from '@/utils/identificationDisplay'
@@ -53,7 +54,16 @@ export interface FullEntity {
   }>
   nationalities?: Array<string | { country_code?: string; country?: string }>
   gender?: string
+  // Two producer fields, not one under two names. Sources fill them
+  // independently and sometimes disagree, so both are declared and the
+  // page reads both through `roleClaims`.
   position?: string
+  title?: string
+  // Vessel-specific fields. Only the IMO number, because it is the only
+  // vessel attribute any published vessel carries a value for — the
+  // dozen the producer emits beside it are enumerated, with why they are
+  // absent here, at the top of `@/utils/entityFacts`.
+  imo_number?: string
   // Organization-specific fields
   registration_number?: string
   incorporation_date?: string
@@ -456,7 +466,14 @@ export function useEntityData() {
       }).filter(Boolean)
     }),
     identificationTable: computed(() => identificationTable(entity.value?.identifications)),
-    position: computed(() => entity.value?.position || null),
+    // Both role fields, not just `position`. The page's heading named the
+    // title too and nothing ever read it.
+    roleClaims: computed(() => roleClaims(entity.value)),
+    // Stated by the listing authority, and expanded from the one-letter
+    // codes the sources publish.
+    gender: computed(() => statedGender(entity.value)),
+    // Indexed for search since the index existed, never shown until now.
+    imoNumber: computed(() => vesselImoNumber(entity.value)),
     // Every distinct claim, not the first record's. Several records are
     // several assertions about one person, and the page shows them all.
     birthInfo: computed(() => entityBirthClaims(entity.value)),
