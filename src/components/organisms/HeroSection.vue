@@ -50,7 +50,14 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="relative py-20 overflow-hidden">
+  <!--
+    `hero-section` names the component in the DOM, the way `.ontology-browser`
+    and `.hierarchy-node` do elsewhere. ALLOWED_INCOMPLETE in
+    tests/e2e/contrast-dom.spec.js scopes its two entries to it: the gradient
+    below makes axe decline to judge the text over it, and without a container
+    to point at, that allowance would extend to the whole page.
+  -->
+  <section class="hero-section relative py-20 overflow-hidden">
     <div class="absolute inset-0 bg-gradient-to-br from-brand-primary/5 via-transparent to-brand-primary/10" />
 
     <div class="container-wide relative">

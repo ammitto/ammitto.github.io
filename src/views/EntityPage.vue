@@ -417,6 +417,14 @@ onMounted(async () => {
               exactly when that instrument's node came back, so a reference
               to something unpublished stays a readable label instead of
               becoming a link to a page that is not there.
+
+              `brand-link`, not `brand-primary`, and underlined on hover
+              rather than faded — the same pair every other link on this page
+              uses. brand-primary is the opaque brand hex kept for solid fills
+              under white text; as TEXT it measures 3.06-3.42:1 on the dark
+              surfaces, and fading it to /80 for hover measures 3.61:1 on the
+              light page background. brand-link is theme-aware and clears AA
+              on both.
             -->
             <div v-if="legalBases.length > 0" class="sm:col-span-2">
               <dt class="text-sm text-light-muted dark:text-dark-muted mb-2">Legal Basis</dt>
@@ -425,7 +433,7 @@ onMounted(async () => {
                   <RouterLink
                     v-if="basis.route"
                     :to="basis.route"
-                    class="block text-brand-primary hover:text-brand-primary/80"
+                    class="block text-brand-link hover:underline"
                   >
                     {{ basis.label }}
                   </RouterLink>

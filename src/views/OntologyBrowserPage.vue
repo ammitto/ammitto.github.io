@@ -134,29 +134,48 @@ onMounted(async () => {
               Class Hierarchy
             </h2>
 
-            <!-- Hierarchy tree -->
+            <!--
+              Two controls per row, side by side, and neither is a <div> with
+              a click handler.
+
+              Expanding a node and selecting it are separate actions, so they
+              are separate native buttons: a keyboard reaches both by Tab and
+              fires both with Enter or Space, and a screen reader announces
+              each with its own name and state. Nesting is not an option in
+              either direction — a <button> inside a <button> is invalid HTML
+              and browsers reparent it — so the expander cannot live inside
+              the selection control the way a search result card wraps its
+              whole content in one RouterLink. That pattern holds only while
+              nothing inside the card is itself interactive; here the expander
+              is, which is precisely why this row is two siblings instead.
+
+              The row container carries no handler at all. It used to: the
+              selectable region was the outer <div>, which also contained the
+              expanded subtree, so a click on a subclass ran its own handler
+              and then bubbled into the parent's and overwrote the selection
+              with the parent. Moving selection onto a button that wraps only
+              the row's own label ends that by construction.
+            -->
             <div class="space-y-1" v-if="hierarchy">
               <template v-for="child in hierarchy.children" :key="child.name">
-                <div
-                  class="hierarchy-node cursor-pointer p-2 rounded hover:bg-light-bg dark:hover:bg-dark-border"
-                  :class="{ 'bg-blue-50 dark:bg-blue-900/20': selectedClass === child.name }"
-                  @click="selectClass(child.name)"
-                >
-                  <div class="flex items-center gap-2">
+                <div class="hierarchy-node">
+                  <div
+                    class="hierarchy-row flex items-center gap-2 p-2 rounded hover:bg-light-bg dark:hover:bg-dark-border"
+                    :class="{ 'bg-blue-50 dark:bg-blue-900/20': selectedClass === child.name }"
+                  >
                     <!--
-                      A control, so it is built from a button. This was a
-                      <span> whose entire content was a bare triangle glyph:
-                      not focusable, no role, and no name — the expand/collapse
-                      of the class hierarchy was reachable with a mouse only,
-                      and a screen reader had nothing to announce but the
-                      shape. The glyph is decorative once the button carries
-                      the name and `aria-expanded` carries the state, so it is
-                      hidden from assistive technology rather than read out.
+                      This was a <span> whose entire content was a bare
+                      triangle glyph: not focusable, no role, and no name, so
+                      expand/collapse was reachable with a mouse only and a
+                      screen reader had nothing to announce but the shape. The
+                      glyph is decorative once the button carries the name and
+                      `aria-expanded` carries the state, so it is hidden from
+                      assistive technology rather than read out.
                     -->
                     <button
                       v-if="child.children && child.children.length > 0"
                       type="button"
-                      @click.stop="toggleNode(child.name)"
+                      @click="toggleNode(child.name)"
                       :aria-expanded="isExpanded(child.name)"
                       :aria-label="`Subclasses of ${child.label}`"
                       class="text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text"
@@ -165,11 +184,18 @@ onMounted(async () => {
                     </button>
                     <span v-else class="w-4"></span>
 
-                    <span class="text-light-muted dark:text-dark-muted">{{ getNodeIcon(child) }}</span>
-                    <span class="font-medium text-light-text dark:text-dark-text">{{ child.label }}</span>
-                    <span class="text-xs text-light-muted dark:text-dark-muted">
-                      ({{ child.count.toLocaleString() }})
-                    </span>
+                    <button
+                      type="button"
+                      class="hierarchy-select flex flex-1 items-center gap-2 text-left"
+                      :aria-current="selectedClass === child.name ? 'true' : undefined"
+                      @click="selectClass(child.name)"
+                    >
+                      <span aria-hidden="true" class="text-light-muted dark:text-dark-muted">{{ getNodeIcon(child) }}</span>
+                      <span class="hierarchy-label font-medium text-light-text dark:text-dark-text">{{ child.label }}</span>
+                      <span class="text-xs text-light-muted dark:text-dark-muted">
+                        ({{ child.count.toLocaleString() }})
+                      </span>
+                    </button>
                   </div>
 
                   <!-- Children -->
@@ -177,21 +203,30 @@ onMounted(async () => {
                     <div
                       v-for="subChild in child.children"
                       :key="subChild.name"
-                      class="hierarchy-node cursor-pointer p-2 rounded hover:bg-light-bg dark:hover:bg-dark-border"
-                      :class="{ 'bg-blue-50 dark:bg-blue-900/20': selectedClass === subChild.name }"
-                      @click="selectClass(subChild.name)"
+                      class="hierarchy-node"
                     >
-                      <div class="flex items-center gap-2">
-                        <span
-                          :style="inkToneVars(subChild.color || getTypeColor(subChild.code || ''))"
-                          class="tone-ink"
+                      <div
+                        class="hierarchy-row flex items-center gap-2 p-2 rounded hover:bg-light-bg dark:hover:bg-dark-border"
+                        :class="{ 'bg-blue-50 dark:bg-blue-900/20': selectedClass === subChild.name }"
+                      >
+                        <button
+                          type="button"
+                          class="hierarchy-select flex flex-1 items-center gap-2 text-left"
+                          :aria-current="selectedClass === subChild.name ? 'true' : undefined"
+                          @click="selectClass(subChild.name)"
                         >
-                          {{ subChild.icon || '📄' }}
-                        </span>
-                        <span class="text-light-text dark:text-dark-text">{{ subChild.label }}</span>
-                        <span class="text-xs text-light-muted dark:text-dark-muted">
-                          ({{ subChild.count.toLocaleString() }})
-                        </span>
+                          <span
+                            aria-hidden="true"
+                            :style="inkToneVars(subChild.color || getTypeColor(subChild.code || ''))"
+                            class="tone-ink"
+                          >
+                            {{ subChild.icon || '📄' }}
+                          </span>
+                          <span class="hierarchy-label text-light-text dark:text-dark-text">{{ subChild.label }}</span>
+                          <span class="text-xs text-light-muted dark:text-dark-muted">
+                            ({{ subChild.count.toLocaleString() }})
+                          </span>
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -402,7 +437,10 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.hierarchy-node {
+/* The row, not the node: the node wraps the expanded subtree as well, and a
+   highlight that covered it would report the parent's selection over every
+   child. */
+.hierarchy-row {
   transition: background-color 0.15s ease;
 }
 </style>

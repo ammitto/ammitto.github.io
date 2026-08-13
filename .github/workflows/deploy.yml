@@ -31,8 +31,11 @@ jobs:
     # Thirty is a little over four times that, and the headroom is aimed at
     # the two steps that grow with the data rather than with this repository:
     # harmonize and the browser suite together are three quarters of the run,
-    # and both scale with an entity count that is upstream of us (25,128 at
-    # the last calibration). The dataset can roughly triple before the
+    # and both scale with an entity count that is upstream of us — 60,981 at
+    # the last calibration, the figure the composed proof recorded against
+    # the pin below, and the scale the 7m16s above was already measured at.
+    # (25,128 was the count on 2026-08-06; the data repositories themselves
+    # grew, at an unchanged gem.) The dataset can roughly triple before the
     # timeout, rather than a real defect, becomes the thing that fails the
     # job — and long before that, a run drifting toward thirty minutes is the
     # signal that publishing has outgrown one job.

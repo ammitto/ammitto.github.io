@@ -78,21 +78,26 @@ export const PARAM_ROUTES = [
  * `by-document-type/{identifier}.jsonld`; see OrganizationPage.vue and
  * DocumentTypePage.vue), so they paint in one request and rejoin the sweep.
  *
- * Read this before excluding them again. The gem revision the deploy
- * workflow pins does not emit those summaries yet, so in a full-dataset run
- * both pages take their `summaryUnavailable` branch and render the "lists
- * are unavailable" notice rather than the lists. That is not a reason to
- * exclude them:
+ * Read this before excluding them again. The two runs render these pages
+ * differently and both are in scope. The gem revision the deploy workflow
+ * pins emits the summaries — `Publish organization and document-type page
+ * summaries` is an ancestor of the pinned 5e8b95c, and was not an ancestor of
+ * the 3db2e4ea it replaced — so a full-dataset run gets the real lists. The
+ * committed snapshot in `public/api/v1` ships no `by-organization/` or
+ * `by-document-type/` directory at all, so a local run takes the
+ * `summaryUnavailable` branch and renders the "lists are unavailable" notice.
+ * Neither is a reason to exclude the routes:
  *
  *  - This sweep measures horizontal overflow, and a page that renders fast
  *    is a page that can be measured — which is the only thing the exclusion
- *    was ever about.
+ *    was ever about. Both branches render in one request.
  *  - Each route's `contains` sentinel ("State Council", "Ministry of
  *    Commerce") comes from the node fetch that draws the page header, not
  *    from the summary, so an absent summary cannot degrade the route into
  *    the empty render the sentinel exists to catch.
- *  - The committed snapshot ships no summaries either, so this is exactly
- *    the state the local run has always measured on these two routes.
+ *  - The local run is therefore the weaker of the two measurements, not a
+ *    different one: whatever the deploy build lays out, it lays out with more
+ *    content in the same boxes.
  *
  * What would justify an exclusion is a page that cannot finish rendering.
  * Neither of these can be that again without first losing its summary fetch.

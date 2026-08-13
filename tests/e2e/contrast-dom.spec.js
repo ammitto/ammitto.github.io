@@ -42,11 +42,16 @@ import { collectPageErrors, gotoRendered, serveSourceGraphs, useTheme } from './
  * An incomplete node caused by something genuinely obscuring the text does
  * NOT belong here — it belongs fixed.
  *
- * Matching is on the reason axe reports rather than on the element, because
- * the element it names is a minimal CSS selector that changes whenever the
- * markup around it changes; the reason is the thing being allowed. `element`
- * and `why` are for the reader, and `measuredBy` is the field that earns the
- * entry its place.
+ * A node must match BOTH the reason and the element scope. Reason alone was
+ * not enough: it let an entry written about six named nodes in the hero
+ * accept any future element anywhere on `/` that happened to land over a
+ * gradient, and an entry written about one triangle glyph accept any non-text
+ * character anywhere on `/ontology`. The scope is expressed as `within` (a
+ * container the node must sit inside) and `is` (what the node itself must be)
+ * rather than as axe's own `target`, because `target` is a minimal CSS
+ * selector regenerated from whatever surrounds the node — `.md\:text-xl` one
+ * day, a `:nth-child` chain the next. Both halves are resolved against the
+ * live DOM, so they say what the prose in `element` says.
  *
  * This list is meant to shrink.
  */
@@ -54,6 +59,10 @@ const ALLOWED_INCOMPLETE = [
   {
     routes: ['/'],
     reason: /bgGradient|background gradient/i,
+    // The hero's own section, and the four kinds of node inside it that the
+    // gradient sits behind: tagline, description, stat figure, stat label.
+    within: '.hero-section',
+    is: 'h1, p, .text-3xl.font-bold.text-brand-link, .text-center > .text-sm',
     element:
       'HeroSection.vue — the tagline (h1), the description, the three stat ' +
       'figures and their labels, all sitting over the hero\'s decorative ' +
@@ -77,6 +86,10 @@ const ALLOWED_INCOMPLETE = [
   {
     routes: ['/'],
     reason: /shortTextContent|content is too short/i,
+    // Only the figures. Their labels are words, so a label reported as "too
+    // short to be text" would be something else going wrong.
+    within: '.hero-section',
+    is: '.text-3xl.font-bold.text-brand-link',
     element:
       'HeroSection.vue — the stat figures, ' +
       '`.text-3xl.font-bold.text-brand-link` in the three stat blocks',
@@ -98,6 +111,11 @@ const ALLOWED_INCOMPLETE = [
   {
     routes: ['/ontology'],
     reason: /nonBmp|only non-text characters/i,
+    // Inside the expander button specifically, not anywhere in the tree: the
+    // row's other glyphs are entity-type icons on a different token, and a
+    // future one is not covered by this entry's measurement.
+    within: '.hierarchy-row button[aria-expanded]',
+    is: 'span[aria-hidden="true"]',
     element:
       'OntologyBrowserPage.vue — the `aria-hidden` glyph inside the class ' +
       "hierarchy's expand/collapse button (▶ / ▼)",
@@ -108,7 +126,8 @@ const ALLOWED_INCOMPLETE = [
       'the pair is real even though axe will not judge it. The accessibility ' +
       'defect that WAS here — a bare <span> with a click handler, no role, ' +
       'no name and no way to reach it from a keyboard — is fixed in this ' +
-      'change; what is left is only the measurement artefact.',
+      'change, as is the selection control beside it; what is left is only ' +
+      'the measurement artefact.',
     measuredBy:
       'The glyph is painted with the muted token (text-light-muted / ' +
       'dark:text-dark-muted), which "body and muted text clear AA on every ' +
@@ -129,10 +148,34 @@ const reasonText = (node) =>
     .replace(/\s+/g, ' ')
     .trim()
 
-const isAllowedIncomplete = (routePath, node) =>
-  ALLOWED_INCOMPLETE.some(
-    (entry) => entry.routes.includes(routePath) && entry.reason.test(reasonText(node)),
+/**
+ * Does the node axe reported sit where an entry says it does?
+ *
+ * Resolved in the page rather than by string-matching `node.target`, so the
+ * scope survives axe regenerating its selector. `querySelectorAll` and an
+ * `every`, not `querySelector`: axe's target is meant to be unique, and if it
+ * ever is not, an ambiguous selector must not be able to satisfy the entry by
+ * happening to resolve to the one element that fits.
+ */
+async function matchesScope(page, node, { within, is }) {
+  return page.evaluate(
+    ([selector, within, is]) => {
+      const found = [...document.querySelectorAll(selector)]
+      if (found.length === 0) return false
+      return found.every((el) => (within ? Boolean(el.closest(within)) : true) && el.matches(is))
+    },
+    [node.target.join(' '), within, is],
   )
+}
+
+async function isAllowedIncomplete(page, routePath, node) {
+  for (const entry of ALLOWED_INCOMPLETE) {
+    if (!entry.routes.includes(routePath)) continue
+    if (!entry.reason.test(reasonText(node))) continue
+    if (await matchesScope(page, node, entry)) return true
+  }
+  return false
+}
 
 for (const theme of ['light', 'dark']) {
   for (const route of CONTRAST_SCAN_ROUTES) {
@@ -186,19 +229,74 @@ for (const theme of ['light', 'dark']) {
         })
       }
 
-      const unreviewed = incomplete.filter((node) => !isAllowedIncomplete(route.path, node))
+      const unreviewed = []
+      for (const node of incomplete) {
+        if (!(await isAllowedIncomplete(page, route.path, node))) unreviewed.push(node)
+      }
       expect(
         unreviewed.map((node) => `${node.target.join(' ')}: ${reasonText(node)}`),
         `axe could not decide the contrast of ${unreviewed.length} node(s) on ${route.path} ` +
           `(${theme}), and no reviewed entry in ALLOWED_INCOMPLETE covers them. Undecidable is ` +
           `not passing: decide the pair (make the background one resolvable colour), or add an ` +
-          `entry naming the reason and where the pair is measured instead.`,
+          `entry naming the reason AND the element scope it covers, and where the pair is ` +
+          `measured instead.`,
       ).toEqual([])
 
       expect(errors, `${route.path} threw: ${errors.join('\n')}`).toEqual([])
     })
   }
 }
+
+/**
+ * The allowance must be narrower than the route.
+ *
+ * The scan above passes when nothing is unreviewed, which is also what it
+ * looks like when an entry accepts everything — so a scope that had rotted
+ * into a wildcard would be invisible there. This drives both answers out of
+ * the matcher on the same page: the hero's real tagline is covered, and an
+ * element that is not in the hero is not, for the same reason string. Before
+ * the scope existed the second of these was accepted, which is the defect.
+ */
+test('an incomplete node outside the entry\'s element scope is not allowed', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await useTheme(page, 'light')
+  await gotoRendered(page, '/')
+  await expect(page.locator('.hero-section h1')).toBeVisible({ timeout: 15000 })
+
+  const gradient = { failureSummary: "Element's background color could not be determined due to a background gradient" }
+  const short = { failureSummary: 'Element content is too short to determine if it is actual text content' }
+
+  await expect(
+    isAllowedIncomplete(page, '/', { ...gradient, target: ['.hero-section h1'] }),
+    'the hero tagline over the gradient is the node the entry was written for',
+  ).resolves.toBe(true)
+
+  // Planted outside the hero, carrying exactly the reason the entry allows.
+  await page.evaluate(() => {
+    const el = document.createElement('p')
+    el.id = 'scope-probe'
+    el.textContent = 'not in the hero'
+    document.body.appendChild(el)
+  })
+  await expect(
+    isAllowedIncomplete(page, '/', { ...gradient, target: ['#scope-probe'] }),
+    'an element outside .hero-section is accepted by the hero entry — the scope is a wildcard',
+  ).resolves.toBe(false)
+  await expect(
+    isAllowedIncomplete(page, '/', { ...short, target: ['#scope-probe'] }),
+    'an element outside .hero-section is accepted by the stat-figure entry',
+  ).resolves.toBe(false)
+
+  // And inside the hero but not one of the shapes the entry names: a stat
+  // LABEL is words, so "too short to be text" about one is something else.
+  await expect(
+    isAllowedIncomplete(page, '/', {
+      ...short,
+      target: ['.hero-section .text-center > .text-sm'],
+    }),
+    'the stat-figure entry accepts the stat labels too, which it does not measure',
+  ).resolves.toBe(false)
+})
 
 /**
  * The two colours the palette work introduced must actually reach the browser,

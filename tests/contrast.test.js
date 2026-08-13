@@ -52,6 +52,9 @@ import {
 } from '../.test-build/config/palette.js'
 import { entityTypes, sources, statuses } from '../.test-build/config/index.js'
 import { ALL_ROUTES, PARAM_ROUTES, STATIC_ROUTES } from './routes.js'
+// The real config object Tailwind is handed at build time, not a copy of its
+// values: the utilities it generates are what the browser paints.
+import tailwindConfig from '../tailwind.config.js'
 
 /* ------------------------------------------------------------------ *
  * The oracle: WCAG 2.x relative luminance and contrast ratio.
@@ -468,9 +471,22 @@ test('link text clears AA on every surface of its theme', () => {
   }
 })
 
-/** The tokens a `text-<token>/NN` utility can name, per theme. */
+/**
+ * The tokens a `text-<token>/NN` utility can name, per theme.
+ *
+ * `brand-primary` is here even though it is not a text token by design: it is
+ * the literal brand hex, kept opaque in tailwind.config.js so solid fills
+ * under white text keep the brand colour, and it is theme-independent for the
+ * same reason. Used AS text it is only safe in light mode, and a hover that
+ * fades it is safe nowhere — which is exactly what this scanner has to be able
+ * to say. The value is taken from the Tailwind config itself rather than from
+ * main.css, because the config is what generates the `text-brand-primary`
+ * utility; `--color-brand-primary` is a separate declaration that only happens
+ * to hold the same hex today.
+ */
 const OPACITY_UTILITY_TOKENS = {
   'brand-link': (theme) => linkTokens[theme],
+  'brand-primary': () => tailwindConfig.theme.extend.colors.brand.primary,
   'light-muted': () => textTokens.light.muted,
   'dark-muted': () => textTokens.dark.muted,
   'light-text': () => textTokens.light.fg,
@@ -487,15 +503,27 @@ const OPACITY_UTILITY_TOKENS = {
  * sample. A scan that matches nothing is indistinguishable from a clean
  * codebase, and this file's own history is the argument: the assertion here
  * used to be `assert.ok(checked >= 0)`, which no input could fail.
+ *
+ * The match is on ANY token rather than on a list of the ones known here, and
+ * an unrecognised token throws. An allowlisted pattern that silently skips
+ * what it does not recognise is the same blind spot as no scanner at all: it
+ * is how `hover:text-brand-primary/80` sat on the entity page unmeasured while
+ * this test reported clean. Adding a token to the map is the cost of using it;
+ * being unable to resolve one is a failure, not a pass.
  */
 function scanOpacityUtilities(source, label) {
   const measured = []
-  for (const match of source.matchAll(/text-(brand-link|light-\w+|dark-\w+)\/(\d{1,3})\b/g)) {
+  for (const match of source.matchAll(/\btext-([a-z][a-z0-9-]*)\/(\d{1,3})\b/g)) {
     const [, token, alphaText] = match
     const resolve = OPACITY_UTILITY_TOKENS[token]
-    if (!resolve) continue
-    const alpha = Number(alphaText) / 100
     const line = source.slice(0, match.index).split('\n').length
+    assert.ok(
+      resolve,
+      `${label}:${line}: text-${token}/${alphaText} fades a colour this scanner cannot ` +
+        `resolve, so its contrast is unmeasured. Add "${token}" to OPACITY_UTILITY_TOKENS ` +
+        `with the value the build actually paints.`,
+    )
+    const alpha = Number(alphaText) / 100
     for (const theme of THEMES) {
       for (const backdrop of backdropsOf(theme)) {
         const faded = compositeOver(resolve(theme), alpha, backdrop.hex)
@@ -520,11 +548,16 @@ test('no text utility fades a tested colour below AA', () => {
   // enters. Every opacity-modified text utility found in the templates is
   // therefore composited here and held to AA.
   //
-  // This caught a real one: the entity, group and announcement pages faded
-  // their links to `text-brand-link/80`, which measures 3.61:1 on the light
-  // page background. Those hovers now underline instead — which is why the
-  // walk below currently matches nothing, and why the probe underneath it is
-  // the part of this test that has to keep working.
+  // This caught a real one twice. First the entity, group and announcement
+  // pages faded their links to `text-brand-link/80`, which measures 3.61:1 on
+  // the light page background. Then the legal-basis link arrived on
+  // EntityPage.vue as `hover:text-brand-primary/80` — the same defect under a
+  // token the pattern did not name, so it read as clean: 3.61:1 on the light
+  // page background and 3.81:1 on the glass card, and its unfaded base state
+  // was 3.06-3.42:1 in dark mode besides. Both now use `text-brand-link` and
+  // underline on hover — which is why the walk below currently matches
+  // nothing, and why the probes underneath it are the part of this test that
+  // has to keep working.
   const root = fileURLToPath(new URL('../src', import.meta.url))
   const files = []
   const walk = (dir) => {
@@ -548,22 +581,42 @@ test('no text utility fades a tested colour below AA', () => {
   // this, a typo'd regex, a renamed token or a walk that stopped descending
   // would leave this test green and silent — which is precisely what "zero
   // matches" looks like from the outside, and precisely the state src/ is in.
-  const probe = scanOpacityUtilities(
-    '<a class="hover:text-brand-link/80">a faded link</a>',
-    'synthetic',
-  )
-  assert.equal(
-    probe.length,
-    SURFACE_PAIRS,
-    `the scanner found ${probe.length / SURFACE_PAIRS} utilities in a sample containing exactly ` +
-      `one, so it can no longer see the pattern it exists to catch`,
-  )
-  // And that its verdict can come back negative: /80 on the light page
-  // background is the 3.61:1 pair this test was written for.
-  assert.ok(
-    probe.some(({ ratio }) => ratio < AA_NORMAL),
-    'the scanner judged a known-failing fade (text-brand-link/80) as passing on every ' +
-      'surface, so it would approve the defect it was written to catch',
+  //
+  // Both brand tokens are probed, and separately. The walk matching nothing is
+  // the normal state of this test, so a token dropped from the map or the
+  // pattern would otherwise show up only as continued silence: measured on
+  // 2026-08-13, `brand-link` was probed and `brand-primary` was not in the
+  // pattern at all, and `hover:text-brand-primary/80` went unmeasured on
+  // EntityPage.vue for as long as it was there.
+  for (const token of ['brand-link', 'brand-primary']) {
+    const probe = scanOpacityUtilities(
+      `<a class="hover:text-${token}/80">a faded link</a>`,
+      'synthetic',
+    )
+    assert.equal(
+      probe.length,
+      SURFACE_PAIRS,
+      `the scanner found ${probe.length / SURFACE_PAIRS} utilities in a sample containing ` +
+        `exactly one text-${token}/80, so it can no longer see the pattern it exists to catch`,
+    )
+    // And that its verdict can come back negative: /80 on the light page
+    // background is the 3.61:1 pair this test was written for.
+    assert.ok(
+      probe.some(({ ratio }) => ratio < AA_NORMAL),
+      `the scanner judged a known-failing fade (text-${token}/80) as passing on every ` +
+        'surface, so it would approve the defect it was written to catch',
+    )
+  }
+
+  // A token the map cannot resolve must fail rather than be skipped. This is
+  // the half of the fix that generalises: `brand-primary` slipped through
+  // because the pattern named the tokens it knew, so anything else was
+  // invisible instead of loud.
+  assert.throws(
+    () => scanOpacityUtilities('<a class="text-emerald-600/70">x</a>', 'synthetic'),
+    /cannot resolve/,
+    'an unresolvable text-<token>/NN utility is skipped rather than reported, so a new token ' +
+      'goes unmeasured exactly as brand-primary did',
   )
 })
 
@@ -867,8 +920,9 @@ test('the sweep measures the same routes in every environment', () => {
   // the organization and document-type pages rebuilt their document lists
   // from every entry node in the corpus and never finished painting. Both now
   // read one published summary, so the exclusion is gone (see the note in
-  // tests/routes.js, which also records why the summaries being absent from
-  // the deployed data is not a reason to bring it back).
+  // tests/routes.js, which also records that the deployed build now publishes
+  // those summaries while the committed snapshot does not, and why neither
+  // state is a reason to bring the exclusion back).
   //
   // What made that exclusion expensive was not its existence but its
   // invisibility: the gate stayed green on main while two pages went
