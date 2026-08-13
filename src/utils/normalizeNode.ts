@@ -104,12 +104,19 @@ const NODE_IRI_BASE = 'https://www.ammitto.org/'
 
 /**
  * Number of path segments each published node kind carries after its base:
- * entity/{source}/{id}, entry/{source}/{list}/{id}, group/{source}/{id}.
+ * entity/{source}/{id}, entry/{source}/{list}/{id}, group/{source}/{id},
+ * legal-instrument/{source}/{id}.
+ *
+ * A kind absent from this map skips the count check entirely, so
+ * legal-instrument is listed rather than left to that default: every one of
+ * the instrument IRIs published today is exactly two segments, and a
+ * reference of any other shape names a page the router cannot build.
  */
 const NODE_IRI_SEGMENTS: Record<string, number> = {
   entity: 2,
   entry: 3,
   group: 2,
+  'legal-instrument': 2,
 }
 
 /**

@@ -45,10 +45,14 @@ const entitySchema = `{
 }`
 
 const entityTypeDescriptions = [
+  // gender, title and imoNumber are named because the producer publishes
+  // them and this table is where an API consumer looks to find out what a
+  // node carries. Leaving a published field out of it is the same untruth
+  // as documenting one that is never emitted.
   {
     type: 'PersonEntity',
     description: 'An individual person subject to sanctions.',
-    fields: 'names, birthInfo, addresses, remarks',
+    fields: 'names, birthInfo, addresses, gender, title, position, remarks',
   },
   {
     type: 'OrganizationEntity',
@@ -58,7 +62,7 @@ const entityTypeDescriptions = [
   {
     type: 'VesselEntity',
     description: 'A ship or maritime vessel subject to sanctions.',
-    fields: 'names, addresses, remarks',
+    fields: 'names, imoNumber, addresses, remarks',
   },
   {
     type: 'AircraftEntity',
