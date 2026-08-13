@@ -15,7 +15,6 @@ const {
   sourceReference,
   entityType,
   remarks,
-  contact,
   addresses,
   effects,
   reasons,
@@ -27,7 +26,6 @@ const {
   announcements,
   groupIds,
   nationalities,
-  citizenships,
   identificationTable,
   position,
   birthInfo,
@@ -564,24 +562,13 @@ onMounted(async () => {
           </div>
         </div>
 
-        <!-- Nationalities & Citizenships -->
-        <div v-if="nationalities.length > 0 || citizenships.length > 0" class="glass-card p-8">
+        <!-- Nationalities -->
+        <div v-if="nationalities.length > 0" class="glass-card p-8">
           <h2 class="text-xl font-semibold mb-4 text-light-text dark:text-dark-text">
-            Nationality & Citizenship
+            Nationality
           </h2>
-          <div class="grid sm:grid-cols-2 gap-4">
-            <div v-if="nationalities.length > 0">
-              <dt class="text-sm text-light-muted dark:text-dark-muted mb-2">Nationalities</dt>
-              <dd class="flex flex-wrap gap-2">
-                <Badge v-for="nat in nationalities" :key="nat" variant="default">{{ nat }}</Badge>
-              </dd>
-            </div>
-            <div v-if="citizenships.length > 0">
-              <dt class="text-sm text-light-muted dark:text-dark-muted mb-2">Citizenships</dt>
-              <dd class="flex flex-wrap gap-2">
-                <Badge v-for="cit in citizenships" :key="cit" variant="default">{{ cit }}</Badge>
-              </dd>
-            </div>
+          <div class="flex flex-wrap gap-2">
+            <Badge v-for="nat in nationalities" :key="nat" variant="default">{{ nat }}</Badge>
           </div>
         </div>
 
@@ -694,14 +681,6 @@ onMounted(async () => {
               class="text-light-muted dark:text-dark-muted whitespace-pre-wrap"
             >{{ note }}</p>
           </div>
-        </div>
-
-        <!-- Contact -->
-        <div v-if="contact" class="glass-card p-8">
-          <h2 class="text-xl font-semibold mb-4 text-light-text dark:text-dark-text">
-            Contact Information
-          </h2>
-          <p class="text-light-muted dark:text-dark-muted whitespace-pre-wrap">{{ contact }}</p>
         </div>
 
         <!-- Raw Data (for debugging/transparency) -->
