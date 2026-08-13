@@ -23,6 +23,7 @@ const {
   entryStatus,
   listTypes,
   regimes,
+  legalBases,
   announcements,
   groupIds,
   nationalities,
@@ -378,7 +379,7 @@ onMounted(async () => {
         </div>
 
         <!-- Sanctions Information (from entries) -->
-        <div v-if="effects.length > 0 || periodRows.length > 0 || listTypes.length > 0 || regimes.length > 0" class="glass-card p-8">
+        <div v-if="effects.length > 0 || periodRows.length > 0 || listTypes.length > 0 || regimes.length > 0 || legalBases.length > 0" class="glass-card p-8">
           <h2 class="text-xl font-semibold mb-4 text-light-text dark:text-dark-text">
             Sanctions Information
           </h2>
@@ -408,6 +409,30 @@ onMounted(async () => {
               <dt class="text-sm text-light-muted dark:text-dark-muted mb-2">Sanctions Regimes</dt>
               <dd class="flex flex-wrap gap-2">
                 <Badge v-for="regime in regimes" :key="regime" variant="source">{{ regime }}</Badge>
+              </dd>
+            </div>
+            <!--
+              The instrument the authority listed this subject under. Linked
+              only where the row carries a route: the composable sets one
+              exactly when that instrument's node came back, so a reference
+              to something unpublished stays a readable label instead of
+              becoming a link to a page that is not there.
+            -->
+            <div v-if="legalBases.length > 0" class="sm:col-span-2">
+              <dt class="text-sm text-light-muted dark:text-dark-muted mb-2">Legal Basis</dt>
+              <dd class="space-y-1">
+                <template v-for="basis in legalBases" :key="basis.id">
+                  <RouterLink
+                    v-if="basis.route"
+                    :to="basis.route"
+                    class="block text-brand-primary hover:text-brand-primary/80"
+                  >
+                    {{ basis.label }}
+                  </RouterLink>
+                  <span v-else class="block font-mono text-sm text-light-text dark:text-dark-text">
+                    {{ basis.label }}
+                  </span>
+                </template>
               </dd>
             </div>
             <div v-if="effects.length > 0" class="sm:col-span-2">
