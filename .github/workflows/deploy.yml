@@ -303,6 +303,35 @@ jobs:
           pending=$(jq -er '.pending_sources | keys_unsorted | join(" ")' "$thresholds")
           echo "Publishing sources: ${publishing}"
           echo "Pending sources:    ${pending}"
+          # Vocabulary reachability. The node index loop above only proves
+          # these files are non-empty, and non-empty is what a uk-only
+          # document-type index is: for weeks the gem loaded the first
+          # requested source's sources/supporting/ directory and stopped, the
+          # graph carried uk's six document types and five organizations and
+          # nothing from ch, cn, jp, ru or us, and this step passed every day.
+          # The entity floors could not see it either — vocabularies come
+          # from sources/supporting/, not from the entity corpus, so no
+          # gated count moves when one vanishes. ru proves the two are
+          # independent in both directions: it is a pending source held at
+          # zero entities that nonetheless publishes a vocabulary.
+          # BOTH source lists are passed, for that reason.
+          #
+          # The expectation is derived from the clones this run already made
+          # rather than written down here: a repository shipping
+          # sources/supporting/document-types.yml is declaring those
+          # identifiers belong in the graph, so each must appear in the index
+          # AND have the node file the browse page fetches for it. Adding a
+          # row passes, deleting one passes, a source going dark fails and is
+          # named. A count in the threshold manifest would have to be
+          # hand-revised the day a repository starts or stops shipping a
+          # vocabulary, with nothing to prompt it.
+          #
+          # Node and its devDependencies are installed two steps above, and
+          # the check reads only the workspace, so this adds no network use.
+          node scripts/verify-source-vocabularies.js \
+            --sources-root . \
+            --api-dir public/api/v1 \
+            --sources "${publishing} ${pending}"
           # A pending source must harmonize to exactly zero and ship no
           # aggregate. Anything else means its input came back and its floor
           # has to be recalibrated before it can be published.
