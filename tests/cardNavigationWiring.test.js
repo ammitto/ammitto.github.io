@@ -34,9 +34,14 @@ const CARD = 'src/components/molecules/EntityCard.vue'
 test('the entity card navigates through a router link', () => {
   const source = read(CARD)
 
+  // Either quote style. What has to hold is that RouterLink is imported as a
+  // named binding from vue-router; a formatter normalising quotes does not
+  // change that, and failing on it would spend a review round on nothing.
+  // The named-binding shape stays pinned: the braces, and `\bRouterLink\b`
+  // inside them, are what a revert to `useRouter` removes.
   assert.match(
     source,
-    /^\s*import\s+\{[^}]*\bRouterLink\b[^}]*\}\s+from\s+'vue-router'/m,
+    /^\s*import\s+\{[^}]*\bRouterLink\b[^}]*\}\s+from\s+['"]vue-router['"]/m,
     `${CARD} must import RouterLink from 'vue-router'`,
   )
 
