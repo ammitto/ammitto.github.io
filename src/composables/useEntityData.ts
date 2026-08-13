@@ -5,6 +5,7 @@ import { normalizeNode, toNodeIri } from '@/utils/normalizeNode'
 import { mapWithPool } from '@/utils/entryFetchPool'
 import { selectBirthCountry } from '@/utils/birthDisplay'
 import { entityBirthClaims } from '@/utils/birthAdapters'
+import { entryPeriodRows, listingRemarks } from '@/utils/entryAdapters'
 import { identificationTable } from '@/utils/identificationDisplay'
 import type { IdentificationRecord } from '@/utils/identificationDisplay'
 
@@ -144,6 +145,10 @@ export interface Entry {
     source_format?: string
     source_specific_fields?: Record<string, string>
   }
+  // What the LISTING says about itself, which is not what the entity's own
+  // `remarks` says about the subject. Both are published; the page reads
+  // both and keeps them apart.
+  remarks?: string
 }
 
 const API_BASE = import.meta.env.BASE_URL || '/'
@@ -327,13 +332,15 @@ export function useEntityData() {
     return allEffects
   })
 
-  // Get effective date from entries
-  const effectiveDate = computed(() => {
-    for (const entry of entries.value) {
-      if (entry.period?.effective_date) return entry.period.effective_date
-    }
-    return null
-  })
+  // Every period field the entries state, each on its own labelled row.
+  // Reading only the effective date left entries that carry just a listed
+  // date showing no date at all.
+  const periodRows = computed(() => entryPeriodRows(entries.value))
+
+  // The listings' own remarks, kept separate from the entity's above.
+  const entryRemarks = computed(() =>
+    listingRemarks(entries.value, entity.value?.remarks),
+  )
 
   // Get status from entries
   const entryStatus = computed(() => {
@@ -431,7 +438,8 @@ export function useEntityData() {
     // Entry-specific data
     effects,
     reasons,
-    effectiveDate,
+    periodRows,
+    entryRemarks,
     entryStatus,
     listTypes,
     regimes,
