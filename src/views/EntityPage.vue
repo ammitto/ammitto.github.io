@@ -18,7 +18,8 @@ const {
   addresses,
   effects,
   reasons,
-  effectiveDate,
+  periodRows,
+  entryRemarks,
   entryStatus,
   listTypes,
   regimes,
@@ -346,14 +347,21 @@ onMounted(async () => {
         </div>
 
         <!-- Sanctions Information (from entries) -->
-        <div v-if="effects.length > 0 || effectiveDate || listTypes.length > 0 || regimes.length > 0" class="glass-card p-8">
+        <div v-if="effects.length > 0 || periodRows.length > 0 || listTypes.length > 0 || regimes.length > 0" class="glass-card p-8">
           <h2 class="text-xl font-semibold mb-4 text-light-text dark:text-dark-text">
             Sanctions Information
           </h2>
           <dl class="grid sm:grid-cols-2 gap-4">
-            <div v-if="effectiveDate">
-              <dt class="text-sm text-light-muted dark:text-dark-muted">Effective Date</dt>
-              <dd class="font-medium text-light-text dark:text-dark-text">{{ effectiveDate }}</dd>
+            <!--
+              One row per period field the sources actually stated, each
+              under its own name. Collapsing them into a single date under
+              one label would put a listing date behind the words
+              "Effective Date" for every source that publishes the two a
+              day apart.
+            -->
+            <div v-for="row in periodRows" :key="row.label">
+              <dt class="text-sm text-light-muted dark:text-dark-muted">{{ row.label }}</dt>
+              <dd class="font-medium text-light-text dark:text-dark-text">{{ row.value }}</dd>
             </div>
             <div v-if="entryStatus">
               <dt class="text-sm text-light-muted dark:text-dark-muted">Status</dt>
@@ -649,12 +657,30 @@ onMounted(async () => {
           </div>
         </div>
 
-        <!-- Remarks -->
-        <div v-if="remarks" class="glass-card p-8">
+        <!--
+          Remarks: one card, two headings. The entity's remarks describe
+          the subject and a listing's describe that authority's action, so
+          they are never merged into one block of text. Both are labelled
+          even when only one is present — an unlabelled paragraph leaves a
+          reader unable to tell which of the two they are reading, which is
+          the whole reason for showing them apart.
+        -->
+        <div v-if="remarks || entryRemarks.length > 0" class="glass-card p-8">
           <h2 class="text-xl font-semibold mb-4 text-light-text dark:text-dark-text">
             Remarks
           </h2>
-          <p class="text-light-muted dark:text-dark-muted whitespace-pre-wrap">{{ remarks }}</p>
+          <div v-if="remarks" class="mb-4 last:mb-0">
+            <h3 class="text-sm text-light-muted dark:text-dark-muted mb-1">About this entity</h3>
+            <p class="text-light-muted dark:text-dark-muted whitespace-pre-wrap">{{ remarks }}</p>
+          </div>
+          <div v-if="entryRemarks.length > 0">
+            <h3 class="text-sm text-light-muted dark:text-dark-muted mb-1">About this listing</h3>
+            <p
+              v-for="note in entryRemarks"
+              :key="note"
+              class="text-light-muted dark:text-dark-muted whitespace-pre-wrap"
+            >{{ note }}</p>
+          </div>
         </div>
 
         <!-- Raw Data (for debugging/transparency) -->
