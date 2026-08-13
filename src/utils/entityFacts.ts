@@ -39,7 +39,17 @@ export interface FactBearingEntity {
   gender?: string
   title?: string
   position?: string
-  imo_number?: string
+  /**
+   * Wider than the wire, deliberately. `VesselEntity` declares
+   * `imo_number` a string and every published vessel carries one as a
+   * JSON string, so `FullEntity` types it `string` and stays accurate to
+   * the producer. This is the ADAPTER's input type, and it states what
+   * the adapter will survive rather than what the producer sends: `text`
+   * below coerces a finite number, and a test pins that. A type that
+   * forbade the input its own function handles would be a contract
+   * nothing could satisfy.
+   */
+  imo_number?: number | string
 }
 
 /** One labelled claim in the page's Position / Title block. */
