@@ -136,6 +136,55 @@ for (const { file, forbidden } of REMOVED_READS) {
   })
 }
 
+/**
+ * The per-type table on the schema page, read one entry at a time.
+ *
+ * A substring ban cannot express this contract. `OrganizationEntity` and
+ * `AircraftEntity` carried byte-identical field strings, so a pattern that
+ * rejected the aircraft one rejected the organization one with it — and
+ * `addresses` is genuinely an organization field. The entry has to be
+ * located by its type before its fields are judged.
+ */
+const fieldsFor = (source, type) => {
+  const match = source.match(
+    new RegExp(`type:\\s*'${type}',[\\s\\S]*?fields:\\s*'([^']*)'`),
+  )
+  // A rename that breaks the extractor must fail here rather than sail
+  // through as a vacuous pass: no match means the contract went unchecked.
+  assert.ok(match, `no ${type} entry found in the schema page's type table`)
+  return match[1]
+}
+
+/**
+ * Which entity types declare `addresses`, per the gem's harmonized models.
+ *
+ * PersonEntity and OrganizationEntity declare the attribute and populate
+ * it. VesselEntity and AircraftEntity declare nothing of the kind, and
+ * neither does the Entity base class they both extend, so no node of
+ * either type can ever carry the key — this is the `contact` case above,
+ * not the `contact_info` one.
+ */
+const ADDRESS_BEARING = {
+  PersonEntity: true,
+  OrganizationEntity: true,
+  VesselEntity: false,
+  AircraftEntity: false,
+}
+
+for (const [type, declaresAddresses] of Object.entries(ADDRESS_BEARING)) {
+  test(`the schema page ${declaresAddresses ? 'documents' : 'does not document'} addresses on ${type}`, () => {
+    const fields = fieldsFor(read('src/views/SchemaPage.vue'), type)
+
+    assert.equal(
+      /\baddresses\b/.test(fields),
+      declaresAddresses,
+      declaresAddresses
+        ? `${type} declares addresses and the table must say so`
+        : `${type} carries no addresses attribute; documenting one tells API consumers to read a key no node has`,
+    )
+  })
+}
+
 test('contact_info stays declared, because the producer declares it', () => {
   // The counterpart to the bans above, and the reason they are written as
   // shapes rather than as a ban on the word. Deleting this too would lose
