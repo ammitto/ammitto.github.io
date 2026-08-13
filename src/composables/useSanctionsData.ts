@@ -2,6 +2,7 @@ import { ref, computed } from 'vue'
 import FlexSearch from 'flexsearch'
 import { normalizeGraph } from '@/utils/normalizeNode'
 import { resolveEntityBirthFields } from '@/utils/birthAdapters'
+import { ALL_SOURCES, publishesAggregate } from '@/utils/sourceCatalog'
 
 // Entity interface matching internal format
 export interface SanctionEntity {
@@ -16,7 +17,6 @@ export interface SanctionEntity {
   country?: string
   birthDate?: string
   remarks?: string
-  contact?: string
   addresses?: Array<{
     street?: string
     city?: string
@@ -53,7 +53,6 @@ interface JsonLdEntity {
     circa?: boolean
   }>
   remarks?: string
-  contact?: string
   addresses?: Array<{
     street?: string
     city?: string
@@ -99,12 +98,6 @@ const entityIdList = new Map<number, string>()
 // Base URL for API
 const API_BASE = import.meta.env.BASE_URL || '/'
 
-// All available sources
-const ALL_SOURCES = [
-  'eu', 'un', 'us', 'wb', 'uk', 'au', 'ca', 'ch', 'cn',
-  'ru', 'tr', 'nz', 'jp', 'eu_vessels', 'un_vessels'
-]
-
 /**
  * Transform JSON-LD entity to internal format
  */
@@ -133,7 +126,6 @@ function transformEntity(entity: JsonLdEntity, sourceCode: string): SanctionEnti
     country,
     birthDate,
     remarks: entity.remarks,
-    contact: entity.contact,
     addresses: entity.addresses?.map(addr => ({
       street: addr.street,
       city: addr.city,
@@ -180,6 +172,18 @@ function isSourceLoaded(source: string): boolean {
  * Load entities from a specific source
  */
 async function loadSourceEntities(source: string): Promise<SanctionEntity[]> {
+  // A source with no aggregate published has nothing to request, so the
+  // request is not made. The guard sits here rather than in the callers
+  // because this is the only function that fetches, so every entry point
+  // — including the exported ones this repo does not yet call — is
+  // covered by it.
+  //
+  // Nothing is cached on this path: `isSourceLoaded` keeps meaning "there
+  // is data for this source", which stays false while none is served.
+  if (!publishesAggregate(source)) {
+    return []
+  }
+
   const cacheKey = source
 
   // Check cache first

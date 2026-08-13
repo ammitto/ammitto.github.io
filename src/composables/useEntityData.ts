@@ -51,7 +51,6 @@ export interface FullEntity {
     circa?: boolean
   }>
   nationalities?: Array<string | { country_code?: string; country?: string }>
-  citizenships?: Array<{ country_code?: string; country?: string }>
   gender?: string
   position?: string
   // Organization-specific fields
@@ -76,12 +75,19 @@ export interface FullEntity {
   // `value` and `identification` declared here since the field was added are
   // attributes Ammitto::Identification has never had, under any spelling.
   identifications?: IdentificationRecord[]
+  // Declared but not rendered anywhere, on purpose. `contact_info` is a
+  // real attribute of the producer's PersonEntity and OrganizationEntity,
+  // so the shape belongs in this interface as a description of the
+  // contract — but no transformer populates it yet, so nothing published
+  // today carries it and there is nothing for a page to show. Keeping the
+  // declaration without markup is the honest pairing: the field is
+  // documented where a reader looks for the entity's shape, and the page
+  // grows a section when there is data to put in it.
   contact_info?: {
     phone?: string[]
     email?: string[]
     website?: string[]
   }
-  contact?: string
   beneficial_owners?: Array<{ entity_id: string; relationship_type: string }>
   directors?: Array<{ entity_id: string; relationship_type: string }>
 }
@@ -307,9 +313,6 @@ export function useEntityData() {
   // Get remarks
   const remarks = computed(() => entity.value?.remarks || null)
 
-  // Get contact info
-  const contact = computed(() => entity.value?.contact || null)
-
   // Get addresses
   const addresses = computed(() => entity.value?.addresses || [])
 
@@ -426,7 +429,6 @@ export function useEntityData() {
     sourceReference,
     entityType,
     remarks,
-    contact,
     addresses,
     // Entry-specific data
     effects,
@@ -444,10 +446,6 @@ export function useEntityData() {
         if (typeof n === 'string') return n
         return n.country || n.country_code || ''
       }).filter(Boolean)
-    }),
-    citizenships: computed(() => {
-      if (!entity.value?.citizenships) return []
-      return entity.value.citizenships.map(c => c.country || c.country_code || '').filter(Boolean)
     }),
     identificationTable: computed(() => identificationTable(entity.value?.identifications)),
     position: computed(() => entity.value?.position || null),

@@ -39,8 +39,7 @@ const entitySchema = `{
           "postalCode": "string (optional)"
         }
       ],
-      "remarks": "string (optional)",
-      "contact": "string (optional)"
+      "remarks": "string (optional)"
     }
   ]
 }`
@@ -49,22 +48,22 @@ const entityTypeDescriptions = [
   {
     type: 'PersonEntity',
     description: 'An individual person subject to sanctions.',
-    fields: 'names, birthInfo, addresses, remarks, contact',
+    fields: 'names, birthInfo, addresses, remarks',
   },
   {
     type: 'OrganizationEntity',
     description: 'A company, organization, or other legal entity subject to sanctions.',
-    fields: 'names, addresses, remarks, contact',
+    fields: 'names, addresses, remarks',
   },
   {
     type: 'VesselEntity',
     description: 'A ship or maritime vessel subject to sanctions.',
-    fields: 'names, addresses, remarks, contact',
+    fields: 'names, addresses, remarks',
   },
   {
     type: 'AircraftEntity',
     description: 'An aircraft subject to sanctions.',
-    fields: 'names, addresses, remarks, contact',
+    fields: 'names, addresses, remarks',
   },
 ]
 </script>
@@ -163,15 +162,10 @@ const entityTypeDescriptions = [
                 <td class="p-4">array</td>
                 <td class="p-4">Array of address objects</td>
               </tr>
-              <tr class="border-b border-light-border dark:border-dark-border">
+              <tr>
                 <td class="p-4 font-mono text-sm">remarks</td>
                 <td class="p-4">string</td>
                 <td class="p-4">Additional remarks or notes</td>
-              </tr>
-              <tr>
-                <td class="p-4 font-mono text-sm">contact</td>
-                <td class="p-4">string</td>
-                <td class="p-4">Contact information</td>
               </tr>
             </tbody>
           </table>
