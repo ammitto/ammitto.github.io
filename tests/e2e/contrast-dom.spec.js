@@ -14,10 +14,126 @@ import { collectPageErrors, gotoRendered, serveSourceGraphs, useTheme } from './
  * sees exactly those bypasses.
  *
  * Scope is deliberate and narrow: only the `color-contrast` rule, only on the
- * pages this remediation owns, and no per-node suppressions — an allowlist is
- * how this kind of check rots. Broadening to the rest of axe's rules is a
- * separate accessibility task, not something to smuggle in behind a colour fix.
+ * pages this remediation owns, and no suppression of a violation — an
+ * allowlist of failing nodes is how this kind of check rots. Broadening to the
+ * rest of axe's rules is a separate accessibility task, not something to
+ * smuggle in behind a colour fix.
+ *
+ * The one list below is not that. It covers nodes axe declines to DECIDE, and
+ * every entry has to say where the pair is decided instead — so it adds
+ * coverage where axe has none rather than removing coverage axe had.
  */
+
+/**
+ * The reasons axe is permitted to decline to decide, per route.
+ *
+ * "Incomplete" is not a pass. It is axe saying it cannot compute the pair at
+ * all, and a page that quietly turns a failing pair into an undecidable one
+ * would otherwise stay green forever — text moved over a gradient or a
+ * photograph reads exactly like text that was fixed. So every incomplete node
+ * has to match an entry here, and every entry names the element, the route,
+ * why axe cannot decide it, and where the pair is decided instead.
+ *
+ * Every entry below is a limit of what axe will judge, not a defect hidden
+ * behind it: a decorative gradient it will not average, a number too short
+ * for it to accept as text, a glyph it will not call text. None can be
+ * removed without changing the design, and each has a real measurement
+ * elsewhere. That is the bar, and `measuredBy` is where an entry meets it.
+ * An incomplete node caused by something genuinely obscuring the text does
+ * NOT belong here — it belongs fixed.
+ *
+ * Matching is on the reason axe reports rather than on the element, because
+ * the element it names is a minimal CSS selector that changes whenever the
+ * markup around it changes; the reason is the thing being allowed. `element`
+ * and `why` are for the reader, and `measuredBy` is the field that earns the
+ * entry its place.
+ *
+ * This list is meant to shrink.
+ */
+const ALLOWED_INCOMPLETE = [
+  {
+    routes: ['/'],
+    reason: /bgGradient|background gradient/i,
+    element:
+      'HeroSection.vue — the tagline (h1), the description, the three stat ' +
+      'figures and their labels, all sitting over the hero\'s decorative ' +
+      '`absolute inset-0 bg-gradient-to-br` overlay',
+    why:
+      'axe stops at the first background it cannot reduce to a single ' +
+      'colour, and a gradient is one. Removing the undecidability means ' +
+      'removing the gradient, which is a design decision and not a contrast ' +
+      'fix. Note that the same nodes are reported under the reason below ' +
+      'instead when one of the hero\'s async counts is still short enough ' +
+      'for that check to short-circuit first — observed both ways on ' +
+      '2026-08-13, which is why the hero needs both entries and not a guess ' +
+      'about which check wins.',
+    measuredBy:
+      '"text over the hero gradient still clears AA" in tests/contrast.test.js ' +
+      'composites the gradient\'s own endpoints — parsed out of this ' +
+      'component, so it cannot drift from it — over the page background, and ' +
+      'measures every role that appears on it: body text, muted text, and ' +
+      'the brand-link stat figures.',
+  },
+  {
+    routes: ['/'],
+    reason: /shortTextContent|content is too short/i,
+    element:
+      'HeroSection.vue — the stat figures, ' +
+      '`.text-3xl.font-bold.text-brand-link` in the three stat blocks',
+    why:
+      'Each renders a short number, and axe will not assume a one- or ' +
+      'two-character string is text rather than an icon glyph, so it declines ' +
+      'to compute a ratio. Which figures are reported moves with the data: ' +
+      'the entity count is long once its comma-grouped value arrives, and ' +
+      'short before then. There is nothing to fix in the markup — these are ' +
+      'genuine numbers with a genuine colour pair, and the undecidability is ' +
+      'entirely a property of the heuristic.',
+    measuredBy:
+      '"link text clears AA on every surface of its theme" measures ' +
+      'brand-link against each surface, and "text over the hero gradient ' +
+      'still clears AA" measures it against the gradient these figures ' +
+      'actually sit on — at 3:1, because at text-3xl bold they are large ' +
+      'text. Both are in tests/contrast.test.js.',
+  },
+  {
+    routes: ['/ontology'],
+    reason: /nonBmp|only non-text characters/i,
+    element:
+      'OntologyBrowserPage.vue — the `aria-hidden` glyph inside the class ' +
+      "hierarchy's expand/collapse button (▶ / ▼)",
+    why:
+      'The button\'s visible content is one geometric character, and axe ' +
+      'cannot tell a glyph used as an icon from text. `aria-hidden` does not ' +
+      'and should not exempt it: a sighted reader still sees the shape, so ' +
+      'the pair is real even though axe will not judge it. The accessibility ' +
+      'defect that WAS here — a bare <span> with a click handler, no role, ' +
+      'no name and no way to reach it from a keyboard — is fixed in this ' +
+      'change; what is left is only the measurement artefact.',
+    measuredBy:
+      'The glyph is painted with the muted token (text-light-muted / ' +
+      'dark:text-dark-muted), which "body and muted text clear AA on every ' +
+      'surface of their theme" in tests/contrast.test.js measures against ' +
+      'every surface of both themes.',
+  },
+]
+
+/** Everything axe said about a node, as one string to match a reason against. */
+const reasonText = (node) =>
+  [
+    node.failureSummary ?? '',
+    ...[...(node.any ?? []), ...(node.all ?? []), ...(node.none ?? [])].map(
+      (check) => `${check.message ?? ''} ${check.data?.messageKey ?? ''}`,
+    ),
+  ]
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+const isAllowedIncomplete = (routePath, node) =>
+  ALLOWED_INCOMPLETE.some(
+    (entry) => entry.routes.includes(routePath) && entry.reason.test(reasonText(node)),
+  )
+
 for (const theme of ['light', 'dark']) {
   for (const route of CONTRAST_SCAN_ROUTES) {
     test(`${route.path} has no computed contrast violations (${theme})`, async ({
@@ -53,11 +169,13 @@ for (const theme of ['light', 'dark']) {
         )}`,
       ).toEqual([])
 
-      // "Incomplete" is axe declining to decide (usually text over a gradient
-      // or an image). It is neither a pass nor a failure, so it is surfaced
-      // rather than swallowed — and the count is asserted so a change in what
-      // axe cannot determine shows up in review instead of hiding a
-      // regression.
+      // "Incomplete" is axe declining to decide — text over a gradient or an
+      // image, usually. It is not a pass, and it is not allowed to become a
+      // hiding place: a pair that starts failing and then becomes undecidable
+      // would look identical to a pair that was fixed. Every such node is
+      // therefore matched against ALLOWED_INCOMPLETE above, which names the
+      // reason, the route, and where the pair is measured instead. Anything
+      // else fails here.
       const incomplete = results.incomplete.flatMap((v) => v.nodes)
       if (incomplete.length > 0) {
         test.info().annotations.push({
@@ -67,6 +185,15 @@ for (const theme of ['light', 'dark']) {
           )}`,
         })
       }
+
+      const unreviewed = incomplete.filter((node) => !isAllowedIncomplete(route.path, node))
+      expect(
+        unreviewed.map((node) => `${node.target.join(' ')}: ${reasonText(node)}`),
+        `axe could not decide the contrast of ${unreviewed.length} node(s) on ${route.path} ` +
+          `(${theme}), and no reviewed entry in ALLOWED_INCOMPLETE covers them. Undecidable is ` +
+          `not passing: decide the pair (make the background one resolvable colour), or add an ` +
+          `entry naming the reason and where the pair is measured instead.`,
+      ).toEqual([])
 
       expect(errors, `${route.path} threw: ${errors.join('\n')}`).toEqual([])
     })

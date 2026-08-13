@@ -143,13 +143,26 @@ onMounted(async () => {
                   @click="selectClass(child.name)"
                 >
                   <div class="flex items-center gap-2">
-                    <span
+                    <!--
+                      A control, so it is built from a button. This was a
+                      <span> whose entire content was a bare triangle glyph:
+                      not focusable, no role, and no name — the expand/collapse
+                      of the class hierarchy was reachable with a mouse only,
+                      and a screen reader had nothing to announce but the
+                      shape. The glyph is decorative once the button carries
+                      the name and `aria-expanded` carries the state, so it is
+                      hidden from assistive technology rather than read out.
+                    -->
+                    <button
                       v-if="child.children && child.children.length > 0"
+                      type="button"
                       @click.stop="toggleNode(child.name)"
+                      :aria-expanded="isExpanded(child.name)"
+                      :aria-label="`Subclasses of ${child.label}`"
                       class="text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text"
                     >
-                      {{ isExpanded(child.name) ? '▼' : '▶' }}
-                    </span>
+                      <span aria-hidden="true">{{ isExpanded(child.name) ? '▼' : '▶' }}</span>
+                    </button>
                     <span v-else class="w-4"></span>
 
                     <span class="text-light-muted dark:text-dark-muted">{{ getNodeIcon(child) }}</span>

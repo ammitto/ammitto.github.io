@@ -23,6 +23,25 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Measured on 2026-08-13 (run 31681782113): 7m16s end to end. Sixteen
+    # shallow clones took 5s, Ruby setup 8s, npm ci 2s, unit tests 2s,
+    # harmonize 3m05s, the output verification 15s, the Vite build 37s,
+    # Playwright chromium 28s, the browser suite 2m13s, artifact upload 10s.
+    #
+    # Thirty is a little over four times that, and the headroom is aimed at
+    # the two steps that grow with the data rather than with this repository:
+    # harmonize and the browser suite together are three quarters of the run,
+    # and both scale with an entity count that is upstream of us (25,128 at
+    # the last calibration). The dataset can roughly triple before the
+    # timeout, rather than a real defect, becomes the thing that fails the
+    # job — and long before that, a run drifting toward thirty minutes is the
+    # signal that publishing has outgrown one job.
+    #
+    # Anything beyond that is a hang: a clone against an unresponsive remote,
+    # or a harmonize that stopped making progress. Six hours of a stuck
+    # runner is the alternative, and this workflow does not cancel in
+    # progress, so a wedged run also holds every later publish behind it.
+    timeout-minutes: 30
     defaults:
       run:
         # Explicit bash adds -o pipefail, so a failing producer in a
@@ -467,12 +486,14 @@ jobs:
         # kind that only shows up with the full dataset, so gating the upload
         # on it is the point rather than an inconvenience.
         #
-        # E2E_FULL_DATASET drops the two routes that cannot finish rendering
-        # at this scale — see the temporary exclusion in tests/routes.js for
-        # why, and for what ends it. Every other route is still gated here.
+        # Every route in the router is measured here. Two used to be dropped
+        # at this scale, through an E2E_FULL_DATASET environment variable
+        # this step used to set: the organization and document-type pages
+        # rebuilt their document lists from every entry node in the corpus
+        # and never finished painting. Both now read one published summary,
+        # so the exclusion and the variable that carried it are gone. See the
+        # note in tests/routes.js before adding either back.
         run: npm run test:e2e
-        env:
-          E2E_FULL_DATASET: '1'
 
       - name: Upload Playwright report
         if: failure()
@@ -501,6 +522,18 @@ jobs:
     if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     needs: build
+    # This job builds nothing and uploads nothing: it hands the artifact
+    # build already produced to the Pages API and waits. The last three
+    # deployments from main took 23s, 30s and 24s, so five minutes is ten
+    # times the observed cost and there is no step here that could
+    # legitimately grow into it.
+    #
+    # It is the tightest timeout in either workflow on purpose. The
+    # concurrency group above deliberately does not cancel in progress, so a
+    # deployment stuck waiting on the Pages API blocks every subsequent
+    # publish for as long as it hangs — with the default ceiling, a whole
+    # working day of daily data publishes queued behind one wedged call.
+    timeout-minutes: 5
     steps:
       - name: Deploy to GitHub Pages
         id: deployment

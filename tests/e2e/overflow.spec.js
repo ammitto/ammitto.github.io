@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { NARROW_VIEWPORTS, SWEEPABLE_ROUTES } from '../routes.js'
+import { ALL_ROUTES, NARROW_VIEWPORTS } from '../routes.js'
 import {
   collectPageErrors,
   expectNoHorizontalOverflow,
@@ -33,7 +33,7 @@ const LONG_ALIAS = 'Sociedad Anonima de Transportes Maritimos Internacionales de
 
 for (const theme of ['light', 'dark']) {
   for (const viewport of NARROW_VIEWPORTS) {
-    for (const route of SWEEPABLE_ROUTES) {
+    for (const route of ALL_ROUTES) {
       test(`${route.path} does not scroll horizontally at ${viewport.name}px (${theme})`, async ({
         page,
       }) => {

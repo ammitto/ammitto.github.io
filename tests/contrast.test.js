@@ -51,7 +51,7 @@ import {
   tileToneVars,
 } from '../.test-build/config/palette.js'
 import { entityTypes, sources, statuses } from '../.test-build/config/index.js'
-import { ALL_ROUTES, PARAM_ROUTES, STATIC_ROUTES, SWEEPABLE_ROUTES } from './routes.js'
+import { ALL_ROUTES, PARAM_ROUTES, STATIC_ROUTES } from './routes.js'
 
 /* ------------------------------------------------------------------ *
  * The oracle: WCAG 2.x relative luminance and contrast ratio.
@@ -104,9 +104,14 @@ function hueGap(a, b) {
 }
 
 /**
- * WCAG AA: 4.5 for normal text. Nothing in this system qualifies for the 3:1
- * large-text exception — badges and chips are text-xs, tile initials are 14-16px
- * bold (the exception needs 18.66px bold), muted text is text-sm at smallest.
+ * WCAG AA: 4.5 for normal text, and that is the floor for every derived tone
+ * here. None of them qualifies for the 3:1 large-text exception — badges and
+ * chips are text-xs, tile initials are 14-16px bold (the exception needs
+ * 18.66px bold), muted text is text-sm at smallest.
+ *
+ * One measurement in this file does use 3:1, and says so where it does: the
+ * hero's three stat figures are text-3xl font-bold, i.e. 30px bold, which is
+ * large text under 1.4.3 by either threshold.
  */
 const AA_NORMAL = 4.5
 
@@ -463,6 +468,50 @@ test('link text clears AA on every surface of its theme', () => {
   }
 })
 
+/** The tokens a `text-<token>/NN` utility can name, per theme. */
+const OPACITY_UTILITY_TOKENS = {
+  'brand-link': (theme) => linkTokens[theme],
+  'light-muted': () => textTokens.light.muted,
+  'dark-muted': () => textTokens.dark.muted,
+  'light-text': () => textTokens.light.fg,
+  'dark-text': () => textTokens.dark.fg,
+  'light-fg': () => textTokens.light.fg,
+  'dark-fg': () => textTokens.dark.fg,
+}
+
+/**
+ * Composite every `text-<token>/NN` utility in `source` over every surface of
+ * both themes, and return the pairs measured.
+ *
+ * Separated from the file walk so the scanner can be pointed at a known
+ * sample. A scan that matches nothing is indistinguishable from a clean
+ * codebase, and this file's own history is the argument: the assertion here
+ * used to be `assert.ok(checked >= 0)`, which no input could fail.
+ */
+function scanOpacityUtilities(source, label) {
+  const measured = []
+  for (const match of source.matchAll(/text-(brand-link|light-\w+|dark-\w+)\/(\d{1,3})\b/g)) {
+    const [, token, alphaText] = match
+    const resolve = OPACITY_UTILITY_TOKENS[token]
+    if (!resolve) continue
+    const alpha = Number(alphaText) / 100
+    const line = source.slice(0, match.index).split('\n').length
+    for (const theme of THEMES) {
+      for (const backdrop of backdropsOf(theme)) {
+        const faded = compositeOver(resolve(theme), alpha, backdrop.hex)
+        measured.push({
+          where: `${label}:${line}: text-${token}/${alphaText} on ${theme}/${backdrop.name}`,
+          ratio: contrast(faded, backdrop.hex),
+        })
+      }
+    }
+  }
+  return measured
+}
+
+/** How many (theme, surface) pairs one utility is measured against. */
+const SURFACE_PAIRS = THEMES.reduce((n, theme) => n + backdropsOf(theme).length, 0)
+
 test('no text utility fades a tested colour below AA', () => {
   // Tailwind's opacity modifier on a TEXT colour (`hover:text-brand-link/80`)
   // paints that colour at partial alpha over whatever is behind it, so the
@@ -473,7 +522,9 @@ test('no text utility fades a tested colour below AA', () => {
   //
   // This caught a real one: the entity, group and announcement pages faded
   // their links to `text-brand-link/80`, which measures 3.61:1 on the light
-  // page background. Those hovers now underline instead.
+  // page background. Those hovers now underline instead — which is why the
+  // walk below currently matches nothing, and why the probe underneath it is
+  // the part of this test that has to keep working.
   const root = fileURLToPath(new URL('../src', import.meta.url))
   const files = []
   const walk = (dir) => {
@@ -484,54 +535,107 @@ test('no text utility fades a tested colour below AA', () => {
     }
   }
   walk(root)
+  assert.ok(files.length > 20, `only ${files.length} .vue files found — the walk is broken`)
 
-  const tokenFor = {
-    'brand-link': (theme) => linkTokens[theme],
-    'light-muted': () => textTokens.light.muted,
-    'dark-muted': () => textTokens.dark.muted,
-    'light-text': () => textTokens.light.fg,
-    'dark-text': () => textTokens.dark.fg,
-    'light-fg': () => textTokens.light.fg,
-    'dark-fg': () => textTokens.dark.fg,
-  }
-
-  let checked = 0
   for (const file of files) {
-    const text = fs.readFileSync(file, 'utf8')
-    for (const match of text.matchAll(/text-(brand-link|light-\w+|dark-\w+)\/(\d{1,3})\b/g)) {
-      const [, token, alphaText] = match
-      const resolve = tokenFor[token]
-      if (!resolve) continue
-      const alpha = Number(alphaText) / 100
-      const line = text.slice(0, match.index).split('\n').length
-      for (const theme of THEMES) {
-        for (const backdrop of backdropsOf(theme)) {
-          const faded = compositeOver(resolve(theme), alpha, backdrop.hex)
-          assertAtLeast(
-            contrast(faded, backdrop.hex),
-            AA_NORMAL,
-            `${file}:${line}: text-${token}/${alphaText} on ${theme}/${backdrop.name}`,
-          )
-          checked++
-        }
-      }
+    for (const { where, ratio } of scanOpacityUtilities(fs.readFileSync(file, 'utf8'), file)) {
+      assertAtLeast(ratio, AA_NORMAL, where)
     }
   }
-  // Zero iterations is a legitimate outcome — the utilities may simply
-  // have been removed — but it must not masquerade as coverage. The
-  // previous `assert.ok(checked >= 0)` could never fail and printed
-  // nothing, so a scan that silently found no candidates read exactly
-  // like a scan that checked hundreds and approved them all.
-  assert.ok(
-    Number.isInteger(checked) && checked >= 0,
-    `opacity-utility scan produced a non-count: ${checked}`,
+
+  // Prove the scanner can still find and judge one, on a sample written here
+  // rather than on whatever the templates happen to contain today. Without
+  // this, a typo'd regex, a renamed token or a walk that stopped descending
+  // would leave this test green and silent — which is precisely what "zero
+  // matches" looks like from the outside, and precisely the state src/ is in.
+  const probe = scanOpacityUtilities(
+    '<a class="hover:text-brand-link/80">a faded link</a>',
+    'synthetic',
   )
-  if (checked === 0) {
-    console.log(
-      'note: no text-*/NN opacity utilities found in src/ — this test ' +
-        'checked nothing. That is fine if they were removed deliberately; ' +
-        'if not, the scan or its glob has drifted.',
-    )
+  assert.equal(
+    probe.length,
+    SURFACE_PAIRS,
+    `the scanner found ${probe.length / SURFACE_PAIRS} utilities in a sample containing exactly ` +
+      `one, so it can no longer see the pattern it exists to catch`,
+  )
+  // And that its verdict can come back negative: /80 on the light page
+  // background is the 3.61:1 pair this test was written for.
+  assert.ok(
+    probe.some(({ ratio }) => ratio < AA_NORMAL),
+    'the scanner judged a known-failing fade (text-brand-link/80) as passing on every ' +
+      'surface, so it would approve the defect it was written to catch',
+  )
+})
+
+test('text over the hero gradient still clears AA', () => {
+  // The home page hero paints a decorative gradient across its whole box, so
+  // the surface behind its heading, description and stat figures is not any
+  // of the surfaces the tests above measure.
+  //
+  // The rendered-DOM scan cannot close that gap: measured on 2026-08-13, axe
+  // refuses to judge those six nodes at all, reporting them as incomplete
+  // with "background color could not be determined due to a background
+  // gradient". They are the whole reason ALLOWED_INCOMPLETE in
+  // tests/e2e/contrast-dom.spec.js has an entry for '/', and that entry
+  // points back here. This test is the measurement that makes it honest, so
+  // the two are deleted together or not at all.
+  //
+  // Measured over the gradient's ENDPOINTS, not its middle: a gradient's
+  // worst case is a stop, and `via-transparent` means the middle is the bare
+  // surface the tests above already cover. The stops are read out of the
+  // component, so retuning the gradient re-runs this measurement instead of
+  // silently invalidating it.
+  const hero = fs.readFileSync(
+    fileURLToPath(new URL('../src/components/organisms/HeroSection.vue', import.meta.url)),
+    'utf8',
+  )
+  const overlay = /class="absolute inset-0 (bg-gradient-to-\w+[^"]*)"/.exec(hero)
+  assert.ok(
+    overlay,
+    'the hero overlay is no longer an `absolute inset-0 bg-gradient-*` element. If the gradient ' +
+      'is gone this test has nothing left to measure and should go with it; if it merely moved, ' +
+      'point this at it.',
+  )
+
+  const brandPrimary = readMainCss().match(/--color-brand-primary:\s*(#[0-9a-f]{6})/i)
+  assert.ok(brandPrimary, '--color-brand-primary not found in main.css')
+  const seedFor = { 'brand-primary': brandPrimary[1].toLowerCase() }
+
+  // `from-brand-primary/5 via-transparent to-brand-primary/10` -> the stops
+  // that paint something. A transparent stop composites to the surface
+  // itself, which the tests above already measure. Utilities are split on
+  // whitespace rather than scanned, so the direction in `bg-gradient-to-br`
+  // cannot be read as a stop named "br".
+  const stops = overlay[1]
+    .split(/\s+/)
+    .map((utility) => /^(?:from|via|to)-([a-z][a-z-]*)(?:\/(\d{1,3}))?$/.exec(utility))
+    .filter((stop) => stop && stop[1] !== 'transparent')
+    .map(([, token, alphaText]) => {
+      const hex = seedFor[token]
+      assert.ok(hex, `the hero gradient names ${token}, which this test cannot resolve to a colour`)
+      return { token, hex, alpha: alphaText === undefined ? 1 : Number(alphaText) / 100 }
+    })
+  assert.ok(stops.length > 0, `no painted stop parsed from the hero gradient: ${overlay[1]}`)
+
+  // The hero sits directly on the page background, so that is the only
+  // surface the overlay composites over.
+  for (const theme of THEMES) {
+    const surface = surfaces[theme].bg
+    for (const stop of stops) {
+      const behind = compositeOver(stop.hex, stop.alpha, surface)
+      const at = `${theme} hero, ${stop.token}/${Math.round(stop.alpha * 100)} over ${surface}`
+      // The tagline (text-light-text/dark-text) and the description and stat
+      // labels (text-light-muted/dark-muted) are normal-size text.
+      assertAtLeast(contrast(textTokens[theme].fg, behind), AA_NORMAL, `${at}: heading`)
+      assertAtLeast(contrast(textTokens[theme].muted, behind), AA_NORMAL, `${at}: muted text`)
+      // The three stat figures are `text-3xl font-bold text-brand-link` —
+      // 30px bold, which clears WCAG's large-text threshold (18.66px bold)
+      // twice over, so 3:1 is the applicable ratio and not a concession.
+      // Stating it explicitly matters: at the gradient's deep end the light
+      // figure measures ~4.45:1, which would fail a 4.5 floor it was never
+      // subject to, and passing it anyway would be the wrong fix.
+      assertAtLeast(contrast(linkTokens[theme], behind), 3, `${at}: stat figure (large text)`)
+    }
   }
 })
 
@@ -747,11 +851,9 @@ test('the browser specs use the shared route inventory', () => {
   const specs = fs.readdirSync(dir).filter((f) => f.endsWith('.spec.js'))
   assert.ok(specs.length >= 2, `expected browser specs in tests/e2e, found ${specs.join(', ')}`)
   const sources = specs.map((f) => fs.readFileSync(`${dir}/${f}`, 'utf8')).join('\n')
-  // SWEEPABLE_ROUTES is ALL_ROUTES minus the temporarily excluded slow
-  // routes, and is derived from it in routes.js — so a spec importing
-  // either one is visiting the shared inventory. What this guards against
-  // is a spec declaring its own array, which either name rules out.
-  for (const name of ['ALL_ROUTES|SWEEPABLE_ROUTES', 'NARROW_VIEWPORTS', 'CONTRAST_SCAN_ROUTES']) {
+  // What this guards against is a spec declaring its own array, which naming
+  // the shared export rules out.
+  for (const name of ['ALL_ROUTES', 'NARROW_VIEWPORTS', 'CONTRAST_SCAN_ROUTES']) {
     assert.ok(
       new RegExp(`\\b(?:${name})\\b`).test(sources),
       `no browser spec uses ${name}; the shared route inventory is not what the browser visits`,
@@ -759,31 +861,36 @@ test('the browser specs use the shared route inventory', () => {
   }
 })
 
-test('the slow-route exclusion is derived, not a second hand-written list', () => {
-  // The exclusion is the kind of thing that rots into a divergent copy of
-  // the inventory. Pin that SWEEPABLE_ROUTES is a strict subset of
-  // ALL_ROUTES and that it drops exactly the flagged routes, so a route
-  // cannot be quietly dropped from the sweep without carrying the flag
-  // that documents why and names what ends it.
-  for (const route of SWEEPABLE_ROUTES) {
-    assert.ok(
-      ALL_ROUTES.includes(route),
-      `${route.path} is swept but is not in the shared inventory`,
-    )
-  }
+test('the sweep measures the same routes in every environment', () => {
+  // There used to be a second, environment-conditional list here: two routes
+  // were dropped from the sweep when it ran against the full dataset, because
+  // the organization and document-type pages rebuilt their document lists
+  // from every entry node in the corpus and never finished painting. Both now
+  // read one published summary, so the exclusion is gone (see the note in
+  // tests/routes.js, which also records why the summaries being absent from
+  // the deployed data is not a reason to bring it back).
+  //
+  // What made that exclusion expensive was not its existence but its
+  // invisibility: the gate stayed green on main while two pages went
+  // unswept at the only scale where their layout defect could appear. So the
+  // inventory is pinned as environment-independent. An exclusion that has to
+  // be written into the spec, in the open, is one a reviewer can see.
+  const source = fs.readFileSync(fileURLToPath(new URL('./routes.js', import.meta.url)), 'utf8')
+  assert.equal(
+    /process\.env/.test(source),
+    false,
+    'tests/routes.js selects routes by environment variable again — the sweep must measure the ' +
+      'same list everywhere, or a page can go unmeasured exactly where it fails',
+  )
 
-  const excluded = ALL_ROUTES.filter((route) => !SWEEPABLE_ROUTES.includes(route))
-  for (const route of excluded) {
-    assert.ok(
-      route.slowUntilSummariesExist,
-      `${route.path} is excluded from the sweep with no reason recorded`,
-    )
-  }
-
-  // Against the committed snapshot nothing is excluded — every route is
-  // fast there, and a sweep that skipped routes locally would hide a
-  // failure until deploy.
-  if (!process.env.E2E_FULL_DATASET) {
-    assert.equal(excluded.length, 0, 'routes were excluded outside the full-dataset run')
-  }
+  const overflow = fs.readFileSync(
+    fileURLToPath(new URL('./e2e/overflow.spec.js', import.meta.url)),
+    'utf8',
+  )
+  assert.equal(
+    /ALL_ROUTES\s*\.\s*filter/.test(overflow),
+    false,
+    'tests/e2e/overflow.spec.js filters ALL_ROUTES before sweeping it — if a route genuinely ' +
+      'cannot be measured, say so on the route itself so the inventory carries the reason',
+  )
 })

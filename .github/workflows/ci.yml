@@ -25,6 +25,20 @@ concurrency:
 jobs:
   checks:
     runs-on: ubuntu-latest
+    # Measured, not rounded off: this job ran in 1m59s on 2026-08-13 (run
+    # 31681782114) — npm ci 3s, typecheck 5s, unit 2s, build 10s, Playwright
+    # chromium 22s, and 1m07s for the 125 browser tests on two workers. The
+    # cold-cache version of that is a few minutes, not fifteen.
+    #
+    # Fifteen is therefore roughly seven times the real cost, which is the
+    # point: it is loose enough that a slow runner or an empty npm/Playwright
+    # cache never trips it, and tight enough to kill something that is stuck
+    # rather than slow. Without it the ceiling is GitHub's default of six
+    # hours, and the failure this guards is a hang, not a delay — a preview
+    # server that never binds, an apt mirror that never answers. Playwright's
+    # own webServer timeout (120s) and per-test timeout (30s) bound the
+    # ordinary failures well inside this.
+    timeout-minutes: 15
     defaults:
       run:
         # Explicit bash adds -o pipefail, so a failing producer in a pipeline
