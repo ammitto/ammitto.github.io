@@ -112,7 +112,14 @@ for (const viewport of NARROW_VIEWPORTS) {
     await gotoRendered(page, '/search')
 
     // Prove the pathological data really reached the DOM before measuring.
-    const card = page.locator('article').filter({ hasText: UNBREAKABLE_NAME }).first()
+    // Matched by its href rather than its tag: the card is an anchor so that
+    // a keyboard user can open a result at all, and pinning the tag here
+    // would make this measurement fail for a reason that has nothing to do
+    // with overflow — as it did when the element changed.
+    const card = page
+      .locator('a[href^="/entity/"]')
+      .filter({ hasText: UNBREAKABLE_NAME })
+      .first()
     await expect(card, 'the long-name fixture never rendered a result card').toBeVisible({
       timeout: 15000,
     })

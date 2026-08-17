@@ -59,15 +59,22 @@ const entityTypeDescriptions = [
     description: 'A company, organization, or other legal entity subject to sanctions.',
     fields: 'names, addresses, remarks',
   },
+  // addresses is gone from these two because it was never theirs. The gem
+  // declares the attribute on PersonEntity and OrganizationEntity only —
+  // VesselEntity, AircraftEntity and the Entity base class they inherit
+  // from have no such attribute under any spelling — and no published
+  // vessel or aircraft node carries the key. This is the `contact` case,
+  // not the `contact_info` one: not an unpopulated field, but a field that
+  // does not exist in the vocabulary.
   {
     type: 'VesselEntity',
     description: 'A ship or maritime vessel subject to sanctions.',
-    fields: 'names, imoNumber, addresses, remarks',
+    fields: 'names, imoNumber, remarks',
   },
   {
     type: 'AircraftEntity',
     description: 'An aircraft subject to sanctions.',
-    fields: 'names, addresses, remarks',
+    fields: 'names, remarks',
   },
 ]
 </script>
@@ -164,7 +171,14 @@ const entityTypeDescriptions = [
               <tr class="border-b border-light-border dark:border-dark-border">
                 <td class="p-4 font-mono text-sm">addresses</td>
                 <td class="p-4">array</td>
-                <td class="p-4">Array of address objects</td>
+                <!--
+                  Scoped the way the birthInfo row above it already is.
+                  Unqualified, this row is the same claim the per-type
+                  table used to make: that a vessel or aircraft node might
+                  carry an address. Only persons and organizations declare
+                  the attribute.
+                -->
+                <td class="p-4">Array of address objects (persons and organizations only)</td>
               </tr>
               <tr>
                 <td class="p-4 font-mono text-sm">remarks</td>
