@@ -44,14 +44,21 @@ const code = (source) =>
 test('the build writes an SPA fallback', () => {
   const source = code(read(CONFIG))
 
+  // `/ssgOptions/` alone matches `Partial<ViteSSGOptions>`, and
+  // `ssgOptions\s*:` also matches the type annotation
+  // `{ ssgOptions: Partial<ViteSSGOptions> }`. Only the object literal
+  // opens a brace, so that is what distinguishes the real config key
+  // from the two ways the identifier appears in the types.
   assert.match(
     source,
-    /ssgOptions/,
-    'vite.config.ts must configure vite-ssg',
+    /ssgOptions\s*:\s*\{/,
+    'vite.config.ts must set an ssgOptions object, not merely declare its type',
   )
+  // Both `onFinished() {}` and `onFinished: () => {}` are valid here;
+  // pinning only the shorthand would fail a rewrite that changed nothing.
   assert.match(
     source,
-    /onFinished\s*\(\s*\)/,
+    /onFinished\s*(\(|:)/,
     'the fallback is written from an onFinished hook',
   )
   assert.match(
