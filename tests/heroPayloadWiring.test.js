@@ -1,14 +1,14 @@
 /**
  * The front page must not download the corpus to count it.
  *
- * `HeroSection` fetched `search-index.json` — the whole flattened corpus,
- * tens of megabytes — read `metadata.totalEntities` off the top of it, and
- * discarded the rest. It then fetched `stats.json`, a response of about a
- * kilobyte, three lines later. Both numbers were in the small one.
+ * `HeroSection` fetched `search-index.json` — every row in the corpus,
+ * megabytes of it — read `metadata.totalEntities` off the top, and discarded
+ * the rest. It then fetched `stats.json`, a few hundred bytes, three lines
+ * later. Both numbers were in the small one.
  *
  * Nothing fails when the large fetch returns: the page renders the same
  * figures, every other test stays green, and the only symptom is that the
- * first view of the site takes half a minute on a slow connection. That is
+ * first view of the site carries a payload it never reads. That is
  * precisely why this file has to say so. A later change reaching for the
  * search index here would look reasonable in review.
  *

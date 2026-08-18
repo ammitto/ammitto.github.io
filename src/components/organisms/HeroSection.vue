@@ -25,9 +25,9 @@ onMounted(async () => {
   try {
     // Both figures come from stats.json, which this page needs anyway
     // for the source count. The entity count used to be read from
-    // search-index.json instead: the whole corpus, tens of megabytes,
-    // downloaded on every visit to the front page so that one number
-    // could be taken off the top of it.
+    // search-index.json instead: every row in the corpus, megabytes of
+    // it, fetched on each visit to the front page so that one number
+    // could be taken off the top.
     const statsResponse = await fetch('/api/v1/stats.json')
     if (statsResponse.ok) {
       const stats = await statsResponse.json()
