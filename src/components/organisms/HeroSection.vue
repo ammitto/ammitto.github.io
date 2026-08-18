@@ -23,17 +23,15 @@ const handleSearch = () => {
 
 onMounted(async () => {
   try {
-    // Load from search index for entity count
-    const searchResponse = await fetch('/api/v1/search-index.json')
-    if (searchResponse.ok) {
-      const data = await searchResponse.json()
-      entityCount.value = data.metadata?.totalEntities || data.entities.length
-    }
-
-    // Load from stats for source count
+    // Both figures come from stats.json, which this page needs anyway
+    // for the source count. The entity count used to be read from
+    // search-index.json instead: the whole corpus, tens of megabytes,
+    // downloaded on every visit to the front page so that one number
+    // could be taken off the top of it.
     const statsResponse = await fetch('/api/v1/stats.json')
     if (statsResponse.ok) {
       const stats = await statsResponse.json()
+      entityCount.value = stats.total_entities || 0
       sourceCount.value = Object.keys(stats.sources || {}).length
     }
 
