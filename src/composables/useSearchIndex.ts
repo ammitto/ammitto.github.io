@@ -284,8 +284,8 @@ export function useSearchIndex() {
   // and fetches that node file directly.
   //
   // The search page calls `loadSearchIndex` and `loadFacets` itself on
-  // mount, so the page that needs the index still gets it, and the
-  // pages that do not no longer pay for it.
+  // mount, so the page that needs the index still gets it, while every
+  // other page stops paying for it.
 
   const totalEntities = computed(() => metadata.value?.totalEntities || 0)
   const sourceCount = computed(() => metadata.value?.sources || 0)

@@ -41,7 +41,12 @@ const SEARCH_PAGE = 'src/views/SearchPage.vue'
 
 test('constructing the composable does not start the download', () => {
   const source = code(read(COMPOSABLE))
-  const body = source.slice(source.indexOf('export function useSearchIndex()'))
+  // Anchor first. `indexOf` returning -1 would make `slice(-1)` take the
+  // last character of the file, and every check below would then pass
+  // against a one-character string without inspecting anything.
+  const header = source.indexOf('export function useSearchIndex()')
+  assert.notEqual(header, -1, 'useSearchIndex must still be exported by that name')
+  const body = source.slice(header)
 
   // The function returns bindings; it must not call the loaders itself.
   const returnAt = body.indexOf('return {')
