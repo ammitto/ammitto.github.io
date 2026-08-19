@@ -10,6 +10,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { regimeLabels, labelFromIri } from '../.test-build/utils/regimeAdapters.js'
+import { normalizeNode } from '../.test-build/utils/normalizeNode.js'
 
 /**
  * LIVE — https://www.ammitto.org/api/v1/node/regime/1533.jsonld, fetched
@@ -79,6 +80,24 @@ test('keeps the cn_ expansion the fallback always applied', () => {
     labelFromIri('https://www.ammitto.org/regime/cn_export_control'),
     'China: Export Control',
   )
+})
+
+test('survives the normalization every entry passes through', () => {
+  // The adapter reads entries AFTER normalizeNode, which snake_cases plain
+  // keys and synthesises an `id` beside `@id`. Asserting the adapter alone
+  // would not catch a normalization that renamed `name` out from under it.
+  const normalized = normalizeNode({
+    '@id': 'https://www.ammitto.org/entry/un/consolidated/x',
+    '@type': 'SanctionEntry',
+    regime: {
+      '@id': 'https://www.ammitto.org/regime/1533',
+      name: "1533 (Democratic People's Republic of the Congo)",
+    },
+  })
+
+  assert.deepEqual(regimeLabels([normalized]), [
+    "1533 (Democratic People's Republic of the Congo)",
+  ])
 })
 
 test('returns null for a string that is not a regime IRI', () => {
