@@ -7,6 +7,7 @@ import { selectBirthCountry } from '@/utils/birthDisplay'
 import { entityBirthClaims } from '@/utils/birthAdapters'
 import { roleClaims, statedGender, vesselImoNumber } from '@/utils/entityFacts'
 import { entryPeriodRows, listingRemarks } from '@/utils/entryAdapters'
+import { regimeLabels } from '@/utils/regimeAdapters'
 import { identificationTable } from '@/utils/identificationDisplay'
 import type { IdentificationRecord } from '@/utils/identificationDisplay'
 import {
@@ -114,7 +115,10 @@ export interface Entry {
   id: string
   entity_id: string
   authority?: string | { '@id': string }
-  regime?: { '@id': string } | { code?: string; name?: string }
+  // The producer publishes an @id reference carrying the regime's name.
+  // Optional because a source may state none, and because records
+  // harmonized before ammitto#61 carry the reference alone.
+  regime?: { '@id': string; name?: string } | { code?: string; name?: string }
   effects?: Array<{
     effect_type?: string
     scope?: string
@@ -440,30 +444,10 @@ export function useEntityData() {
     return [...new Set(types)]
   })
 
-  // Get regime names from entries (extract from @id)
-  const regimes = computed(() => {
-    const regimeNames: string[] = []
-    for (const entry of entries.value) {
-      if (entry.regime) {
-        // Extract from @id like "https://www.ammitto.org/regime/cn_export_control"
-        if ('@id' in entry.regime) {
-          const match = entry.regime['@id']?.match(/\/regime\/(.+)$/)
-          if (match) {
-            // Convert regime code to display name
-            const code = match[1]
-            const displayName = code
-              .replace(/cn_/, 'China: ')
-              .replace(/_/g, ' ')
-              .replace(/\b\w/g, c => c.toUpperCase())
-            regimeNames.push(displayName)
-          }
-        } else if ('name' in entry.regime && entry.regime.name) {
-          regimeNames.push(entry.regime.name)
-        }
-      }
-    }
-    return [...new Set(regimeNames)]
-  })
+  // Regime badges, preferring the name the producer states over a label
+  // reconstructed from the identifier. See regimeAdapters.ts for why the
+  // reconstruction cannot be made to read well.
+  const regimes = computed(() => regimeLabels(entries.value))
 
   // Get announcements from entries
   const announcements = computed(() => {
