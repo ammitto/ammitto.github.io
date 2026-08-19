@@ -159,17 +159,18 @@ jobs:
           # reasoning is obsolete: the 2026-08-07 calibration harvest
           # measured us 19189, ch 8604 and jp 5097 entities, each exit 0.
           #
-          # --allow-empty exempts the two pending sources whose input is
-          # missing upstream — ru ships no processed YAML and un_vessels has
-          # no input directory at all (their data-repo PRs are unmerged);
-          # the verify step below holds both at exactly zero. un and ca left
-          # this list on 2026-08-07: the data-repo gitignore fix landed
-          # their committed corpora, and both are now floor-gated publishing
-          # sources.
+          # --allow-empty exempts the one pending source whose input is
+          # missing upstream: ru ships no processed YAML, and the verify
+          # step below holds it at exactly zero. un and ca left this list on
+          # 2026-08-07 and un_vessels leaves it now, each for the same
+          # reason — the data-repo gitignore fix landed their committed
+          # corpora, so they are floor-gated publishing sources, and a
+          # source gated on a floor must not also be exempt from the
+          # producer's own gates or a future outage is excused twice.
           bundle exec ruby exe/ammitto harmonize \
             eu un wb uk au ca cn ru tr nz jp eu_vessels un_vessels us ch \
             --verbose --combine \
-            --allow-empty ru,un_vessels \
+            --allow-empty ru \
             --sources-dir .. \
             --output-dir ../public/api/v1
 
