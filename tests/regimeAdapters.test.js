@@ -64,6 +64,30 @@ test('deduplicates while keeping first-seen order', () => {
   ])
 })
 
+test('badges one regime once when two entries name it differently', () => {
+  // The producer's OFAC mapping sends the IRAN and IRGC programs to code
+  // IRAN under different names, so an entity on both carries one identity
+  // and two labels. Deduplicating on the text would badge it twice.
+  const iran = {
+    regime: { '@id': 'https://www.ammitto.org/regime/iran', name: 'Iran' },
+  }
+  const irgc = {
+    regime: { '@id': 'https://www.ammitto.org/regime/iran', name: 'Iran (IRGC)' },
+  }
+
+  assert.deepEqual(regimeLabels([iran, irgc]), ['Iran'])
+  // First seen wins, matching the regime node the producer keeps.
+  assert.deepEqual(regimeLabels([irgc, iran]), ['Iran (IRGC)'])
+})
+
+test('still separates two regimes that happen to share a name', () => {
+  const a = { regime: { '@id': 'https://www.ammitto.org/regime/au_iran', name: 'Iran' } }
+  const b = { regime: { '@id': 'https://www.ammitto.org/regime/iran', name: 'Iran' } }
+
+  // One badge, because the label is what a reader sees and it is the same.
+  assert.deepEqual(regimeLabels([a, b]), ['Iran'])
+})
+
 test('skips an entry with no regime, and an empty list', () => {
   assert.deepEqual(regimeLabels([{}, { regime: null }, NAMED]), [
     "1533 (Democratic People's Republic of the Congo)",

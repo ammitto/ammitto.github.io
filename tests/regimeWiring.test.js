@@ -58,8 +58,13 @@ test('useEntityData imports the adapter for real', () => {
 test('the composable does not rebuild a label from the identifier', () => {
   const source = stripComments(read(COMPOSABLE))
 
+  // The regex alone catches a verbatim revert — checked against the real
+  // prior source — and the quoted variants close the gap where an author
+  // rewrites the literal while keeping the derivation.
   assert.equal(
-    /\/regime\\?\/\(\.\+\)\$\//.test(source) || source.includes("'China: '"),
+    /\/regime\\?\/\(\.\+\)\$\//.test(source) ||
+      source.includes("'China: '") ||
+      source.includes('"China: "'),
     false,
     `${COMPOSABLE} reconstructs a regime label; that belongs in regimeAdapters`,
   )
