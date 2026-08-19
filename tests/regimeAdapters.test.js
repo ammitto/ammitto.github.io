@@ -80,7 +80,7 @@ test('badges one regime once when two entries name it differently', () => {
   assert.deepEqual(regimeLabels([irgc, iran]), ['Iran (IRGC)'])
 })
 
-test('still separates two regimes that happen to share a name', () => {
+test('badges two regimes sharing a name once, losing that there were two', () => {
   const a = { regime: { '@id': 'https://www.ammitto.org/regime/au_iran', name: 'Iran' } }
   const b = { regime: { '@id': 'https://www.ammitto.org/regime/iran', name: 'Iran' } }
 

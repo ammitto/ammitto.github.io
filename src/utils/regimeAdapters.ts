@@ -41,13 +41,23 @@ export function labelFromIri(iri: string): string | null {
 /**
  * One label per distinct regime across the entries, in first-seen order.
  *
- * Distinctness is by IRI, not by label. One regime can reach two entries
- * under two names: the producer's OFAC mapping sends both the `IRAN` and
- * `IRGC` programs to code `IRAN`, naming them `Iran` and `Iran (IRGC)`,
- * so an entity listed under both carries one identity and two labels.
- * Deduplicating on the text would badge that entity twice for one regime.
- * The first name wins, which is what the producer's own regime node does
- * with `@regimes[slug] ||=`, so the badge and the node agree.
+ * TWO rules, because identity and rendering fail differently here.
+ *
+ * By IRI: one regime can reach two entries under two names. The
+ * producer's OFAC mapping sends both the `IRAN` and `IRGC` programs to
+ * code `IRAN`, naming them `Iran` and `Iran (IRGC)`, so an entity listed
+ * under both carries one identity and two labels. The first name wins,
+ * which is what the producer's own regime node does with
+ * `@regimes[slug] ||=`, so the badge and the node agree.
+ *
+ * By text: two DIFFERENT regimes can carry the same name — `au_iran` and
+ * `iran` are both "Iran". They are distinct identities, and this returns
+ * one badge for them anyway, because the return type is the text a reader
+ * sees and two identical badges tell that reader nothing. What is lost is
+ * real: the page stops showing that the entity is listed under two
+ * regimes. Saying so would mean disambiguating the label, which is a
+ * design question about what a badge should carry, not something to
+ * settle by rendering "Iran" twice.
  *
  * A blank name is treated as absent rather than rendered: a source that
  * states `""` has not named the regime, and an empty badge is worse than
