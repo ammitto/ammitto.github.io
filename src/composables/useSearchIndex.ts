@@ -275,11 +275,17 @@ async function loadFullEntity(idOrRef: string): Promise<Record<string, unknown> 
  * Composable for search index access
  */
 export function useSearchIndex() {
-  // Load data on first use
-  if (!isLoaded.value && !isLoading.value) {
-    loadSearchIndex()
-    loadFacets()
-  }
+  // Deliberately does NOT start loading here.
+  //
+  // Constructing the composable used to kick off the search index, the
+  // whole corpus, on first use. `useEntityData` calls this to reach
+  // `loadFullEntity`, so opening any entity page downloaded it and then
+  // read nothing from it: `loadFullEntity` derives the ref from the IRI
+  // and fetches that node file directly.
+  //
+  // The search page calls `loadSearchIndex` and `loadFacets` itself on
+  // mount, so the page that needs the index still gets it, while every
+  // other page stops paying for it.
 
   const totalEntities = computed(() => metadata.value?.totalEntities || 0)
   const sourceCount = computed(() => metadata.value?.sources || 0)

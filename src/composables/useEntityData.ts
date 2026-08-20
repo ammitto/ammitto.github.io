@@ -190,7 +190,11 @@ const ENTITY_IRI_BASE = 'https://www.ammitto.org/'
 
 export function useEntityData() {
   const route = useRoute()
-  const { loadFullEntity, loadSearchIndex, isLoaded, isLoading } = useSearchIndex()
+  // Only loadFullEntity is needed here. The entity page fetches its node
+  // file and its entry nodes directly by IRI; it never reads the search
+  // index, and pulling the other bindings in was what tied this page to
+  // loading the whole corpus.
+  const { loadFullEntity } = useSearchIndex()
 
   const entity = ref<FullEntity | null>(null)
   const entries = ref<Entry[]>([])
@@ -209,11 +213,6 @@ export function useEntityData() {
     legalBasisNodes.value = new Map()
 
     try {
-      // Ensure search index is loaded (for ref lookup)
-      if (!isLoaded.value && !isLoading.value) {
-        await loadSearchIndex()
-      }
-
       // Try to load full entity from node file
       const data = await loadFullEntity(ref)
 
