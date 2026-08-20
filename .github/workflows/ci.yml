@@ -72,6 +72,25 @@ jobs:
           SKIP_API_DATA: '1'
         run: npm run build
 
+      - name: The build emitted the SPA fallback
+        # The unit test can only read vite.config.ts and see that a copy is
+        # written; it cannot prove one happened. This can. Without
+        # dist/404.html every deep link on the deployed site returns
+        # GitHub's own 404 page — /entity/eu/eu100160 did, measured live —
+        # and the symptom appears only after deploy, on a URL nobody
+        # clicks through to in review.
+        #
+        # Identity matters as much as existence: the fallback has to BE
+        # the app shell. A stub or a stale copy would answer with a page
+        # that never boots the router, which looks like a working 404 and
+        # is worse than the host's.
+        run: |
+          test -f dist/404.html \
+            || { echo 'dist/404.html was not emitted'; exit 1; }
+          cmp dist/404.html dist/index.html \
+            || { echo 'dist/404.html is not the rendered app shell'; exit 1; }
+          echo "SPA fallback present, $(stat -c%s dist/404.html) bytes, identical to index.html"
+
       - name: Install Playwright chromium
         # Only chromium, and only its own dependencies. The browser version is
         # pinned by the exact @playwright/test version in package-lock.json.
