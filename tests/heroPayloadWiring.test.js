@@ -57,10 +57,23 @@ test('the hero fetches only the two small documents', () => {
   const source = code(read(HERO))
   const allowed = ['/api/v1/stats.json', '/api/v1/facets/types.json']
 
-  const fetched = [...source.matchAll(/fetch\(\s*([`'"])([^`'"]*)\1/g)]
+  const calls = [...source.matchAll(/\bfetch\(/g)]
+  const fetched = [...source.matchAll(/\bfetch\(\s*([`'"])([^`'"]*)\1/g)]
     .map((m) => m[2])
 
-  assert.ok(fetched.length > 0, `${HERO} makes no literal fetch call at all`)
+  assert.ok(calls.length > 0, `${HERO} makes no fetch call at all`)
+
+  // Every call must pass a literal, or the check below cannot see it:
+  // `const url = '/api/v1/' + 'search' + '-index.json'; fetch(url)` has no
+  // literal inside fetch(...) and would otherwise sail past an allowed-set
+  // that only inspects what it can read. Writing the path inline is not a
+  // style preference here, it is what makes the payload reviewable.
+  assert.equal(
+    fetched.length,
+    calls.length,
+    `${HERO} calls fetch() with something other than a literal path; ` +
+      'write the path inline so this file can see what the page downloads',
+  )
 
   for (const url of fetched) {
     assert.ok(
