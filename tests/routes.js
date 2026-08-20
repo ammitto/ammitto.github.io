@@ -42,6 +42,15 @@ export const STATIC_ROUTES = [
  * sample id drawn from the committed snapshot.
  */
 export const PARAM_ROUTES = [
+  // The catch-all. `routerPath` is the pattern the router declares; `path`
+  // is a URL that matches nothing else, which is the only way to reach it.
+  // It is here rather than in STATIC_ROUTES because the two differ: every
+  // other entry visits the path it declares.
+  {
+    routerPath: '/:pathMatch(.*)*',
+    path: '/no-such-page-exists',
+    contains: 'Page not found',
+  },
   { routerPath: '/entity/:id(.*)', path: '/entity/cn/1-general-dynamics', contains: 'General Dynamics' },
   {
     routerPath: '/organization/:id(.*)',

@@ -25,6 +25,7 @@ import DocumentTypePage from '@/views/DocumentTypePage.vue'
 import OrganizationPage from '@/views/OrganizationPage.vue'
 import OntologyBrowserPage from '@/views/OntologyBrowserPage.vue'
 import LicensePage from '@/views/LicensePage.vue'
+import NotFoundPage from '@/views/NotFoundPage.vue'
 
 export const routes: RouteRecordRaw[] = [
   { path: '/', name: 'home', component: HomePage },
@@ -51,6 +52,11 @@ export const routes: RouteRecordRaw[] = [
   { path: '/browse/organizations', name: 'browse-organizations', component: BrowseOrganizationsPage },
   { path: '/ontology', name: 'ontology', component: OntologyBrowserPage },
   { path: '/license', name: 'license', component: LicensePage },
+  // Last, and it must exist. GitHub Pages answers every unknown path with
+  // 404.html, which is this app's shell, so the router — not the host —
+  // now decides what an unmatched URL shows. Without this record it shows
+  // a blank column between the header and the footer.
+  { path: '/:pathMatch(.*)*', name: 'not-found', component: NotFoundPage },
 ]
 
 export default routes

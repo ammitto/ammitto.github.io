@@ -86,6 +86,31 @@ test('a missing shell fails the build rather than shipping no fallback', () => {
   )
 })
 
+/**
+ * The fallback hands an unmatched path to the router instead of to the
+ * host, so the router has to have an answer for one. Without this record
+ * `<RouterView>` renders nothing and the page is a header, a footer and a
+ * blank column — which reads as a broken site, not a wrong address.
+ *
+ * Whether the file is actually written is checked where it can be: the CI
+ * build asserts dist/404.html exists and is byte-identical to
+ * dist/index.html. This file can only read source text, and says so.
+ */
+test('an unmatched path has somewhere to land', () => {
+  const source = code(read(ROUTER))
+
+  assert.match(
+    source,
+    /path:\s*'\/:pathMatch\(\.\*\)\*?'/,
+    'the router must have a catch-all route, or 404.html renders an empty shell',
+  )
+  assert.match(
+    source,
+    /NotFoundPage/,
+    'the catch-all must render a real not-found view',
+  )
+})
+
 test('the dynamic route families are still the ones covered', () => {
   const source = code(read(ROUTER))
 
