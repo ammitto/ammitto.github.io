@@ -65,9 +65,16 @@ test('constructing the composable does not start the download', () => {
 test('the entity page does not wait on the search index', () => {
   const source = code(read(ENTITY_DATA))
 
+  // Not `await loadSearchIndex()` — ANY call. The await is one spelling of
+  // the mistake; `void useSearchIndex().loadSearchIndex()` and
+  // `Promise.all([loadSearchIndex(), loadFullEntity(ref)])` both start the
+  // 2.68 MB download again while reading as tidier code. The entity path
+  // has no use for the corpus at all, so the honest rule is that this file
+  // never names that loader.
   assert.ok(
-    !/await\s+loadSearchIndex\(\)/.test(source),
-    'the entity path must not await the corpus before fetching its node',
+    !/\bloadSearchIndex\b/.test(source),
+    'the entity path must not call loadSearchIndex in any form: it needs ' +
+      'one node, and the corpus is 2.68 MB it never reads',
   )
   // Taking only what it uses is what keeps the coupling gone; pulling the
   // loader back into scope is the first step to calling it again.
