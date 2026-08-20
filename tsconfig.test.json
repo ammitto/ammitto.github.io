@@ -45,6 +45,7 @@
     "src/utils/entityFacts.ts",
     "src/utils/entryAdapters.ts",
     "src/utils/legalBasisAdapters.ts",
+    "src/utils/regimeAdapters.ts",
     "src/utils/identificationDisplay.ts",
     "src/utils/searchFilters.ts",
     "src/utils/sourceCatalog.ts",
