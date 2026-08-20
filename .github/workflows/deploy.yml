@@ -59,39 +59,61 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ammitto/ammitto
-          # Pinned to ammitto/ammitto main, moved twelve commits from
-          # 3db2e4ea for the vocabulary the organization and document-type
-          # pages read. 97e378e loads EVERY requested source's supplement
-          # directories instead of stopping at the first match: uk's was
-          # the only one that ever loaded, so the graph carried six
-          # document types and five organizations, all uk/. With ch, cn,
-          # jp, ru and us joining it that becomes 35 and 37, and the
-          # by-organization/ and by-document-type/ slices stop being
-          # uk-only. 5e8b95c publishes OFAC full-date birth spans as
-          # dateRangeFrom/dateRangeTo rather than collapsing each to its
-          # lower endpoint and asserting a precise date OFAC never stated.
+          # Pinned to ammitto/ammitto main, moved six commits from
+          # 5e8b95c. The one that matters is 7fd41eb: the RDF this site
+          # publishes did not parse. Regime IRIs were built by
+          # interpolating the source's own code, Canada states those
+          # bilingually ("CA_Belarus / Belarus") and OFAC states
+          # "CAATSA - Russia", and a Turtle IRIREF cannot hold a space.
+          # Reading the all.ttl this pin produces with
+          # RDF::Turtle::Reader validate:true dies with 27,330 fatal
+          # recovery errors after 2,459,585 statements; 4,521 of its
+          # 379,241 IRIREFs carry a character the grammar forbids. The
+          # same read of the new pin's file returns 2,513,688 statements
+          # with no error and none forbidden, so the bad IRIs were
+          # costing 54,103 statements.
           #
-          # This exact gem tree (5e8b95c) passed the full composed proof on
-          # 2026-08-13. Both pins were harmonized over ONE set of fresh
-          # clones of all 15 data-* repositories, so the delta is the gem
-          # alone: harmonize exit 0 and verify exit 0 at both, 60,981
-          # entities and 60,981 entries at both, every per-source count
-          # identical, every floor ~43% clear. Output delta over 123,415
-          # files: 135 added, 0 removed, 4,301 changed once retrievedAt
-          # timestamps are normalized out; every aggregate's field
-          # inventory grows and none loses a field. On this repo's own
-          # browser suite the bump takes 14 failures to 8 on identical
-          # hardware, removing exactly the eight that /organization/cn/
-          # state-council and /document-type/cn/ministry-of-commerce-order
-          # produced by fetching a 404 and throwing on the HTML; the eight
-          # that remain fail at the old pin too.
+          # The raw code was also the node filename and the tail
+          # by-regime groups on, so " / " acted as a path separator.
+          # Measured over this harvest: the old pin leaves 170 reachable
+          # regime node files plus ELEVEN stray subdirectories, against
+          # 169 facet entries and 181 slices, so no two of the three
+          # agree. The new pin gives 179 nodes, 179 slices and 179
+          # facets with no orphan in any direction.
+          #
+          # b1db55c puts the regime NAME on each entry's reference, so a
+          # consumer has a label without a second fetch; the site half
+          # of that is #30, already merged. 722b65a adds
+          # api/v1/index.jsonld, a catalogue of what the run produced --
+          # nothing at the root listed the artefacts before, and
+          # GitHub Pages serves no directory listing. 131666f, e898c32
+          # and 098dfa3 are the harmonize report, a document-type path
+          # guard and the fleet monitor's recency fix; none changes what
+          # is published here.
+          #
+          # Both pins were harmonized over ONE set of clones of the 15
+          # data-* repositories, so the delta is the gem alone: 14
+          # succeeded, 0 failed, 1 exempted at both, 61,045 entities and
+          # 61,045 entries at both, every per-source count identical.
+          # Output delta over 123,550 files: 43 added, 44 removed, all
+          # of them by-regime slices whose names carried spaces, accents
+          # or " / "; the net -1 is ca_moldova absorbing "ca_moldova ".
+          # all.jsonld 153,132,768 -> 155,668,276 bytes, which is the
+          # regime names now riding on every entry reference; all.ttl
+          # 115,243,969 -> 115,224,538.
           #
           # .github/harmonize-thresholds.json is deliberately NOT
-          # regenerated: the bump moves no gated count, so its floors still
-          # hold. Its gem_commit field now trails this pin, and the
-          # workflow does not read it. Pin-to-SHA stays the policy —
-          # tracking floating main is a pending policy decision.
-          ref: 5e8b95c7fae93c05ba292d9fff3e13294b3effdd
+          # regenerated, and this time that was checked rather than
+          # assumed: every source floor and the total floor were
+          # compared against the new pin's stats.json and every gated
+          # count is identical, so each floor holds with exactly the
+          # margin it was derived with. Its gem_commit still reads
+          # 5e8b95c, six commits behind this pin; the verify step reads
+          # publishing_sources, pending_sources, source_floors and
+          # total_entities_floor from that file and none of the
+          # provenance fields, so the staleness is cosmetic.
+          # Pin-to-SHA stays the policy.
+          ref: 722b65aa5355f501af3483c08734eab03df7c0b4
           path: ammitto-gem
 
       - name: Checkout data repositories
