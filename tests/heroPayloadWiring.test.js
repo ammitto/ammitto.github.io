@@ -45,6 +45,31 @@ test('the hero does not fetch the search index', () => {
   )
 })
 
+/**
+ * The check above matches one contiguous token, so `'search' + '-index'`
+ * walks past it. Rather than chase spellings, this pins the whole set: the
+ * hero may fetch these two paths and nothing else. A reintroduced corpus
+ * download fails here however it is spelled, because the literal it passes
+ * to fetch is not on the list — and a genuinely new endpoint fails too,
+ * which is the point at which someone should think about payload again.
+ */
+test('the hero fetches only the two small documents', () => {
+  const source = code(read(HERO))
+  const allowed = ['/api/v1/stats.json', '/api/v1/facets/types.json']
+
+  const fetched = [...source.matchAll(/fetch\(\s*([`'"])([^`'"]*)\1/g)]
+    .map((m) => m[2])
+
+  assert.ok(fetched.length > 0, `${HERO} makes no literal fetch call at all`)
+
+  for (const url of fetched) {
+    assert.ok(
+      allowed.includes(url),
+      `${HERO} fetches ${url}; allowed: ${allowed.join(', ')}`,
+    )
+  }
+})
+
 test('the hero takes its entity count from the stats response', () => {
   const source = code(read(HERO))
 
