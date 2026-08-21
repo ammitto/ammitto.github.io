@@ -22,3 +22,11 @@ Gemfile.lock
 # Playwright output (traces, screenshots and the HTML report from test:e2e)
 test-results
 playwright-report
+
+# Emitted by `vue-tsc -b` for tsconfig.node.json, which is a composite
+# project and therefore must emit. Nothing reads these — Vite loads
+# vite.config.ts directly — but they used to land in the repo root and
+# were committed, so every typecheck dirtied the working tree with two
+# stale build artifacts. tsconfig.node.json now sends them here instead.
+node_modules/.tmp
+
