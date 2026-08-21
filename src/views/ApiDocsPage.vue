@@ -2,53 +2,146 @@
 import CodeBlock from '@/components/molecules/CodeBlock.vue'
 import { pillToneVars, METHOD_SEED } from '@/config/palette'
 
-const baseUrl = 'https://ammitto.github.io/api/v1'
+const baseUrl = 'https://www.ammitto.org/api/v1'
 
+// Every path below is taken from the catalogue the producer publishes at
+// /index.jsonld, and every response shape from a live fetch of that path.
+// The page used to list two endpoints against a base URL that redirects,
+// with a @context we do not emit and counts from a corpus a seventh the
+// size of today's. Start from the catalogue when this needs updating.
 const endpoints = [
   {
     method: 'GET',
+    path: '/index.jsonld',
+    description:
+      'Catalogue of everything a run published: each file with its media type and byte size, each collection with its members. Start here rather than guessing a path.',
+    example: `curl ${baseUrl}/index.jsonld`,
+    response: `{
+  "@context": "https://ammitto.org/api/v1/context.jsonld",
+  "@type": "Index",
+  "slice": "catalogue",
+  "generated": "2026-08-20T13:30:48Z",
+  "entries": [
+    {
+      "name": "all.jsonld",
+      "url": "all.jsonld",
+      "mediaType": "application/ld+json",
+      "description": "Every node in one graph",
+      "bytes": 155683385
+    },
+    {
+      "name": "sources",
+      "url": "sources",
+      "description": "One aggregate per source",
+      "members": ["au.jsonld", "ca.jsonld", "ch.jsonld", "..."]
+    }
+  ]
+}`
+  },
+  {
+    method: 'GET',
     path: '/stats.json',
-    description: 'Get overall statistics including entity counts by source.',
+    description: 'Entity and entry counts per source, and the totals. About 1 KB — read this rather than counting a larger file.',
     example: `curl ${baseUrl}/stats.json`,
     response: `{
-  "exported_at": "2024-01-15T00:00:00Z",
+  "generated_at": "2026-08-20T13:30:48Z",
   "sources": {
-    "eu": { "entities": 5860, "entries": 6234 },
-    "un": { "entities": 877, "entries": 945 },
-    "us": { "entities": 444, "entries": 512 },
-    "wb": { "entities": 1370, "entries": 1420 }
+    "eu": { "entities": 6329, "entries": 6329 },
+    "us": { "entities": 19207, "entries": 19207 },
+    "uk": { "entities": 6349, "entries": 6349 }
   },
-  "totals": { "entities": 8551, "entries": 9111 }
+  "total_entities": 61051,
+  "total_entries": 61051,
+  "total_regimes": 179
 }`
   },
   {
     method: 'GET',
     path: '/sources/{source}.jsonld',
-    description: 'Get all entities from a specific source in JSON-LD format.',
+    description: 'Every entity and entry from one source, as JSON-LD. Fourteen sources publish today; the catalogue lists them.',
     example: `curl ${baseUrl}/sources/eu.jsonld`,
     response: `{
-  "@context": "https://schema.org",
+  "@context": "https://ammitto.org/api/v1/context.jsonld",
   "@graph": [
     {
-      "@id": "eu-entity-123",
+      "@id": "https://www.ammitto.org/entity/eu/13",
       "@type": "PersonEntity",
       "entityType": "person",
       "names": [
-        { "@type": "Name", "fullName": "John Doe", "isPrimary": true }
-      ],
-      "sourceReferences": [
-        { "@type": "SourceReference", "sourceCode": "eu", "referenceNumber": "EU.123.45" }
+        { "@type": "NameVariant", "fullName": "…", "script": "Latn", "isPrimary": true }
       ]
     }
+  ]
+}`
+  },
+  {
+    method: 'GET',
+    path: '/node/entity/{source}/{id}.jsonld',
+    description: 'One entity on its own. Cheaper than the source aggregate when you already know the identifier; /node/entity/index.jsonld lists them.',
+    example: `curl ${baseUrl}/node/entity/au/100.jsonld`,
+    response: `{
+  "@id": "https://www.ammitto.org/entity/au/100",
+  "@type": "PersonEntity",
+  "entityType": "person",
+  "names": [
+    { "@type": "NameVariant", "fullName": "Nazir Mohammad Abdul Basir", "script": "Latn", "isPrimary": true },
+    { "@type": "NameVariant", "fullName": "Nazar Mohammad", "script": "Latn", "isPrimary": false }
+  ]
+}`
+  },
+  {
+    method: 'GET',
+    path: '/all.jsonld and /all.ttl',
+    description:
+      'The whole graph in one file — JSON-LD or RDF/Turtle. Large: 155 MB and 115 MB respectively, though the JSON-LD transfers at about 8 MB gzipped. Prefer a source aggregate or a node document unless you genuinely want everything.',
+    example: `curl -H 'Accept-Encoding: gzip' ${baseUrl}/all.jsonld`,
+    response: `{
+  "@context": "https://ammitto.org/api/v1/context.jsonld",
+  "@graph": [ /* every entity, entry, regime, authority and instrument */ ]
+}`
+  },
+  {
+    method: 'GET',
+    path: '/ontology/classes.jsonld',
+    description:
+      'The published vocabulary: 18 classes, with properties.jsonld and hierarchy.json beside it. context.jsonld at the root maps the terms every document above uses.',
+    example: `curl ${baseUrl}/ontology/classes.jsonld`,
+    response: `{
+  "@context": "https://ammitto.org/api/v1/context.jsonld",
+  "@graph": [
+    {
+      "@id": "https://www.ammitto.org/ontology/Entity",
+      "@type": "rdfs:Class",
+      "label": "Entity",
+      "comment": "Base class for all sanctionable entities"
+    }
+  ]
+}`
+  },
+  {
+    method: 'GET',
+    path: '/facets/{facet}.json',
+    description: 'Value lists for filtering — types, authorities, regimes, list types, countries, statuses — each with a count.',
+    example: `curl ${baseUrl}/facets/types.json`,
+    response: `{
+  "facets": [
+    { "code": "person", "name": "Person", "icon": "user", "count": 31239 },
+    { "code": "organization", "name": "Organization", "icon": "building", "count": 26819 },
+    { "code": "vessel", "name": "Vessel", "icon": "ship", "count": 2651 }
   ]
 }`
   },
 ]
 
 const codeExamples = {
-  javascript: `// Fetch all EU entities
-const response = await fetch('https://ammitto.github.io/api/v1/sources/eu.jsonld');
-const data = await response.json();
+  javascript: `// Ask the catalogue what exists before fetching anything
+const index = await (await fetch('${baseUrl}/index.jsonld')).json();
+for (const entry of index.entries) {
+  console.log(entry.name, entry.bytes ?? \`\${entry.members?.length ?? 0} members\`);
+}
+
+// Then take one source
+const data = await (await fetch('${baseUrl}/sources/eu.jsonld')).json();
 
 // The graph holds entity AND sanction-entry nodes; entries carry no names
 for (const node of data['@graph']) {
@@ -58,23 +151,26 @@ for (const node of data['@graph']) {
   ruby: `require 'net/http'
 require 'json'
 
-# Fetch stats
-uri = URI('https://ammitto.github.io/api/v1/stats.json')
-response = Net::HTTP.get(uri)
-stats = JSON.parse(response)
+stats = JSON.parse(Net::HTTP.get(URI('${baseUrl}/stats.json')))
 
-puts "Total entities: #{stats['totals']['entities']}"`,
+# The totals are top-level keys, not nested under "totals"
+puts "Entities: #{stats['total_entities']} across #{stats['sources'].size} sources"
+
+stats['sources'].each { |code, c| puts "  #{code}: #{c['entities']}" }`,
   python: `import requests
 
-# Fetch EU entities
-response = requests.get('https://ammitto.github.io/api/v1/sources/eu.jsonld')
-data = response.json()
+BASE = '${baseUrl}'
 
-# The graph holds entity AND sanction-entry nodes; entries carry no names
-for node in data['@graph']:
-    if '/entity/' not in node['@id']:
+# One entity, by identifier — far cheaper than the source aggregate
+node = requests.get(f'{BASE}/node/entity/au/100.jsonld').json()
+print(node['@type'], node['names'][0]['fullName'])
+
+# Or a whole source
+data = requests.get(f'{BASE}/sources/eu.jsonld').json()
+for n in data['@graph']:
+    if '/entity/' not in n['@id']:
         continue
-    for name in node.get('names', [])[:1]:
+    for name in n.get('names', [])[:1]:
         if name.get('fullName'):
             print(name['fullName'])`,
 }

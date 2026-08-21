@@ -1,8 +1,18 @@
 <script setup lang="ts">
 import CodeBlock from '@/components/molecules/CodeBlock.vue'
 
+// Every @type and field below was read off published nodes, not written
+// from the models. The sample used to name schema.org as its context and
+// Name as its name-node type; the producer has never emitted either, so
+// a consumer matching on them got nothing. Names are NameVariant and
+// carry a script; SourceReference carries retrievedAt.
+//
+// hasSanctionEntry is the link from an entity to the designation against
+// it, and it is on every entity node (3855/3855 in au, 276/276 in tr).
+// Leaving it out left the sample with no way to reach the half of the
+// graph that says why an entity is listed.
 const entitySchema = `{
-  "@context": "https://schema.org",
+  "@context": "https://ammitto.org/api/v1/context.jsonld",
   "@graph": [
     {
       "@id": "string",
@@ -10,8 +20,9 @@ const entitySchema = `{
       "entityType": "person | organization | vessel | aircraft",
       "names": [
         {
-          "@type": "Name",
+          "@type": "NameVariant",
           "fullName": "string",
+          "script": "string (ISO 15924, e.g. Latn, Arab, Cyrl)",
           "isPrimary": "boolean"
         }
       ],
@@ -19,13 +30,17 @@ const entitySchema = `{
         {
           "@type": "SourceReference",
           "sourceCode": "string",
-          "referenceNumber": "string"
+          "referenceNumber": "string (optional)",
+          "url": "string (optional)",
+          "retrievedAt": "string (ISO 8601)"
         }
       ],
       "birthInfo": [
         {
           "@type": "BirthInfo",
           "date": "string (optional)",
+          "year": "integer (optional, when only the year is known)",
+          "circa": "boolean",
           "country": "string (optional)"
         }
       ],
@@ -39,6 +54,16 @@ const entitySchema = `{
           "postalCode": "string (optional)"
         }
       ],
+      "identifications": [
+        {
+          "@type": "Identification",
+          "type": "string (passport, national-id, ...)",
+          "number": "string",
+          "issuingCountry": "string (optional)"
+        }
+      ],
+      "nationalities": ["string"],
+      "hasSanctionEntry": ["string (IRI of a SanctionEntry node)"],
       "remarks": "string (optional)"
     }
   ]
@@ -179,6 +204,27 @@ const entityTypeDescriptions = [
                   the attribute.
                 -->
                 <td class="p-4">Array of address objects (persons and organizations only)</td>
+              </tr>
+              <tr class="border-b border-light-border dark:border-dark-border">
+                <td class="p-4 font-mono text-sm">nationalities</td>
+                <td class="p-4">array</td>
+                <td class="p-4">Nationality names, as plain strings rather than objects</td>
+              </tr>
+              <tr class="border-b border-light-border dark:border-dark-border">
+                <td class="p-4 font-mono text-sm">identifications</td>
+                <td class="p-4">array</td>
+                <td class="p-4">Passport, national ID and other document numbers</td>
+              </tr>
+              <tr class="border-b border-light-border dark:border-dark-border">
+                <td class="p-4 font-mono text-sm">hasSanctionEntry</td>
+                <td class="p-4">array</td>
+                <!--
+                  The only route from an entity to the designation against
+                  it. Absent from this table, a reader had no way to learn
+                  that the reason, authority, regime and status live on a
+                  separate SanctionEntry node.
+                -->
+                <td class="p-4">IRIs of the SanctionEntry nodes designating this entity</td>
               </tr>
               <tr>
                 <td class="p-4 font-mono text-sm">remarks</td>
