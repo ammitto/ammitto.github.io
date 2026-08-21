@@ -86,8 +86,11 @@ The deployment workflow:
 
 . Checks out the website repository
 . Checks out the ammitto gem repository
-. Clones all 15 data-* repositories
-. Runs `ammitto harmonize --scan` to generate API data
+. Clones the data-* repositories the workflow names
+. Runs `ammitto harmonize` over the explicitly named sources to generate
+  API data. They are listed rather than discovered with `--scan`, so that
+  the published set stays exactly the set
+  `.github/harmonize-thresholds.json` was calibrated against
 . Builds the Vue.js application with Vite
 . Deploys to GitHub Pages
 
