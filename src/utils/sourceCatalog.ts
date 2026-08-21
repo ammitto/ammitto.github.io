@@ -47,7 +47,6 @@ export const ALL_SOURCES: readonly string[] = [
  */
 export const SOURCES_WITHOUT_AGGREGATE: readonly string[] = [
   'ru',
-  'un_vessels',
 ]
 
 /**
