@@ -3,6 +3,7 @@ import { onMounted, computed, watch, reactive } from 'vue'
 import { useRoute } from 'vue-router'
 import Badge from '@/components/atoms/Badge.vue'
 import { useEntityData } from '@/composables/useEntityData'
+import SourceDocuments from '@/components/molecules/SourceDocuments.vue'
 import { sources, entityTypes } from '@/config'
 
 const route = useRoute()
@@ -135,6 +136,30 @@ watch(entityId, (newId) => {
     loadEntity(newId)
   }
 }, { immediate: false })
+
+// The same path `loadFullEntity` fetches, offered to the reader. Deriving
+// it here rather than hardcoding keeps the link and the fetch in step: if
+// the node layout moves, both move together.
+const documents = computed(() => {
+  const ref = entityId.value
+  if (!ref) return []
+  const base = import.meta.env.BASE_URL || '/'
+  const docs = [
+    {
+      label: `${ref.replace('/', '-')}.jsonld`,
+      href: `${base}api/v1/node/entity/${ref}.jsonld`,
+      note: 'this record',
+    },
+  ]
+  if (source.value) {
+    docs.push({
+      label: `${source.value}.jsonld`,
+      href: `${base}api/v1/sources/${source.value}.jsonld`,
+      note: 'every record from this source',
+    })
+  }
+  return docs
+})
 
 const sourceInfo = computed(() => {
   if (!source.value) return null
@@ -782,6 +807,11 @@ onMounted(async () => {
             </div>
           </div>
         </details>
+
+        <SourceDocuments
+          subject="this entity"
+          :documents="documents"
+        />
       </article>
     </div>
   </div>
