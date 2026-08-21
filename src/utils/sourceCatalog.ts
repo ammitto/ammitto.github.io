@@ -4,20 +4,21 @@
  *
  * These are two different questions and the composable used to conflate
  * them: it fetched `sources/{code}.jsonld` for every code it listed, so
- * every browse visit spent two requests discovering a 404 it could have
- * known about. The sources concerned harmonize to zero entities, so the
- * deploy publishes no aggregate for them at all — and the deploy's own
- * verify gate holds them at zero, which means the 404 is the designed
- * outcome rather than a broken upload.
+ * every browse visit spent a request per excluded code discovering a 404
+ * it could have known about. A source in that set harmonizes to zero
+ * entities, so the deploy publishes no aggregate for it at all — and the
+ * deploy's own verify gate holds it at zero, which means the 404 is the
+ * designed outcome rather than a broken upload.
  *
- * Dropping those codes from the list would swap one defect for a worse
- * one. The list is also what the browse page iterates to assemble its
- * results, and both sources are expected to start publishing once their
- * data-repo work lands; a list that had quietly forgotten them would then
- * keep working and keep showing nothing, with no 404 left to notice. So
- * every source stays named here and the two facts are kept apart: the
- * catalogue says what exists, `SOURCES_WITHOUT_AGGREGATE` says what is not
- * served yet. Publishing one is a one-line deletion from that set.
+ * Dropping such a code from the catalogue would swap one defect for a
+ * worse one. The catalogue is also what the browse page iterates to
+ * assemble its results, and an excluded source is expected to start
+ * publishing once its data-repo work lands; a catalogue that had quietly
+ * forgotten it would then keep working and keep showing nothing, with no
+ * 404 left to notice. So every source stays named here and the two facts
+ * are kept apart: the catalogue says what exists,
+ * `SOURCES_WITHOUT_AGGREGATE` says what is not served yet. Publishing one
+ * is a one-line deletion from that set.
  *
  * Everything here is pure: no `vue`, no `fetch`, no aliases. The unit
  * tests run the emitted JavaScript on plain Node, which resolves ESM
@@ -47,7 +48,6 @@ export const ALL_SOURCES: readonly string[] = [
  */
 export const SOURCES_WITHOUT_AGGREGATE: readonly string[] = [
   'ru',
-  'un_vessels',
 ]
 
 /**
