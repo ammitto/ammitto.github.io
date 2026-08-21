@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import CodeBlock from '@/components/molecules/CodeBlock.vue'
 
+// Every call below was executed against the gem before being written
+// down. The page used to document `Ammitto::Client.new`, `client.entities`,
+// `client.stats`, `config.base_url` and `config.cache_enabled` — none of
+// which exist. `Ammitto::Client` is a namespace module, so `.new` raises
+// NoMethodError, and so do both of those config setters. Nothing on this
+// page ran.
 const installCode = `# Add to Gemfile
 gem 'ammitto'
 
@@ -9,44 +15,108 @@ gem install ammitto`
 
 const usageCode = `require 'ammitto'
 
-# Initialize client
-client = Ammitto::Client.new
+# Search every source. Returns an Ammitto::Search::ResultSet.
+results = Ammitto.search('bin laden')
 
-# Get all EU entities
-eu_entities = client.entities(source: 'eu')
+# Narrow it: :sources, :limit and :offset are the options search accepts
+eu_results = Ammitto.search('bin laden', sources: [:eu], limit: 25)
 
-# Search entities
-results = client.search('bin laden')
+puts "Found #{results.size} of #{results.total_count}"
 
-# Get statistics
-stats = client.stats
+# Entries are entity objects. display_name is the string; primary_name
+# returns a NameVariant, which is rarely what you want to print.
+results.each do |entity|
+  puts "#{entity.entity_type}: #{entity.display_name}"
+end
 
-puts "Total entities: #{stats[:total_entities]}"
+# The set can slice itself without a second query
+vessels = results.by_entity_type('vessel')
+puts results.entity_types.inspect
 
-# Iterate over entities
-eu_entities.each do |entity|
-  puts entity.primary_name
-end`
+# Which sources exist, and what is cached locally
+puts Ammitto.sources.inspect
+puts Ammitto.cache_status.inspect
+
+# Refresh the local cache (~/.ammitto by default)
+Ammitto.refresh_cache`
 
 const railsCode = `# config/initializers/ammitto.rb
 Ammitto.configure do |config|
-  config.base_url = 'https://ammitto.github.io/api/v1'
-  # Optional: Cache entities
-  config.cache_enabled = true
-  config.cache_ttl = 3600 # seconds
+  # Set this to the host that serves the API. Whatever you point it at
+  # must answer directly: the client does not follow redirects, so a
+  # host that 301s fails every download.
+  config.api_base_url = 'https://www.ammitto.org/api/v1'
+  config.cache_dir    = Rails.root.join('tmp', 'ammitto').to_s
+  config.cache_ttl    = 3600 # seconds
 end
 
 # Usage in a Rails model or service
 class SanctionsChecker
-  def initialize
-    @client = Ammitto::Client.new
+  def check_name(name)
+    Ammitto.search(name, limit: 1).any?
   end
 
-  def check_name(name)
-    results = @client.search(name)
-    results.any?
+  def matches_for(name)
+    Ammitto.search(name).map do |entity|
+      { name: entity.display_name, type: entity.entity_type }
+    end
   end
 end`
+
+const apiReference = [
+  {
+    call: 'Ammitto.search',
+    params: 'term, sources:, limit:, offset:',
+    description: 'Search entities by name. Returns a ResultSet of entity objects.',
+  },
+  {
+    call: 'Ammitto.sources',
+    params: 'none',
+    description: 'The source codes the gem knows about, as symbols.',
+  },
+  {
+    call: 'Ammitto.cache_status',
+    params: 'none',
+    description: 'Per-source cache state: whether it is present and how old.',
+  },
+  {
+    call: 'Ammitto.refresh_cache',
+    params: 'sources:, all:, force:',
+    description: 'Re-download cached source data. Defaults to every source.',
+  },
+  {
+    call: 'Ammitto.schema',
+    params: 'none',
+    description: 'The JSON-LD context the published documents reference.',
+  },
+  {
+    call: 'Ammitto.configure',
+    params: 'block',
+    description: 'Set the options in the table below.',
+  },
+]
+
+const resultSetMethods = [
+  { call: 'each / map / first / last / []', description: 'Iterate the entity objects.' },
+  { call: 'size / count / total_count', description: 'How many came back, and how many matched.' },
+  { call: 'empty? / any?', description: 'Whether anything matched.' },
+  { call: 'by_entity_type / by_authority / by_status', description: 'Slice the set without querying again.' },
+  { call: 'entity_types / authorities', description: 'The distinct values present in this set.' },
+  { call: 'to_json / to_json_ld', description: 'Serialize the set.' },
+]
+
+const configOptions = [
+  // Deliberately not a URL. A host stated here would have to be kept in
+  // step with whatever the gem ships as its default, and this page has no
+  // way to notice when that changes. The sample above names a concrete
+  // host because it is an override, which is a different claim.
+  { name: 'api_base_url', description: 'Where source data is downloaded from', default: 'the live API host' },
+  { name: 'cache_dir', description: 'Where downloaded source data is cached', default: '~/.ammitto' },
+  { name: 'cache_ttl', description: 'Cache lifetime in seconds', default: '3600' },
+  { name: 'connection_timeout', description: 'Connect timeout in seconds', default: '10' },
+  { name: 'read_timeout', description: 'Read timeout in seconds', default: '30' },
+  { name: 'verbose', description: 'Log what the client is doing', default: 'false' },
+]
 </script>
 
 <template>
@@ -98,37 +168,60 @@ end`
           API Reference
         </h2>
         <div class="glass-card overflow-hidden">
-          <table class="w-full">
-            <thead>
-              <tr class="border-b border-light-border dark:border-dark-border">
-                <th class="text-left p-4 font-semibold">Method</th>
-                <th class="text-left p-4 font-semibold">Parameters</th>
-                <th class="text-left p-4 font-semibold">Description</th>
-              </tr>
-            </thead>
-            <tbody class="text-light-muted dark:text-dark-muted">
-              <tr class="border-b border-light-border dark:border-dark-border">
-                <td class="p-4 font-mono text-sm">client.entities</td>
-                <td class="p-4">source: (optional)</td>
-                <td class="p-4">Get all entities, optionally filtered by source</td>
-              </tr>
-              <tr class="border-b border-light-border dark:border-dark-border">
-                <td class="p-4 font-mono text-sm">client.search</td>
-                <td class="p-4">query, (optional params)</td>
-                <td class="p-4">Search entities by name or keyword</td>
-              </tr>
-              <tr class="border-b border-light-border dark:border-dark-border">
-                <td class="p-4 font-mono text-sm">client.entity</td>
-                <td class="p-4">id</td>
-                <td class="p-4">Get a specific entity by ID</td>
-              </tr>
-              <tr>
-                <td class="p-4 font-mono text-sm">client.stats</td>
-                <td class="p-4">none</td>
-                <td class="p-4">Get statistics about available data</td>
-              </tr>
-            </tbody>
-          </table>
+          <div class="overflow-x-auto">
+            <table class="w-full">
+              <thead>
+                <tr class="border-b border-light-border dark:border-dark-border">
+                  <th class="text-left p-4 font-semibold">Method</th>
+                  <th class="text-left p-4 font-semibold">Parameters</th>
+                  <th class="text-left p-4 font-semibold">Description</th>
+                </tr>
+              </thead>
+              <tbody class="text-light-muted dark:text-dark-muted">
+                <tr
+                  v-for="(entry, i) in apiReference"
+                  :key="entry.call"
+                  :class="i < apiReference.length - 1
+                    ? 'border-b border-light-border dark:border-dark-border' : ''"
+                >
+                  <td class="p-4 font-mono text-sm whitespace-nowrap">{{ entry.call }}</td>
+                  <td class="p-4 font-mono text-sm">{{ entry.params }}</td>
+                  <td class="p-4">{{ entry.description }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="mb-12">
+        <h2 class="text-2xl font-semibold mb-4 text-light-text dark:text-dark-text">
+          Working with results
+        </h2>
+        <p class="text-light-muted dark:text-dark-muted mb-4 max-w-3xl">
+          <code class="font-mono">Ammitto.search</code> returns a
+          <code class="font-mono">ResultSet</code>. Its entries are entity
+          objects, so reach for
+          <code class="font-mono">display_name</code> to print a name —
+          <code class="font-mono">primary_name</code> hands back a
+          <code class="font-mono">NameVariant</code> object.
+        </p>
+        <div class="glass-card overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full">
+              <tbody class="text-light-muted dark:text-dark-muted">
+                <tr
+                  v-for="(m, i) in resultSetMethods"
+                  :key="m.call"
+                  :class="i < resultSetMethods.length - 1
+                    ? 'border-b border-light-border dark:border-dark-border' : ''"
+                >
+                  <td class="p-4 font-mono text-sm">{{ m.call }}</td>
+                  <td class="p-4">{{ m.description }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </section>
 
@@ -136,21 +229,30 @@ end`
         <h2 class="text-2xl font-semibold mb-4 text-light-text dark:text-dark-text">
           Configuration Options
         </h2>
-        <div class="glass-card p-6">
-          <ul class="space-y-3 text-light-muted dark:text-dark-muted">
-            <li>
-              <code class="font-mono">base_url</code> - Base URL for the API (default: official API)
-            </li>
-            <li>
-              <code class="font-mono">cache_enabled</code> - Enable caching (default: true)
-            </li>
-            <li>
-              <code class="font-mono">cache_ttl</code> - Cache TTL in seconds (default: 3600)
-            </li>
-            <li>
-              <code class="font-mono">timeout</code> - Request timeout in seconds (default: 30)
-            </li>
-          </ul>
+        <div class="glass-card overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full">
+              <thead>
+                <tr class="border-b border-light-border dark:border-dark-border">
+                  <th class="text-left p-4 font-semibold">Option</th>
+                  <th class="text-left p-4 font-semibold">Description</th>
+                  <th class="text-left p-4 font-semibold">Default</th>
+                </tr>
+              </thead>
+              <tbody class="text-light-muted dark:text-dark-muted">
+                <tr
+                  v-for="(opt, i) in configOptions"
+                  :key="opt.name"
+                  :class="i < configOptions.length - 1
+                    ? 'border-b border-light-border dark:border-dark-border' : ''"
+                >
+                  <td class="p-4 font-mono text-sm">{{ opt.name }}</td>
+                  <td class="p-4">{{ opt.description }}</td>
+                  <td class="p-4 font-mono text-sm">{{ opt.default }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </section>
     </div>
