@@ -31,11 +31,24 @@ export function extractRef(idOrRef: string): string {
 }
 
 /**
- * Get the API URL for loading an entity's node file
- * @param ref - Entity ref (e.g., "uk/aqd0087")
- * @returns API URL (e.g., "/api/v1/node/entity/uk/aqd0087.jsonld")
+ * Get the path of an entity's published node document.
+ *
+ * One expression with two callers: `loadFullEntity` fetches it and
+ * `EntityPage` offers it to the reader. They each carried their own copy
+ * of the string, alongside a third here that nothing called — so a test
+ * comparing them could only report a divergence that had already
+ * happened. Sharing the expression is what actually keeps the link and
+ * the fetch in step.
+ *
+ * `base` is required on purpose. Defaulting it to `/` would leave the
+ * same trap the unused `getEntityApiUrl` had: a caller that forgets it
+ * gets a root-relative path that works in development and breaks
+ * wherever the site is served from a subpath.
+ *
+ * @param ref - Entity ref (e.g., "uk/aqd0087") or full IRI
+ * @param base - Path the site is served from; pass `BASE_URL`
+ * @returns API path (e.g., "/api/v1/node/entity/uk/aqd0087.jsonld")
  */
-export function getEntityApiUrl(ref: string): string {
-  const entityRef = extractRef(ref)
-  return `/api/v1/node/entity/${entityRef}.jsonld`
+export function getEntityNodePath(ref: string, base: string): string {
+  return `${base}api/v1/node/entity/${extractRef(ref)}.jsonld`
 }

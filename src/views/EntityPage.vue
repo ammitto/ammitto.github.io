@@ -3,7 +3,10 @@ import { onMounted, computed, watch, reactive } from 'vue'
 import { useRoute } from 'vue-router'
 import Badge from '@/components/atoms/Badge.vue'
 import { useEntityData } from '@/composables/useEntityData'
+import SourceDocuments from '@/components/molecules/SourceDocuments.vue'
 import { sources, entityTypes } from '@/config'
+import { getEntityNodePath } from '@/utils/entityUrls'
+import { publishesAggregate } from '@/utils/sourceCatalog'
 
 const route = useRoute()
 const {
@@ -135,6 +138,35 @@ watch(entityId, (newId) => {
     loadEntity(newId)
   }
 }, { immediate: false })
+
+// `getEntityNodePath` is the call `loadFullEntity` makes to fetch this
+// record, so the link and the fetch cannot describe different paths.
+//
+// The source aggregate is offered only when the deploy publishes one.
+// `publishesAggregate` is the same boundary the browse page uses to
+// decide whether to request it at all; `ru` is excluded there and
+// `sources/ru.jsonld` is a 404 today, so offering the link would send a
+// reader to a missing file and read as the data not existing.
+const documents = computed(() => {
+  const ref = entityId.value
+  if (!ref) return []
+  const base = import.meta.env.BASE_URL || '/'
+  const docs = [
+    {
+      label: `${ref.replace('/', '-')}.jsonld`,
+      href: getEntityNodePath(ref, base),
+      note: 'this record',
+    },
+  ]
+  if (source.value && publishesAggregate(source.value)) {
+    docs.push({
+      label: `${source.value}.jsonld`,
+      href: `${base}api/v1/sources/${source.value}.jsonld`,
+      note: 'every record from this source',
+    })
+  }
+  return docs
+})
 
 const sourceInfo = computed(() => {
   if (!source.value) return null
@@ -782,6 +814,11 @@ onMounted(async () => {
             </div>
           </div>
         </details>
+
+        <SourceDocuments
+          subject="this entity"
+          :documents="documents"
+        />
       </article>
     </div>
   </div>

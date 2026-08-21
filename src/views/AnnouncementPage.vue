@@ -3,6 +3,7 @@ import { onMounted, ref, computed, reactive } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
 import Badge from '@/components/atoms/Badge.vue'
 import EntityCard from '@/components/molecules/EntityCard.vue'
+import SourceDocuments from '@/components/molecules/SourceDocuments.vue'
 import { sources } from '@/config'
 import { getLanguageName } from '@/utils/language'
 import { normalizeNode } from '@/utils/normalizeNode'
@@ -291,6 +292,24 @@ onMounted(async () => {
     loading.value = false
   }
 })
+
+// The group node this page renders, offered to the reader. There is no
+// `node/announcement/` kind — an announcement is a field on each entry, and
+// the group is the only document standing for the whole of it. Split the
+// route id the same way `onMounted` splits it, so a third segment is
+// discarded here exactly as the fetch discards it.
+const documents = computed(() => {
+  const [source, docId] = sourceId.value.split('/')
+  if (!source || !docId) return []
+  const base = import.meta.env.BASE_URL || '/'
+  return [
+    {
+      label: `${source}-${docId}.jsonld`,
+      href: `${base}api/v1/node/group/${source}/${docId}.jsonld`,
+      note: 'the listings this announcement made',
+    },
+  ]
+})
 </script>
 
 <template>
@@ -465,6 +484,11 @@ onMounted(async () => {
             </div>
           </div>
         </div>
+
+        <SourceDocuments
+          subject="this announcement"
+          :documents="documents"
+        />
       </article>
     </div>
   </div>

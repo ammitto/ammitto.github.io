@@ -2,6 +2,7 @@
 import { onMounted, ref, computed } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
 import Badge from '@/components/atoms/Badge.vue'
+import SourceDocuments from '@/components/molecules/SourceDocuments.vue'
 import { getLanguageName } from '@/utils/language'
 import { normalizeNode } from '@/utils/normalizeNode'
 
@@ -229,6 +230,22 @@ onMounted(async () => {
     loading.value = false
   }
 })
+
+// The node `onMounted` fetches, offered to the reader. `id` is spelled the
+// same as in the fetch so the two paths are one string in two places and
+// cannot drift apart silently.
+const documents = computed(() => {
+  const id = sourceId.value
+  if (!id) return []
+  const base = import.meta.env.BASE_URL || '/'
+  return [
+    {
+      label: `${id.replace('/', '-')}.jsonld`,
+      href: `${base}api/v1/node/legal-instrument/${id}.jsonld`,
+      note: 'this legal instrument',
+    },
+  ]
+})
 </script>
 
 <template>
@@ -433,6 +450,11 @@ onMounted(async () => {
             </div>
           </div>
         </div>
+
+        <SourceDocuments
+          subject="this legal instrument"
+          :documents="documents"
+        />
       </div>
     </div>
   </div>

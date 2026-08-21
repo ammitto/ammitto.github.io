@@ -2,6 +2,7 @@ import { ref, computed } from 'vue'
 import FlexSearch from 'flexsearch'
 import { normalizeNode } from '@/utils/normalizeNode'
 import { searchRowText } from '@/utils/birthAdapters'
+import { getEntityNodePath } from '@/utils/entityUrls'
 import {
   filterSearchEntities,
   type SearchFilterSelection,
@@ -251,13 +252,9 @@ async function loadFullEntity(idOrRef: string): Promise<Record<string, unknown> 
   if (!isBrowser) return null
 
   try {
-    // Extract ref from full IRI if needed, or use as-is if already a ref
-    let ref = idOrRef
-    if (idOrRef.startsWith('https://www.ammitto.org/entity/')) {
-      ref = idOrRef.replace('https://www.ammitto.org/entity/', '')
-    }
-
-    const response = await fetch(`${API_BASE}api/v1/node/entity/${ref}.jsonld`)
+    // getEntityNodePath extracts the ref from a full IRI itself, and is
+    // the same call EntityPage makes to build the link it offers.
+    const response = await fetch(getEntityNodePath(idOrRef, API_BASE))
 
     if (!response.ok) {
       throw new Error(`Failed to load entity: ${response.status}`)
