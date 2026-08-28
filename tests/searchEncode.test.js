@@ -6,9 +6,8 @@
  * 61,099 rows) before this module existed. The counts recorded in each test
  * are those measurements, not predictions:
  *
- *     al qaida  372      alqaida   0
- *     assad      67      assadd    0
- *     gaddafi    15      qadhafi  79      kadhafi  1
+ *     alqaida    0      binladen  0      islamsky  0
+ *     assadd     0      gaddafi  15      qadhafi  79      kadhafi  1
  *
  * The zeroes are what these tests exist to prevent regressing. A sanctions
  * register that answers a misspelling with "No entities match your current
@@ -21,6 +20,8 @@ import assert from 'node:assert/strict'
 import {
   foldToken,
   foldForSearch,
+  gluedForms,
+  indexableText,
   boundedEditDistance,
   suggestionBudget,
   nearestNames,
@@ -50,42 +51,110 @@ test('foldForSearch splits on punctuation, not just whitespace', () => {
   }
 })
 
-test('foldForSearch glues short particles so a run-together query still matches', () => {
-  // This is the fix for `alqaida` -> 0 results. The document emits the glued
-  // form, so the one-word query reaches it.
-  assert.ok(foldForSearch('al-Qaida').includes('alqaida'))
-  assert.ok(foldForSearch('bin Laden').includes('binladen'))
-  assert.ok(foldForSearch('Abu Bakr').includes('abubakr'))
+test('foldForSearch NEVER glues — it is the query encoder', () => {
+  // THE REGRESSION THIS PINS. foldForSearch is installed as FlexSearch's
+  // `encode`, so it runs on the query too, and FlexSearch INTERSECTS the query
+  // terms. A glued query token therefore demands a document in which those two
+  // words are adjacent, in that order. Measured over the live 61,099-row index
+  // when this function did glue: `ali leilabadi` 9 results -> 0 against the
+  // listed person "Ali Hajinia Leilabadi", `bank mine` 4 -> 0, `dedrone axon`
+  // 1 -> 0; a sweep of 1,313 two-word queries lost results on 426 and zeroed
+  // 340. That is a mass false negative on a sanctions register.
+  assert.deepEqual(foldForSearch('al-Qaida'), ['al', 'qaida'])
+  assert.deepEqual(foldForSearch('ali leilabadi'), ['ali', 'leilabadi'])
+  assert.deepEqual(foldForSearch('bank mine'), ['bank', 'mine'])
+  for (const q of ['al Qaida', 'bin Laden', 'Abu Bakr', 'Dedrone by Axon']) {
+    for (const token of foldForSearch(q)) {
+      assert.ok(
+        !token.includes(' '),
+        'tokens must be single words',
+      )
+    }
+    assert.equal(
+      foldForSearch(q).length,
+      q.split(/[^\p{L}\p{N}]+/u).filter(Boolean).length,
+      `${q}: encoder must emit exactly one token per word, never a glued extra`,
+    )
+  }
+})
 
-  // And the query folds to the same token, which is what makes them meet.
+test('gluedForms supplies the run-together form, for documents only', () => {
+  // This is what rescues `alqaida` (0 -> 33 on the live corpus, which is
+  // exactly the number of rows whose name contains al-Qaida): the DOCUMENT
+  // carries the glued token, so the one-word query, which encodes to exactly
+  // one term, can reach it.
+  assert.ok(gluedForms('al-Qaida').includes('alqaida'))
+  assert.ok(gluedForms('bin Laden').includes('binladen'))
+  assert.ok(gluedForms('Abu Bakr').includes('abubakr'))
+  // And the query for the run-together spelling is a single plain token.
   assert.deepEqual(foldForSearch('alqaida'), ['alqaida'])
 })
 
-test('foldForSearch does not glue two ordinary name words', () => {
-  // Gluing every adjacent pair would roughly double the index. Only pairs with
-  // a short particle are glued.
-  const tokens = foldForSearch('General Dynamics')
-  assert.ok(tokens.includes('general'))
-  assert.ok(tokens.includes('dynamics'))
-  assert.ok(
-    !tokens.includes('generaldynamics'),
-    'two long words must not be glued',
+test('gluedForms leaves two ordinary name words alone', () => {
+  // Gluing every adjacent pair would roughly double the index.
+  assert.deepEqual(gluedForms('General Dynamics'), [])
+  assert.equal(gluedForms('Sylvestre Mudacumura').length, 0)
+})
+
+test('indexableText appends the glued forms without losing the original', () => {
+  const t = indexableText('al-Qaida IRAQ', ['al-Qaida'])
+  assert.ok(t.startsWith('al-Qaida IRAQ'), 'original text must be preserved')
+  assert.ok(t.includes('alqaida'), 'glued form must be appended')
+  // Nothing to glue means nothing appended.
+  assert.equal(
+    indexableText('General Dynamics', ['General Dynamics']),
+    'General Dynamics',
   )
 })
 
-test('foldForSearch is stable and duplicate-free', () => {
-  // A repeated particle must not inflate the index.
-  const tokens = foldForSearch('Abd al-Rahman al-Nasser')
-  assert.equal(
-    tokens.length,
-    new Set(tokens).size,
-    'encoder emitted duplicate tokens',
+test('indexableText glues only within a name, never across the row join', () => {
+  // THE PRECISION DEFECT THIS PINS. `searchRowText` joins the names to the
+  // country, regime and authority with spaces. Gluing its OUTPUT produced
+  // tokens that straddle the join — a person named "Mohammad" from Iran
+  // yielded `mohammadiran` — and because the index uses `tokenize: 'forward'`,
+  // the query `mohammadi` matched that token by prefix. Measured over the live
+  // corpus: 101 hits for `mohammadi`, of which 55 carried no such name, and
+  // 657 for `their` of which 655 did. Scoped to names it is 48 and 12.
+  const rowText = 'Mohammad IRAN sanctions-regime'
+  const t = indexableText(rowText, ['Mohammad'])
+  assert.ok(
+    !t.includes('mohammadiran'),
+    'a glued token must not span the join between a name and its metadata',
   )
-  // Empty and punctuation-only input must not produce empty-string tokens,
-  // which FlexSearch would happily index as a match-everything key.
+  assert.equal(t, rowText, 'a single-word name has nothing to glue')
+
+  // Nor across two separate aliases.
+  const two = indexableText('Ali Bob', ['Ali', 'Bob'])
+  assert.ok(!two.includes('alibob'), 'must not glue one alias to the next')
+
+  // But within one name it still glues.
+  assert.ok(indexableText('Usama bin Laden SAUDI', ['Usama bin Laden']).includes('binladen'))
+})
+
+test('foldForSearch is stable and never emits an empty token', () => {
+  // A repeated particle stays repeated: this is the plain word split, and
+  // deduplicating it would cost a Set allocation on every query and every
+  // document to save FlexSearch from indexing a term it already holds.
+  assert.deepEqual(foldForSearch('Abd al-Rahman al-Nasser'), [
+    'abd', 'al', 'rahman', 'al', 'nasser',
+  ])
+  // gluedForms, which does feed the index with extra tokens, IS deduplicated.
+  const glued = gluedForms('Abd al-Rahman al-Nasser')
+  assert.equal(glued.length, new Set(glued).size, 'glued forms must be unique')
+  // An empty-string token would be indexed by FlexSearch as a
+  // match-everything key.
   assert.deepEqual(foldForSearch(''), [])
   assert.deepEqual(foldForSearch('---'), [])
   assert.ok(!foldForSearch('al-Qaida').includes(''))
+  // gluedForms concatenates two entries drawn from foldForSearch, which ends in
+  // .filter(Boolean), so an empty glued token is unreachable by construction —
+  // asserting it cannot fail and is not asserted. What CAN go wrong is a glued
+  // form that merely repeats one of its own parts, which would add an index
+  // entry that matches nothing new.
+  assert.ok(
+    gluedForms('al-Qaida').every((g) => g !== 'al' && g !== 'qaida'),
+    'a glued form must differ from both of its parts',
+  )
 })
 
 test('boundedEditDistance abandons rather than reporting a distance past the bound', () => {

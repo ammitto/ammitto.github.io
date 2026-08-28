@@ -54,6 +54,18 @@ const toggleStatus = (code: string) => {
 }
 
 /**
+ * Whether the published facet counts have arrived at all.
+ *
+ * Everything below distinguishes "this source publishes nothing" from "we do
+ * not know yet", and the difference is not cosmetic: keyed on the counts alone,
+ * every one of the fifteen pills rendered disabled and captioned "not yet
+ * published" during prerender and until `facets/authorities.json` resolved —
+ * and permanently if that request ever failed. A filter panel that tells a
+ * reader the register publishes nothing is worse than one that says nothing.
+ */
+const countsLoaded = computed(() => Object.keys(props.counts.sources).length > 0)
+
+/**
  * Whether a source can currently be filtered on.
  *
  * Derived from the counts this component is already given — which
@@ -71,9 +83,22 @@ const toggleStatus = (code: string) => {
 const isFilterable = (code: string): boolean =>
   typeof props.counts.sources[code] === 'number' && props.counts.sources[code] > 0
 
-/** How many sources a reader can actually narrow by. */
-const filterableSourceCount = computed(
-  () => sources.filter((s) => isFilterable(s.code)).length,
+/**
+ * Whether to render a source as unavailable.
+ *
+ * Never before the counts exist, and never for a source the reader has already
+ * selected: a selected-but-disabled pill loses both its pressed state and its
+ * click handler, so the filter stays in the URL and in the result set with no
+ * way left to remove it.
+ */
+const isUnavailable = (code: string): boolean =>
+  countsLoaded.value &&
+  !isFilterable(code) &&
+  !props.filters.sources.includes(code)
+
+/** How many sources a reader can actually narrow by, or 0 while unknown. */
+const filterableSourceCount = computed(() =>
+  countsLoaded.value ? sources.filter((s) => isFilterable(s.code)).length : 0,
 )
 </script>
 
@@ -100,7 +125,7 @@ const filterableSourceCount = computed(
           fifteenth pill — Russia — rendered with no count and matched nothing.
         -->
         <h4 class="text-sm font-medium text-light-muted dark:text-dark-muted mb-3">
-          Sources ({{ filterableSourceCount }})
+          Sources<span v-if="filterableSourceCount"> ({{ filterableSourceCount }})</span>
         </h4>
         <div class="flex flex-wrap gap-2">
           <FilterPill
@@ -108,7 +133,7 @@ const filterableSourceCount = computed(
             :key="source.code"
             :label="source.name"
             :count="counts.sources[source.code]"
-            :unavailable="!isFilterable(source.code)"
+            :unavailable="isUnavailable(source.code)"
             :active="filters.sources.includes(source.code)"
             :color="source.color"
             @click="toggleSource(source.code)"

@@ -12,9 +12,27 @@ const props = defineProps<{
   url: string
   authority: string
   country: string
+  /**
+   * The catalogue names this source but the published data carries no entities
+   * for it. Shown rather than hidden: `sourceCatalog.ts` keeps a pending source
+   * listed deliberately, so the card has to say why its count is absent instead
+   * of rendering "N/A" next to fourteen real figures.
+   */
+  pending?: boolean
+  /**
+   * Whether stats.json has resolved at all.
+   *
+   * Without it every card reads "Entities: N/A" until the fetch lands — which
+   * is everything a crawler or a JS-disabled reader ever sees of this page, and
+   * it erases the distinction `pending` exists to draw: fourteen sources with
+   * real counts rendered identically to the one that publishes nothing.
+   */
+  countsKnown?: boolean
 }>()
 
 const formattedCount = computed(() => {
+  if (props.pending) return 'not yet published'
+  if (!props.countsKnown) return '—'
   if (!props.entityCount) return 'N/A'
   return props.entityCount.toLocaleString()
 })

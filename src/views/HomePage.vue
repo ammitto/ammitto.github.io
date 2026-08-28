@@ -10,6 +10,7 @@ useScrollAnimation()
 
 const searchQuery = ref('')
 const entityCount = ref(0)
+const sourceCount = ref(0)
 
 // Load stats from API
 onMounted(async () => {
@@ -18,6 +19,9 @@ onMounted(async () => {
     if (response.ok) {
       const stats = await response.json()
       entityCount.value = stats.total_entities || 0
+      // Published sources, not catalogued ones: the two differ by `ru`, whose
+      // data repo is still pending.
+      sourceCount.value = Object.keys(stats.sources || {}).length
     }
   } catch (e) {
     console.error('Failed to load stats:', e)
@@ -92,8 +96,16 @@ const features = [
           Data Sources
         </h2>
         <p class="text-center text-light-muted dark:text-dark-muted mb-12 max-w-2xl mx-auto">
-          We aggregate sanctions data from {{ sources.length }} official sources worldwide,
-          currently covering {{ entityCount.toLocaleString() }} entities.
+          <!--
+            `sources.length` is the CATALOGUE size (15) and never changed after
+            mount, so this sentence stated 15 permanently while the hero four
+            screens up settled on the published 14 — the site contradicting
+            itself on one page. Both numbers now come from stats.json, and the
+            sentence omits them rather than printing the prerender zeros.
+          -->
+          We aggregate sanctions data from<span v-if="sourceCount">&nbsp;{{ sourceCount }}</span>
+          official sources worldwide<span v-if="entityCount">, currently covering
+          {{ entityCount.toLocaleString() }} entities</span>.
         </p>
         <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
           <RouterLink

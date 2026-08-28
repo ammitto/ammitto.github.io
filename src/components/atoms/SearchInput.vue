@@ -37,6 +37,12 @@ const iconSize = computed(() => {
 })
 
 const focus = () => inputRef.value?.focus()
+
+// `<script setup>` exposes nothing by default, so this was unreachable from a
+// parent. SearchPage needs it: activating a "Did you mean" suggestion unmounts
+// the card the button lives in, and without moving focus first the browser
+// drops it to <body> and a keyboard user restarts at the top of the document.
+defineExpose({ focus })
 </script>
 
 <template>

@@ -29,6 +29,13 @@ on:
   # The `deploy` job below is gated on `github.ref == 'refs/heads/main'`. A
   # scheduled run executes on the default branch and sets that exact ref, so
   # this publishes rather than merely building.
+  #
+  # One operational trap: GitHub disables scheduled workflows in a repository
+  # with no commit activity for 60 days, and does so silently. If this is ever
+  # the ONLY thing refreshing the data, a quiet repository stops republishing
+  # and the site keeps serving whatever it last built. That is survivable only
+  # because the pages now print the date the data actually carries rather than
+  # promising a cadence — a reader can see the data has stopped moving.
   schedule:
   - cron: '17 3 * * *'
 

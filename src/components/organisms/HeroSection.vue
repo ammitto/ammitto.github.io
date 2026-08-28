@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import SearchInput from '@/components/atoms/SearchInput.vue'
 import Badge from '@/components/atoms/Badge.vue'
@@ -8,10 +8,29 @@ import { siteConfig, sources } from '@/config'
 const router = useRouter()
 const searchQuery = ref('')
 
-// Stats loaded from API
+// Stats loaded from API.
+//
+// `sourceCount` seeded 15 — the catalogue figure — which is not what the deploy
+// publishes. vite-ssg prerenders this component with no data fetched, so that
+// seed went into the shipped HTML: `dist/index.html` read "0 Entities, 15
+// Sources, 0 Types", and that is what a crawler, a link unfurl, a JS-disabled
+// reader and every visitor's first paint saw. Seeded 0 now, and the row is
+// withheld until there is something true to put in it.
 const entityCount = ref(0)
-const sourceCount = ref(15)
+const sourceCount = ref(0)
 const typeCount = ref(0)
+
+/**
+ * Whether ALL THREE figures have arrived. Until then the row is not rendered.
+ *
+ * typeCount is included deliberately. It comes from a second request
+ * (`facets/types.json`) which can fail on its own, and gating on the other two
+ * alone let the row render with a real entity count beside a bare "0 Types" —
+ * the same false zero this guard exists to keep out of the page.
+ */
+const statsReady = computed(
+  () => entityCount.value > 0 && sourceCount.value > 0 && typeCount.value > 0,
+)
 
 const handleSearch = () => {
   if (searchQuery.value.trim()) {
@@ -81,7 +100,12 @@ onMounted(async () => {
           />
         </form>
 
-        <div class="flex flex-wrap justify-center gap-8">
+        <!--
+          Withheld rather than zeroed. A sanctions register whose front page
+          says "0 Entities" in its shipped HTML is making a false claim to
+          exactly the readers who cannot wait for JavaScript.
+        -->
+        <div v-if="statsReady" class="flex flex-wrap justify-center gap-8">
           <div class="text-center">
             <div class="text-3xl font-bold text-brand-link">{{ entityCount.toLocaleString() }}</div>
             <div class="text-sm text-light-muted dark:text-dark-muted">Entities</div>

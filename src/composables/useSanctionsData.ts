@@ -170,18 +170,26 @@ function transformEntity(entity: JsonLdEntity, sourceCode: string): SanctionEnti
  * Load stats from API
  */
 async function loadStats(): Promise<StatsResponse | null> {
-  if (stats.value) return stats.value
+  // Both halves must be present to count as loaded. Returning early on
+  // `stats.value` alone meant a transient failure of `facets/types.json` was
+  // permanent for the session: stats cached, the facet map left null, and
+  // every later call short-circuited before it could retry. The browse chips
+  // then silently fell back to counting downloaded rows for the rest of the
+  // visit, which is the very substitution this change exists to stop.
+  if (stats.value && publishedTypeCounts.value) return stats.value
 
   statsLoading.value = true
 
   try {
-    const response = await fetch(`${API_BASE}api/v1/stats.json`)
+    if (!stats.value) {
+      const response = await fetch(`${API_BASE}api/v1/stats.json`)
 
-    if (!response.ok) {
-      throw new Error(`Failed to load stats: ${response.status}`)
+      if (!response.ok) {
+        throw new Error(`Failed to load stats: ${response.status}`)
+      }
+
+      stats.value = await response.json()
     }
-
-    stats.value = await response.json()
 
     // Same run, same publication: fetched here so a caller cannot end up
     // holding a corpus total from one source and per-type totals from another.
@@ -441,6 +449,30 @@ export function useSanctionsData() {
     return null
   })
 
+  /**
+   * The source codes whose aggregate actually failed to load.
+   *
+   * `loadSourceEntities` catches every fetch/parse failure, records it here and
+   * returns [], so a partial register is otherwise indistinguishable from a
+   * complete one — on a sanctions list, the same class of defect as a false
+   * negative in search.
+   *
+   * Driven by recorded errors rather than by comparing the assembled row count
+   * against `stats.total_entities`. That arithmetic looks equivalent and is
+   * not: `loadSources` deliberately SKIPS the codes in
+   * `SOURCES_WITHOUT_AGGREGATE`, so on the live site the assembled list is
+   * 61,040 against a published 61,099 — a 59-row gap that is exactly
+   * un_vessels, skipped by design rather than failed. A count-difference check
+   * would therefore have cried failure on every visit.
+   */
+  const failedSources = computed(() => {
+    const failed: string[] = []
+    for (const [key, err] of errorStates.value) {
+      if (err) failed.push(key)
+    }
+    return failed
+  })
+
   const entityCount = computed(() => {
     if (stats.value) {
       return stats.value.total_entities
@@ -508,6 +540,7 @@ export function useSanctionsData() {
     stats,
     statsLoading,
     publishedTypeCounts,
+    failedSources,
     loadStats,
     loadAllEntities,
     loadSourceEntities,

@@ -2,7 +2,12 @@ import { ref, computed } from 'vue'
 import FlexSearch from 'flexsearch'
 import { normalizeNode } from '@/utils/normalizeNode'
 import { searchRowText } from '@/utils/birthAdapters'
-import { foldForSearch, nearestNames, type NearMiss } from '@/utils/searchEncode'
+import {
+  foldForSearch,
+  indexableText,
+  nearestNames,
+  type NearMiss,
+} from '@/utils/searchEncode'
 import {
   filterSearchEntities,
   type SearchFilterSelection,
@@ -124,32 +129,50 @@ async function loadSearchIndex(): Promise<void> {
 
     // Build FlexSearch index.
     //
-    // `encode` is not decoration. Without it FlexSearch applies its default
-    // Latin encoder — lowercase, split on whitespace — and measured against
-    // this very index on 2026-08-28, `alqaida` returned 0 while `al qaida`
-    // returned 372, and `islamsky` returned 0 against a corpus that carries
-    // "Islámský stát". A register that answers a spelling variant with
-    // "No entities match your current search criteria" is stating a finding
-    // it has not made. Replaying both encoders over the live 61,099-row index
-    // measured: alqaida 0 -> 372, islamsky 0 -> 26, binladen 0 -> 15, assad
-    // 67 -> 69, and no query losing a single result. Index build cost went
-    // from 2.2s to 4.2s in Node on that corpus.
+    // `encode` folds diacritics and splits on punctuation rather than
+    // whitespace. That is what `islamsky` needs to reach "Islámský stát"
+    // (0 -> 26 results, measured over this index on 2026-08-28) and what makes
+    // `al-Qaida`, `al'Qaida` and `al Qaida` one pair of tokens.
     //
-    // See src/utils/searchEncode.ts for what it folds and, more importantly,
-    // what it deliberately does not: `kadhafi` vs `qadhafi` is a substituted
-    // letter, which no encoder fixes. `suggestFor` below covers that.
+    // It is NOT what rescues the run-together spellings. `alqaida` 0 -> 33 and
+    // `binladen` 0 -> 15 come from the glued forms `indexableText` appends to
+    // the DOCUMENT below — deliberately not from the encoder, which also runs
+    // on the query. Both figures are exactly the number of rows whose NAME
+    // contains that string, counted directly over the live corpus. That equality
+    // is the point: an earlier arrangement glued the whole joined row text and
+    // returned 372 for `alqaida`, of which 339 carried no such name.
+    //
+    // See src/utils/searchEncode.ts for what folding deliberately does not fix:
+    // `kadhafi` vs `qadhafi` is a substituted letter, which no encoder mends.
+    // `suggestFor` below covers that.
     const index = new FlexSearch.Index({
       tokenize: 'forward',
       cache: true,
       encode: foldForSearch,
     })
 
-    // Index each entity
+    // Index each entity.
+    //
+    // `indexableText` appends the glued forms ("alqaida" for "Al-Qaida") to the
+    // document only. They must never reach the query: FlexSearch encodes the
+    // query with the same function and intersects the terms, so a glued query
+    // token would demand a document where those two words are adjacent — which
+    // measured 426 two-word queries losing results and 340 going to zero.
     data.entities.forEach((entity) => {
-      // Build searchable text
+      // Kept as a named binding: tests/birthWiring.test.js pins the literal
+      // `const text = searchRowText(entity)` here, because searchRowText is
+      // what carries BOTH birth-span bounds into the indexed text and a
+      // future edit must not quietly route around it.
       const text = searchRowText(entity)
 
-      index.add(entity.id, text)
+      // Names only for the glue; see indexableText. Gluing the whole row text
+      // reached across the join into country/regime/authority.
+      index.add(
+        entity.id,
+        indexableText(text, entity.primaryName
+          ? [entity.primaryName, ...entity.names]
+          : entity.names),
+      )
       entities.value.set(entity.id, entity)
     })
 
@@ -237,18 +260,31 @@ function search(query: string, limit = 100): SearchEntity[] {
  * this eagerly would add a second full pass over 61,099 rows to every visit to
  * the search page in exchange for a list most visitors never see.
  *
- * Measured on the live corpus: 179,384 distinct tokens of length > 3, and a
- * suggestion lookup over them costs 64-160ms.
+ * Measured on the live corpus: roughly 67k distinct tokens of length 3 or more.
+ * A length-bucketed variant of this scan was tried and removed: the reachable
+ * buckets still held 50-69% of the candidates, so the saving was inside
+ * measurement noise while costing a second container and a constant that had
+ * to stay in step with `suggestionBudget` with nothing pinning it. The memo in
+ * `suggestFor` is what actually removes the repeated cost.
  */
 let suggestionTokens: Set<string> | null = null
 
 function buildSuggestionTokens(): Set<string> {
   const tokens = new Set<string>()
   for (const entity of entities.value.values()) {
+    // `foldForSearch`, deliberately, not `indexableText`: a glued form is an
+    // index-matching device, never a name. Built from the glued set, the
+    // suggester offered "leilabadiau" (a surname glued to a country code) and
+    // "1limited" as things the reader might have meant.
     for (const token of foldForSearch(searchRowText(entity))) {
-      // Tokens of three characters or fewer are below `suggestionBudget`'s
-      // floor anyway, so holding them would cost memory for nothing.
-      if (token.length > 3) tokens.add(token)
+      // Length 3 and up. The floor is about the CANDIDATE, not the query, and
+      // an earlier version excluded length-3 tokens on the grounds that
+      // `suggestionBudget` returns 0 for a three-character QUERY — a different
+      // thing. A four-character query has a budget of 1 and can legitimately
+      // reach a three-character name, so excluding them meant `kimm` never
+      // suggested `kim` and `alii` never suggested `ali`. Below 3 the budget
+      // is 0 from either side, so nothing there can ever match.
+      if (token.length >= 3) tokens.add(token)
     }
   }
   return tokens
@@ -264,10 +300,25 @@ function buildSuggestionTokens(): Set<string> {
  * gadhafi, kaddafi, qadhafi. For a name genuinely absent from the corpus
  * ("ceausescu") it correctly returns nothing rather than inventing a lead.
  */
+/** Memo key: the query AND the limit, since both shape the result. */
+let lastSuggestKey: string | null = null
+let lastSuggestResult: NearMiss[] = []
+
 function suggestFor(query: string, limit = 5): NearMiss[] {
   if (!isLoaded.value || !query.trim()) return []
+
+  // Memoized on the query string. The caller is a Vue computed, which
+  // re-evaluates whenever any of its other dependencies change — a filter
+  // toggle, a pagination reset — and each miss costs a pass over the candidate
+  // set. Without this, changing a facet while the grid is empty rescanned tens
+  // of thousands of tokens for a query that had not changed.
+  const key = `${limit}\u0000${query}`
+  if (key === lastSuggestKey) return lastSuggestResult
+
   if (suggestionTokens === null) suggestionTokens = buildSuggestionTokens()
-  return nearestNames(query, suggestionTokens, limit)
+  lastSuggestKey = key
+  lastSuggestResult = nearestNames(query, suggestionTokens, limit)
+  return lastSuggestResult
 }
 
 /**

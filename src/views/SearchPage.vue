@@ -7,6 +7,7 @@ import EntityCard from '@/components/molecules/EntityCard.vue'
 import SearchFilters from '@/components/organisms/SearchFilters.vue'
 import { useScrollAnimation } from '@/composables/useScrollAnimation'
 import { useSearchIndex, type SearchEntity } from '@/composables/useSearchIndex'
+import { boundedEditDistance, foldForSearch } from '@/utils/searchEncode'
 import { normalizeSourceCode, listTypes } from '@/config'
 import { searchRowToCard } from '@/utils/birthAdapters'
 
@@ -33,6 +34,7 @@ const loadedCount = ref(PAGE_SIZE)
 // Load data from lightweight search index
 const {
   isLoading: loading,
+  isLoaded,
   error,
   totalEntities: entityCount,
   sourceCount,
@@ -118,15 +120,104 @@ const entityAdapter = (entity: SearchEntity) => searchRowToCard(entity)
 /**
  * The indexed names a fruitless query nearly matched.
  *
- * Only computed once a search has actually finished and found nothing, so a
- * half-loaded index never produces suggestions — and never produces the empty
- * state either (see the template). Measured on the live corpus, this costs
- * 64-160ms and runs only at the moment the reader is already waiting.
+ * Only computed once the index has loaded, the search has settled and it found
+ * nothing — so a half-loaded index never produces suggestions, and never
+ * produces the empty state either (see the template).
  */
 const nearMisses = computed(() => {
-  if (loading.value || !searchQuery.value.trim()) return []
+  // Keyed to the DEBOUNCED query, not the live one. `suggestFor` scans tens of
+  // thousands of candidates (67,417 on the live corpus) and, on its first call,
+  // folds all 61,099 rows to build them. Off `searchQuery` that ran
+  // synchronously inside a render on every keystroke while the grid was empty,
+  // which is exactly when someone is still typing a name.
+  if (!isLoaded.value || loading.value) return []
+  if (!debouncedQuery.value.trim()) return []
   if (filteredEntities.value.length > 0) return []
-  return suggestFor(searchQuery.value)
+  // Only when the SPELLING is what emptied the grid. With a facet filter
+  // active, a query that matches plenty of entities can still show nothing,
+  // and offering a different spelling then sends the reader chasing a
+  // misspelling that was never the problem.
+  if (hasFacetFilters.value) return []
+  return suggestFor(debouncedQuery.value)
+})
+
+const searchInputRef = ref<{ focus: () => void } | null>(null)
+
+/**
+ * The query with only the misspelt word swapped for the suggestion.
+ *
+ * Replacing the whole query threw away every other word: a reader who typed
+ * "bashar assadd" and clicked "assad" was left searching "assad" alone —
+ * 69 results instead of the one person they were narrowing towards. The
+ * suggester works per token, so the repair is per token too.
+ */
+function applySuggestionText(token: string): string {
+  const words = debouncedQuery.value.trim().split(/\s+/).filter(Boolean)
+  if (words.length <= 1) return token
+
+  // Swap the word closest to the suggestion BY EDIT DISTANCE, measured on the
+  // FOLDED form of each word — the same metric and the same normalisation
+  // `nearestNames` used to produce the suggestion.
+  //
+  // Both halves matter. A common-prefix heuristic looks equivalent to edit
+  // distance and is not: for "qa kadhafi" suggesting "qadhafi", "qa" shares two
+  // leading characters and "kadhafi" shares none, so it swapped the wrong word.
+  // And comparing the RAW word is wrong too, because the suggestion is folded
+  // while the word is not: "bashar al-assadd" measures "al-assadd" against
+  // "assad" with the hyphen and particle still attached, inflating the distance
+  // of the word that actually needs replacing.
+  let bestIndex = 0
+  let bestDistance = Infinity
+  words.forEach((w, i) => {
+    // Compare against each of the word's own tokens and keep the closest.
+    // Concatenating them first is not equivalent: "al-assadd" folds to
+    // ["al", "assadd"], and "assadd" is one edit from "assad" while the joined
+    // "alassadd" is three — the same distance as "bashar", so a tie was
+    // resolved in favour of the wrong word and the query became
+    // "assad al-assadd".
+    for (const part of foldForSearch(w)) {
+      const d = boundedEditDistance(part, token, part.length + token.length)
+      if (d !== null && d < bestDistance) {
+        bestDistance = d
+        bestIndex = i
+      }
+    }
+  })
+  const next = words.slice()
+  next[bestIndex] = token
+  return next.join(' ')
+}
+
+function applySuggestion(token: string): void {
+  searchQuery.value = applySuggestionText(token)
+  // The button lives inside the card this replaces, so it is about to be
+  // unmounted; without moving focus first the browser drops it to <body> and
+  // a keyboard user restarts from the top of the document.
+  searchInputRef.value?.focus?.()
+}
+
+/**
+ * The single sentence a screen reader is told when a search settles.
+ *
+ * Composed rather than scattered. Two separate live regions — one on the count,
+ * one on the empty-state card — announce the same event twice; a live region on
+ * the count alone says "0 results" and withholds the scope, the date and the
+ * near misses, which are the whole reason the empty state is worth reading.
+ * Empty while the index is loading, so nothing is asserted before it is known.
+ */
+const resultAnnouncement = computed(() => {
+  if (!isLoaded.value || loading.value) return ''
+  const n = filteredEntities.value.length
+  if (n > 0) return `${n.toLocaleString()} ${n === 1 ? 'result' : 'results'}`
+  const scope = `No match. No entity on the ${sourceCount.value} lists Ammitto covers matches`
+  const subject = debouncedQuery.value.trim()
+    ? `"${debouncedQuery.value.trim()}"`
+    : 'the current filters'
+  const dated = asOf.value ? ` Data as of ${asOf.value}.` : ''
+  const alt = nearMisses.value.length
+    ? ` Did you mean ${nearMisses.value.map((m) => m.token).join(', ')}?`
+    : ''
+  return `${scope} ${subject}.${dated}${alt}`
 })
 
 /**
@@ -138,13 +229,17 @@ const nearMisses = computed(() => {
 const asOf = computed(() => {
   if (!generatedAt.value) return ''
   const d = new Date(generatedAt.value)
-  return Number.isNaN(d.getTime())
-    ? ''
-    : d.toLocaleDateString(undefined, {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      })
+  if (Number.isNaN(d.getTime())) return ''
+  // Formatted in UTC, the zone the timestamp is actually in. Rendered in the
+  // viewer's zone, an instant near midnight UTC prints as the previous or next
+  // day depending on where the reader sits — so two analysts would file the
+  // same screening result under different dates.
+  return d.toLocaleDateString('en-GB', {
+    timeZone: 'UTC',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
 })
 
 const filteredEntities = computed(() => {
@@ -298,6 +393,7 @@ const statuses = computed(() =>
           <!-- Search Input -->
           <div>
             <SearchInput
+              ref="searchInputRef"
               v-model="searchQuery"
               placeholder="Search by name, alias, country, or identifier..."
               size="lg"
@@ -403,9 +499,34 @@ const statuses = computed(() =>
 
         <!-- Results -->
         <main class="flex-1 min-w-0">
+          <!--
+            The one live region on this page. Visually hidden because the same
+            facts are already on screen; announced as a single sentence so a
+            screen-reader user hears the outcome, its scope, its date and any
+            near misses together rather than a bare "0 results".
+          -->
+          <p class="sr-only" role="status" aria-live="polite">
+            {{ resultAnnouncement }}
+          </p>
+
           <!-- Results Header -->
           <div class="flex items-center justify-between mb-6">
-            <p class="text-sm text-light-muted dark:text-dark-muted">
+            <!--
+              The count is the result of the search, so it is what a screen
+              reader needs told. Previously only the zero-results card carried
+              role="status", so a search that FOUND something announced nothing
+              at all and a search that found nothing announced a negative — the
+              worse half of the pair being the only half spoken.
+            -->
+            <!--
+              Not a live region: `resultAnnouncement` above is the single one,
+              and it carries the scope, the date and the near misses too. The
+              count is also withheld until the index exists — rendered
+              unconditionally it put a literal "0 results" into the
+              vite-ssg-prerendered /search HTML, which is a false negative in
+              the bytes a crawler reads.
+            -->
+            <p v-if="isLoaded" class="text-sm text-light-muted dark:text-dark-muted">
               <span class="font-semibold text-light-text dark:text-dark-text">
                 {{ filteredEntities.length.toLocaleString() }}
               </span>
@@ -454,9 +575,8 @@ const statuses = computed(() =>
             because a reader files it as a clear.
           -->
           <div
-            v-if="!loading && filteredEntities.length === 0"
+            v-if="isLoaded && !loading && filteredEntities.length === 0"
             class="glass-card p-12 text-center"
-            role="status"
           >
             <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-light-surface dark:bg-dark-surface flex items-center justify-center">
               <svg class="w-8 h-8 text-light-muted dark:text-dark-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -472,9 +592,9 @@ const statuses = computed(() =>
               screening result.
             -->
             <p class="text-light-muted dark:text-dark-muted mb-4 max-w-lg mx-auto">
-              <template v-if="searchQuery.trim()">
+              <template v-if="debouncedQuery.trim()">
                 No entity on the {{ sourceCount }} lists Ammitto covers matches
-                <span class="font-semibold text-light-text dark:text-dark-text">&ldquo;{{ searchQuery.trim() }}&rdquo;</span><span v-if="hasFacetFilters"> with the current filters</span>.
+                <span class="font-semibold text-light-text dark:text-dark-text">&ldquo;{{ debouncedQuery.trim() }}&rdquo;</span><span v-if="hasFacetFilters"> with the current filters</span>.
               </template>
               <template v-else>
                 No entity on the {{ sourceCount }} lists Ammitto covers matches the current filters.
@@ -495,10 +615,16 @@ const statuses = computed(() =>
             >
               Did you mean
               <template v-for="(miss, i) in nearMisses" :key="miss.token">
+                <!--
+                  `aria-label` because the visible text is a bare token: lifted
+                  out of the sentence by a screen reader's element list, "assad"
+                  alone does not say what activating it does.
+                -->
                 <button
                   type="button"
                   class="text-brand-link hover:underline font-medium"
-                  @click="searchQuery = miss.token"
+                  :aria-label="`Search for ${applySuggestionText(miss.token)} instead`"
+                  @click="applySuggestion(miss.token)"
                 >{{ miss.token }}</button><span v-if="i < nearMisses.length - 2">, </span><span v-else-if="i === nearMisses.length - 2"> or </span>
               </template>?
             </p>

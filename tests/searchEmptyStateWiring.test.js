@@ -84,6 +84,22 @@ test('the empty state waits for loading to finish before asserting a negative', 
   )
 })
 
+test('the empty state also waits for the index to exist at all', () => {
+  // Distinct from !loading, and the distinction is what keeps the card out of
+  // the PRERENDERED html. `loading` is false before mount, so vite-ssg renders
+  // /search with an empty result set and no load in flight — and with only the
+  // !loading guard it baked the card into dist/search.html reading "No entity
+  // on the 0 lists Ammitto covers matches the current filters". That is the
+  // very claim this page exists to stop making, served to crawlers and to
+  // anyone whose JavaScript has not run.
+  const tag = emptyStateOpeningTag()
+  assert.match(
+    tag,
+    /isLoaded/,
+    'the empty state must require a loaded index, not merely an idle one',
+  )
+})
+
 test('the old copy, which stated a finding rather than a failure to match, is gone', () => {
   assert.ok(
     !source.includes('No entities match your current search criteria'),
@@ -111,9 +127,23 @@ test('near misses are offered, and only when the search has settled', () => {
   assert.match(source, /nearMisses/, 'expected a near-miss suggestion list')
   // Suggestions must not appear while loading, or against a non-empty result
   // set — both would be answering a question the page has not yet asked.
-  const block = source.slice(source.indexOf('const nearMisses'))
-  assert.match(block.slice(0, 400), /if \(loading\.value/)
-  assert.match(block.slice(0, 400), /filteredEntities\.value\.length > 0/)
+  // The whole computed, not a fixed-width window: the guards are separated by
+  // the comments explaining why each exists, and a fixed slice silently stops
+  // reaching the last assertion as those grow.
+  const start = source.indexOf('const nearMisses')
+  const block = source.slice(start, source.indexOf('\n})', start))
+  // Three separate gates, each pinned:
+  //  - the index must have finished loading, or a prerender/first-paint state
+  //    would produce suggestions about a corpus nobody has read yet;
+  //  - the grid must actually be empty;
+  //  - and the query must be the DEBOUNCED one. Keyed to the live query this
+  //    ran a scan of tens of thousands of candidates synchronously inside a
+  //    render on every keystroke, plus a full fold of all 61,099 rows on the
+  //    first call.
+  assert.match(block, /isLoaded\.value/)
+  assert.match(block, /loading\.value/)
+  assert.match(block, /filteredEntities\.value\.length > 0/)
+  assert.match(block, /suggestFor\(debouncedQuery\.value\)/)
 })
 
 test('the "with the current filters" clause is keyed to facets, not to the query', () => {
@@ -128,5 +158,72 @@ test('the "with the current filters" clause is keyed to facets, not to the query
     source,
     /const hasFacetFilters = computed/,
     'hasFacetFilters must exist and exclude searchQuery',
+  )
+})
+
+test('a suggestion replaces only the misspelt word, chosen by edit distance', () => {
+  // Replacing the whole query threw away every other word: "bashar assadd" with
+  // "assad" clicked became a bare "assad" — 69 results instead of the one person
+  // the reader was narrowing towards.
+  assert.match(source, /function applySuggestionText/)
+  assert.match(
+    source,
+    /next\[bestIndex\] = token/,
+    'the suggestion must be substituted into the query, not replace it',
+  )
+  // And the word to replace must be chosen by the SAME metric that produced the
+  // suggestion. A common-prefix heuristic looks equivalent and is not: for
+  // "qa kadhafi" suggesting "qadhafi", "qa" shares two leading characters and
+  // "kadhafi" shares none, so prefix-matching swapped the wrong word and
+  // produced "qadhafi kadhafi".
+  assert.match(
+    source,
+    /boundedEditDistance\(part, token/,
+    'word selection must use edit distance, not common-prefix length',
+  )
+  // And the comparison must be on the FOLDED word. The suggestion is folded and
+  // the query word is not, so measuring the raw word inflates the distance of
+  // exactly the word that needs replacing: "bashar al-assadd" compares
+  // "al-assadd" to "assad" with the hyphen and particle still attached.
+  assert.match(
+    source,
+    /for \(const part of foldForSearch\(w\)\)/,
+    'each of the word\'s folded tokens must be compared, not their concatenation',
+  )
+})
+
+test('a zero result is not announced before the index has loaded', () => {
+  // `filteredEntities` is empty until the 20 MB index arrives, so announcing
+  // unconditionally reads "0 results" to a screen reader while the honest
+  // answer is "not yet known" — the audible form of the false negative this
+  // whole change exists to remove.
+  const block = source.slice(
+    source.indexOf('const resultAnnouncement'),
+    source.indexOf('\n})', source.indexOf('const resultAnnouncement')),
+  )
+  assert.ok(block, 'expected a composed resultAnnouncement')
+  assert.match(
+    block,
+    /if \(!isLoaded\.value \|\| loading\.value\) return ''/,
+    'the announcement must be empty until the index has loaded',
+  )
+  // It must carry more than the count: the scope, the date and the near misses
+  // are the whole reason the empty state is worth reading, and a live region on
+  // the bare count withholds all three.
+  assert.match(block, /sourceCount\.value/, 'announcement must name the scope')
+  assert.match(block, /asOf\.value/, 'announcement must carry the date')
+  assert.match(block, /nearMisses\.value/, 'announcement must offer near misses')
+  // And exactly one live region, or the same fact is announced twice.
+  // Counted with comments stripped: the explanatory comments in this file
+  // quote `role="status"` in prose, and counting those would make the
+  // assertion pass or fail on how the rationale happens to be worded.
+  const markup = source
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '')
+  assert.equal(
+    (markup.match(/role="status"/g) || []).length,
+    1,
+    'exactly one live region: the empty-state card must not also be one',
   )
 })

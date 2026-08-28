@@ -21,7 +21,15 @@ const { stats, loadStats, publishedSourceCount, generatedAt } = useSanctionsData
 const asOf = computed(() => {
   if (!generatedAt.value) return ''
   const d = new Date(generatedAt.value)
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString()
+  if (Number.isNaN(d.getTime())) return ''
+  // UTC, and labelled as such. `toLocaleString()` with no options rendered the
+  // instant in the viewer's zone, so the date a screening result is filed under
+  // changed with the reader's location.
+  return `${d.toLocaleString('en-GB', {
+    timeZone: 'UTC',
+    dateStyle: 'long',
+    timeStyle: 'short',
+  })} UTC`
 })
 
 onMounted(() => {
@@ -36,8 +44,16 @@ onMounted(() => {
         Data Sources
       </h1>
       <p class="text-light-muted dark:text-dark-muted mb-8 max-w-3xl">
-        Ammitto aggregates sanctions data from
-        {{ publishedSourceCount || sources.length }} official international sources.
+        <!--
+          The number is omitted until it is known rather than falling back to
+          `sources.length`. This page is prerendered by vite-ssg with no data
+          fetched, so a fallback would bake the CATALOGUE figure (15) into the
+          static HTML that crawlers read, and the client would then swap it for
+          the published figure (14) — reintroducing, in the shipped bytes, the
+          exact disagreement this change exists to remove.
+        -->
+        Ammitto aggregates sanctions data from<span v-if="publishedSourceCount">&nbsp;{{ publishedSourceCount }}</span>
+        official international sources.
         <span v-if="asOf">Data as of {{ asOf }}.</span>
       </p>
 
@@ -84,10 +100,20 @@ onMounted(() => {
         </div>
       </div>
 
+      <!--
+        All fifteen catalogued sources are listed, including any the deploy does
+        not yet publish — `sourceCatalog.ts` argues, correctly, that a source
+        silently dropped from the catalogue is the worse bug. But the heading
+        above counts the fourteen that ARE published, so the two must not be
+        allowed to read as a miscount: a source with no published entities is
+        marked as such on its own card.
+      -->
       <div class="grid md:grid-cols-2 gap-6">
         <SourceCard
           v-for="source in sources"
           :key="source.code"
+          :pending="!!stats && !stats.sources?.[source.code]"
+          :counts-known="!!stats"
           :name="source.name"
           :full-name="source.fullName"
           :description="source.description"
