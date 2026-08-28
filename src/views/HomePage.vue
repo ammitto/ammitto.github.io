@@ -31,8 +31,14 @@ const features = [
     icon: '🔗',
   },
   {
-    title: 'Real-time Updates',
-    description: 'Data is synchronized daily from official government sources to ensure accuracy.',
+    // Was "Real-time Updates" / "synchronized daily". Neither was true: no
+    // workflow carried a `schedule:` trigger, so the site rebuilt only when
+    // someone pushed, and on 2026-08-28 the published data was generated
+    // 2026-08-21 — the date of the last push. deploy.yml now runs nightly,
+    // which makes a daily rebuild real but still not real-time, and the date
+    // the data carries is the fact a reader actually needs.
+    title: 'Dated and Rebuilt Nightly',
+    description: 'Every record carries the date its data was generated, and the whole corpus is rebuilt nightly from the official sources.',
     icon: '⚡',
   },
   {

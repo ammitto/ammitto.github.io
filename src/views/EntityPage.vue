@@ -257,8 +257,23 @@ onMounted(async () => {
             <Badge :variant="entityType as any">
               {{ typeInfo?.icon }} {{ typeInfo?.name }}
             </Badge>
-            <Badge variant="source" :source-code="source ?? undefined">
-              {{ sourceInfo?.name }}
+            <!--
+              The authority that listed this entity.
+
+              `v-if` because a badge with no text is worse than no badge: this
+              rendered as a bare grey pill between "Organization" and "active"
+              on every record, because the published nodes carry an empty
+              `sourceReferences` array and nothing else supplied the code.
+              `useEntityData` now falls back to the source segment of the route,
+              so this is normally filled; the guard covers a code the catalogue
+              does not recognise, where the label would be blank again.
+            -->
+            <Badge
+              v-if="sourceInfo?.name"
+              variant="source"
+              :source-code="source ?? undefined"
+            >
+              {{ sourceInfo.name }}
             </Badge>
             <Badge :variant="(entryStatus || 'active') as any">
               {{ entryStatus || 'Active' }}

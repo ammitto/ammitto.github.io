@@ -7,6 +7,30 @@ on:
   pull_request:
   repository_dispatch:
   workflow_dispatch:
+  # Nightly rebuild.
+  #
+  # Until this existed nothing ran on a timer, so the published data was only
+  # ever as fresh as the last push to main: measured on 2026-08-28, the live
+  # api/v1/stats.json carried generated_at 2026-08-21T12:56:01Z, the timestamp
+  # of the last push. Meanwhile three places in the site promised a daily sync.
+  # This makes the promise true rather than deleting it.
+  #
+  # 03:17 rather than 03:00 to stay off GitHub's on-the-hour scheduling peak,
+  # where queued cron jobs are most likely to be delayed or dropped.
+  #
+  # Note that the verify step below is designed to FAIL when a source in
+  # `pending_sources` starts publishing (it is held at exactly zero, so that a
+  # source coming back online forces a threshold recalibration rather than
+  # slipping in unmeasured). Today that is `ru`. On a push you are present when
+  # that fires; on this schedule you are not, and the deployed site keeps
+  # serving the previous build until someone acts on the failure. That is the
+  # intended trade: a stale-but-known site beats an unmeasured one.
+  #
+  # The `deploy` job below is gated on `github.ref == 'refs/heads/main'`. A
+  # scheduled run executes on the default branch and sets that exact ref, so
+  # this publishes rather than merely building.
+  schedule:
+  - cron: '17 3 * * *'
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:

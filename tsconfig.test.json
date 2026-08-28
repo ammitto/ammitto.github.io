@@ -49,6 +49,7 @@
     "src/utils/identificationDisplay.ts",
     "src/utils/searchFilters.ts",
     "src/utils/searchEncode.ts",
+    "src/utils/entityUrls.ts",
     "src/utils/sourceCatalog.ts",
     "src/config/palette.ts",
     "src/config/index.ts"
