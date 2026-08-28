@@ -62,16 +62,30 @@
  * Sanctions transliteration variance is concentrated in short particles that
  * are sometimes hyphenated, sometimes spaced and sometimes run together:
  * `al-Qaida` / `al Qaida` / `alqaida`, `Abd al-Aziz`, `bin Laden`, `El Shafee`,
- * `Abu Bakr`. Gluing every adjacent pair would roughly double the index for no
- * benefit, so only pairs where one side is this short or shorter are glued.
+ * `Abu Bakr`. Only pairs where one side is this short or shorter are glued.
  *
- * This threshold does NOT cleanly separate particles from name words, and an
+ * Measured over the live 61,099-row index, summing each row's tokens: 810,387
+ * real tokens, to which this threshold adds 132,279 glued ones (+16.3%).
+ * Gluing every adjacent pair regardless of length would add 749,288 (+92.5%),
+ * so the threshold is what keeps this from nearly doubling the index.
+ *
+ * The threshold does NOT cleanly separate particles from name words, and an
  * earlier comment here claimed it did. It does not: kim, khan, wang, chen,
- * inc, llc, ltd, corp and bank are all four characters or fewer. That is
- * harmless now only because gluing is confined to documents — an extra
- * document token costs index space, while an extra QUERY token cost 340 zeroed
- * searches. Do not move this to the encoder on the strength of the threshold
- * looking conservative.
+ * inc, llc, ltd, corp and bank are all four characters or fewer. Two costs
+ * follow from that, and only one of them is memory:
+ *
+ *  - An extra QUERY token is catastrophic. When gluing lived in the encoder it
+ *    turned two-word searches into unsatisfiable ANDs and zeroed 340 of a
+ *    1,313-query sweep. Never move this to the encoder because the threshold
+ *    looks conservative; it is not the threshold that makes gluing safe.
+ *
+ *  - An extra DOCUMENT token costs precision, not just space, because
+ *    `tokenize: 'forward'` donates every prefix of the glued token too. This is
+ *    why `indexableText` glues within one name rather than over
+ *    `searchRowText`'s output: gluing that output produced `mohammadiran` from
+ *    a name and a country, and the query `mohammadi` returned 101 rows of which
+ *    55 carried no such name. Scoped to names it returns 48, of which 2 do —
+ *    small, and not zero.
  */
 const GLUE_MAX_LEN = 4
 
