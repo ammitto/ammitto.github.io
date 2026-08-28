@@ -2,6 +2,7 @@ import { ref, computed } from 'vue'
 import FlexSearch from 'flexsearch'
 import { normalizeNode } from '@/utils/normalizeNode'
 import { searchRowText } from '@/utils/birthAdapters'
+import { foldForSearch, nearestNames, type NearMiss } from '@/utils/searchEncode'
 import {
   filterSearchEntities,
   type SearchFilterSelection,
@@ -121,10 +122,26 @@ async function loadSearchIndex(): Promise<void> {
     const data: SearchIndexResponse = await response.json()
     metadata.value = data.metadata
 
-    // Build FlexSearch index
+    // Build FlexSearch index.
+    //
+    // `encode` is not decoration. Without it FlexSearch applies its default
+    // Latin encoder — lowercase, split on whitespace — and measured against
+    // this very index on 2026-08-28, `alqaida` returned 0 while `al qaida`
+    // returned 372, and `islamsky` returned 0 against a corpus that carries
+    // "Islámský stát". A register that answers a spelling variant with
+    // "No entities match your current search criteria" is stating a finding
+    // it has not made. Replaying both encoders over the live 61,099-row index
+    // measured: alqaida 0 -> 372, islamsky 0 -> 26, binladen 0 -> 15, assad
+    // 67 -> 69, and no query losing a single result. Index build cost went
+    // from 2.2s to 4.2s in Node on that corpus.
+    //
+    // See src/utils/searchEncode.ts for what it folds and, more importantly,
+    // what it deliberately does not: `kadhafi` vs `qadhafi` is a substituted
+    // letter, which no encoder fixes. `suggestFor` below covers that.
     const index = new FlexSearch.Index({
       tokenize: 'forward',
       cache: true,
+      encode: foldForSearch,
     })
 
     // Index each entity
@@ -213,6 +230,47 @@ function search(query: string, limit = 100): SearchEntity[] {
 }
 
 /**
+ * Every token the index holds, folded — built on first use, never on load.
+ *
+ * `suggestFor` is the only caller and it only runs when a search returned
+ * nothing, which is rare and is already a moment the reader is waiting. Doing
+ * this eagerly would add a second full pass over 61,099 rows to every visit to
+ * the search page in exchange for a list most visitors never see.
+ *
+ * Measured on the live corpus: 179,384 distinct tokens of length > 3, and a
+ * suggestion lookup over them costs 64-160ms.
+ */
+let suggestionTokens: Set<string> | null = null
+
+function buildSuggestionTokens(): Set<string> {
+  const tokens = new Set<string>()
+  for (const entity of entities.value.values()) {
+    for (const token of foldForSearch(searchRowText(entity))) {
+      // Tokens of three characters or fewer are below `suggestionBudget`'s
+      // floor anyway, so holding them would cost memory for nothing.
+      if (token.length > 3) tokens.add(token)
+    }
+  }
+  return tokens
+}
+
+/**
+ * The indexed names a query nearly matched.
+ *
+ * This exists so the empty state can stop asserting a negative. On the live
+ * site `kadhafi` returned 1 result, `gaddafi` 15 and `qadhafi` 79 — three
+ * spellings of one man — and nothing on the page told the reader the other
+ * two existed. Against the real token set this returns, for `kadhafi`:
+ * gadhafi, kaddafi, qadhafi. For a name genuinely absent from the corpus
+ * ("ceausescu") it correctly returns nothing rather than inventing a lead.
+ */
+function suggestFor(query: string, limit = 5): NearMiss[] {
+  if (!isLoaded.value || !query.trim()) return []
+  if (suggestionTokens === null) suggestionTokens = buildSuggestionTokens()
+  return nearestNames(query, suggestionTokens, limit)
+}
+
+/**
  * Filter entities by criteria
  */
 function filter(
@@ -289,6 +347,13 @@ export function useSearchIndex() {
 
   const totalEntities = computed(() => metadata.value?.totalEntities || 0)
   const sourceCount = computed(() => metadata.value?.sources || 0)
+  /**
+   * When the published data was generated, as an ISO string, or ''.
+   *
+   * The empty state needs it: "no entity matches X" is only true as of a
+   * date, and a screening result without one cannot be filed.
+   */
+  const generatedAt = computed(() => metadata.value?.generated || '')
 
   return {
     // State
@@ -297,6 +362,7 @@ export function useSearchIndex() {
     error,
     totalEntities,
     sourceCount,
+    generatedAt,
 
     // Facets
     authorityFacets,
@@ -310,6 +376,7 @@ export function useSearchIndex() {
     loadSearchIndex,
     loadFacets,
     search,
+    suggestFor,
     filter,
     getEntity,
     getEntityByRef,

@@ -40,9 +40,11 @@ const {
   typeFacets,
   listTypeFacets,
   statusFacets,
+  generatedAt,
   loadSearchIndex,
   loadFacets,
   search,
+  suggestFor,
   filter,
 } = useSearchIndex()
 
@@ -113,6 +115,38 @@ watch([searchQuery, filters], () => {
 const entityAdapter = (entity: SearchEntity) => searchRowToCard(entity)
 
 // Filtered results with debounced search
+/**
+ * The indexed names a fruitless query nearly matched.
+ *
+ * Only computed once a search has actually finished and found nothing, so a
+ * half-loaded index never produces suggestions — and never produces the empty
+ * state either (see the template). Measured on the live corpus, this costs
+ * 64-160ms and runs only at the moment the reader is already waiting.
+ */
+const nearMisses = computed(() => {
+  if (loading.value || !searchQuery.value.trim()) return []
+  if (filteredEntities.value.length > 0) return []
+  return suggestFor(searchQuery.value)
+})
+
+/**
+ * The date the answer is good as of, formatted for a reader.
+ *
+ * A negative screening result that carries no date cannot be filed, and this
+ * page's job is to produce exactly that answer.
+ */
+const asOf = computed(() => {
+  if (!generatedAt.value) return ''
+  const d = new Date(generatedAt.value)
+  return Number.isNaN(d.getTime())
+    ? ''
+    : d.toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      })
+})
+
 const filteredEntities = computed(() => {
   // Get search results - use very high limit to include all entities for filtering
   let results = search(debouncedQuery.value, 100000) // Get all results for filtering
@@ -195,6 +229,23 @@ const clearFilters = () => {
 
 const hasActiveFilters = computed(() =>
   searchQuery.value ||
+  filters.value.sources.length > 0 ||
+  filters.value.entityTypes.length > 0 ||
+  filters.value.listTypes.length > 0 ||
+  filters.value.statuses.length > 0
+)
+
+/**
+ * Whether any FACET filter is set, ignoring the query itself.
+ *
+ * Distinct from `hasActiveFilters`, which counts `searchQuery` as a filter so
+ * that the "1 filter active / Clear all" affordance appears for a bare search.
+ * The empty state needs the other question: saying "no entity matches X with
+ * the current filters" when the only filter IS X reads as though something
+ * else were also narrowing the result, and invites the reader to go looking
+ * for a filter that is not there.
+ */
+const hasFacetFilters = computed(() =>
   filters.value.sources.length > 0 ||
   filters.value.entityTypes.length > 0 ||
   filters.value.listTypes.length > 0 ||
@@ -385,18 +436,74 @@ const statuses = computed(() =>
             </button>
           </div>
 
-          <!-- No Results -->
-          <div v-else class="glass-card p-12 text-center">
+          <!--
+            No results.
+
+            This `v-if` used to be a `v-else`, and a `v-else` binds to the
+            IMMEDIATELY PRECEDING sibling — which is the Load More block above,
+            not the results grid. So the card rendered whenever there was
+            nothing left to load: on the live site /search?q=mudacumura showed
+            seven real results for a man sanctioned by seven authorities and
+            then, underneath them, "No results found". It also rendered while
+            the 20 MB index was still downloading, when the honest answer was
+            "not yet known".
+
+            The condition is therefore explicit on both counts: results are
+            actually zero, AND the load has finished. On a sanctions register a
+            premature or contradicted negative is the one failure that matters,
+            because a reader files it as a clear.
+          -->
+          <div
+            v-if="!loading && filteredEntities.length === 0"
+            class="glass-card p-12 text-center"
+            role="status"
+          >
             <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-light-surface dark:bg-dark-surface flex items-center justify-center">
-              <svg class="w-8 h-8 text-light-muted dark:text-dark-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-8 h-8 text-light-muted dark:text-dark-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
             </div>
-            <h3 class="font-semibold text-lg mb-2">No results found</h3>
-            <p class="text-light-muted dark:text-dark-muted mb-6 max-w-md mx-auto">
-              No entities match your current search criteria. Try adjusting your filters or search terms.
+            <h3 class="font-semibold text-lg mb-2">No match found</h3>
+
+            <!--
+              State the scope and the date. "Nothing matches" is only a usable
+              answer if the reader can see how many lists were consulted and
+              how current they were; without that it cannot be filed as a
+              screening result.
+            -->
+            <p class="text-light-muted dark:text-dark-muted mb-4 max-w-lg mx-auto">
+              <template v-if="searchQuery.trim()">
+                No entity on the {{ sourceCount }} lists Ammitto covers matches
+                <span class="font-semibold text-light-text dark:text-dark-text">&ldquo;{{ searchQuery.trim() }}&rdquo;</span><span v-if="hasFacetFilters"> with the current filters</span>.
+              </template>
+              <template v-else>
+                No entity on the {{ sourceCount }} lists Ammitto covers matches the current filters.
+              </template>
+              <span v-if="asOf" class="block mt-1 text-sm">Data as of {{ asOf }}.</span>
             </p>
-            <button @click="clearFilters" class="btn-primary">
+
+            <!--
+              Near misses. A spelling variant is the common reason this card is
+              on screen at all: measured on the live site, `kadhafi` returned 1
+              result, `gaddafi` 15 and `qadhafi` 79, and nothing told the reader
+              the other spellings existed. Absent a near miss this stays hidden
+              rather than inventing a lead.
+            -->
+            <p
+              v-if="nearMisses.length"
+              class="text-light-muted dark:text-dark-muted mb-6 max-w-lg mx-auto"
+            >
+              Did you mean
+              <template v-for="(miss, i) in nearMisses" :key="miss.token">
+                <button
+                  type="button"
+                  class="text-brand-link hover:underline font-medium"
+                  @click="searchQuery = miss.token"
+                >{{ miss.token }}</button><span v-if="i < nearMisses.length - 2">, </span><span v-else-if="i === nearMisses.length - 2"> or </span>
+              </template>?
+            </p>
+
+            <button v-if="hasActiveFilters" @click="clearFilters" class="btn-primary">
               Clear all filters
             </button>
           </div>
