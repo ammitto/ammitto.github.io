@@ -372,6 +372,31 @@ jobs:
               exit 1
             fi
           done
+          # Every aggregate published must belong to a source the manifest
+          # gates. The floor loop below walks publishing_sources and asks
+          # what each produced; it cannot see a source that produced an
+          # aggregate without being in that list. A code added to the
+          # harmonize call above and not to the manifest would publish
+          # here with no floor, no vocabulary check and no pending
+          # assertion — visible on the site, ungated, and reported by
+          # nothing. This is that check, from the artifact rather than
+          # from the command, so it holds however the source got there.
+          #
+          # After the pending loop, not before it: a pending source whose
+          # input came back is gated, and its own assertion above says so
+          # and names the recalibration. Reaching it first would answer
+          # that case with "gated by nothing", which is both wrong and
+          # less use to whoever has to fix it.
+          for aggregate in public/api/v1/sources/*.jsonld; do
+            [ -e "$aggregate" ] || continue
+            src=$(basename "$aggregate" .jsonld)
+            case " ${publishing} " in
+              (*" ${src} "*) ;;
+              (*)
+                echo "Source ${src} published sources/${src}.jsonld but is not in publishing_sources: it is gated by nothing. Add it to ${thresholds} with a measured floor, or stop harmonizing it."
+                exit 1;;
+            esac
+          done
           for src in $publishing; do
             floor=$(jq -er --arg s "$src" \
               '.source_floors[$s] | select(type == "number" and . == floor and . > 0 and . <= 100000000)' \
