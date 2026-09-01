@@ -81,10 +81,17 @@ export const BROWSE_INDEX_CONCURRENCY = 12
  * a silent data loss rather than a slow load.
  *
  * Errors are not swallowed: a task that rejects rejects the whole call,
- * and every result gathered so far is lost with it. The one caller today,
- * `useEntityData.fetchEntry`, catches its own and returns `null`, so a
- * single unreachable entry shortens the list instead. A future caller
- * that wants the same must do the same.
+ * and every result gathered so far is lost with it. Every caller therefore
+ * catches its own and returns `null`, so a single unreachable item shortens
+ * the list instead of emptying it.
+ *
+ * That shortening is not free, and a caller owes its reader the difference.
+ * `useEntityData.fetchEntry` drops an entry it cannot reach; the five browse
+ * pages go through `fetchNodeOnce` and `hydrationOutcome` in
+ * `@/utils/indexHydration`, which count the drops so the page can say the list
+ * is short and can tell "everything failed" from "there is nothing here" —
+ * without that distinction an outage renders as an authoritative empty
+ * dataset. A future caller that swallows failures owes the same accounting.
  */
 export async function mapWithPool<T, R>(
   items: readonly T[],

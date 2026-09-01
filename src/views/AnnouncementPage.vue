@@ -7,6 +7,7 @@ import { sources } from '@/config'
 import { getLanguageName } from '@/utils/language'
 import { normalizeNode } from '@/utils/normalizeNode'
 import { safeExternalUrl } from '@/utils/externalUrl'
+import { primaryNameOf } from '@/utils/entityNames'
 
 const route = useRoute()
 
@@ -95,11 +96,11 @@ const getEntityRef = (entityId: string): string => {
 
 // Get primary name from entity
 const getEntityPrimaryName = (entry: Entry): string => {
-  if (entry.entity?.names) {
-    const primary = entry.entity.names.find(n => n.is_primary)
-    if (primary?.full_name) return primary.full_name
-    if (entry.entity.names[0]?.full_name) return entry.entity.names[0].full_name
-  }
+  // Delegated, but the id-derived fallback below is kept: it reads better than
+  // the word "Unknown", which is why primaryNameOf returns null rather than
+  // baking a placeholder in.
+  const named = primaryNameOf(entry.entity?.names)
+  if (named) return named
   // Fallback: extract from entry ID
   const parts = entry.id.split('/')
   return parts[parts.length - 1].replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())

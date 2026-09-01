@@ -10,6 +10,7 @@ import { entryPeriodRows, listingRemarks } from '@/utils/entryAdapters'
 import { regimeLabels } from '@/utils/regimeAdapters'
 import { identificationTable } from '@/utils/identificationDisplay'
 import { sourceCodeFromRef } from '@/utils/entityUrls'
+import { primaryNameOf, aliasesOf } from '@/utils/entityNames'
 import type { IdentificationRecord } from '@/utils/identificationDisplay'
 import {
   legalBasisIris,
@@ -336,53 +337,11 @@ export function useEntityData() {
     legalBasisRows(legalBasisIris(entries.value), legalBasisNodes.value),
   )
 
-  /**
-   * The name the record is headed with.
-   *
-   * Both fallbacks must require a name, not merely a variant. The published
-   * data contains variants carrying `isPrimary` and no `fullName` at all:
-   * `uk/bel0174` has `names[0] = {script:"Latn", isPrimary:true}` with no name,
-   * and `names[1] = {fullName:"KAZAKOV", firstName:"Pavel", isPrimary:true}`.
-   * Testing `is_primary` alone matched the empty variant, `full_name` was
-   * undefined, and `names[0]` was that same object — so both fallbacks missed
-   * and the page was headed "Unknown" while a perfectly good name sat one
-   * position later.
-   */
-  const primaryName = computed(() => {
-    const names = entity.value?.names
-    if (!names?.length) return null
-
-    const named =
-      names.find(n => n.is_primary && n.full_name) ?? names.find(n => n.full_name)
-    return named?.full_name || 'Unknown'
-  })
-
-  /**
-   * Every other name the record carries.
-   *
-   * Excludes whatever `primaryName` actually resolved to, rather than
-   * everything flagged `is_primary`. On the 36.4% of sampled UK entities where
-   * NO variant is flagged primary, the heading falls back to the first named
-   * variant while this filter kept it — so the same name appeared once as the
-   * heading and again as an alias, inflating the alias count a reader takes as
-   * evidence of how widely the subject is known. Variants with no name are
-   * dropped for the same reason: an empty string is not an alias.
-   */
-  const aliases = computed(() => {
-    const names = entity.value?.names
-    if (!names) return []
-
-    const heading = primaryName.value
-    const seen = new Set<string>()
-    return names
-      .map(n => n.full_name)
-      .filter((name): name is string => {
-        if (!name || name === heading) return false
-        if (seen.has(name)) return false
-        seen.add(name)
-        return true
-      })
-  })
+  // Both of these delegate: the same selection was written four times and
+  // every copy carried the same defect, so fixing one of them left the entity
+  // page rendering its own inlined version. See src/utils/entityNames.ts.
+  const primaryName = computed(() => primaryNameOf(entity.value?.names) ?? 'Unknown')
+  const aliases = computed(() => aliasesOf(entity.value?.names))
 
   // Get country from entity
   const country = computed(() => {

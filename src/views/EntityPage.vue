@@ -5,6 +5,7 @@ import Badge from '@/components/atoms/Badge.vue'
 import { useEntityData } from '@/composables/useEntityData'
 import { sources, entityTypes } from '@/config'
 import { safeExternalUrl } from '@/utils/externalUrl'
+import { primaryNameOf } from '@/utils/entityNames'
 
 const route = useRoute()
 const {
@@ -283,7 +284,7 @@ onMounted(async () => {
 
           <!-- Primary Name -->
           <h1 class="text-3xl font-bold text-light-text dark:text-dark-text mb-2">
-            {{ entity.names?.find(n => n.is_primary)?.full_name || entity.names?.[0]?.full_name || 'Unknown' }}
+            {{ primaryNameOf(entity.names) ?? 'Unknown' }}
           </h1>
 
           <!-- Entity ID -->

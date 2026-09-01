@@ -6,6 +6,7 @@ import EntityCard from '@/components/molecules/EntityCard.vue'
 import { sources } from '@/config'
 import { getLanguageName } from '@/utils/language'
 import { normalizeNode } from '@/utils/normalizeNode'
+import { primaryNameOf } from '@/utils/entityNames'
 
 const route = useRoute()
 
@@ -75,11 +76,8 @@ const getAnnouncementRef = (announcementId: string): string => {
 }
 
 // Get primary name from entity
-const getPrimaryName = (entity?: Entity): string => {
-  if (!entity?.names || entity.names.length === 0) return 'Unknown'
-  const primary = entity.names.find(n => n.is_primary) || entity.names[0]
-  return primary.full_name || 'Unknown'
-}
+const getPrimaryName = (entity?: Entity): string =>
+  primaryNameOf(entity?.names) ?? 'Unknown'
 
 // Get aliases (non-primary names)
 const getAliases = (entity?: Entity): string[] => {

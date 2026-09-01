@@ -51,6 +51,8 @@
     "src/utils/searchEncode.ts",
     "src/utils/entityUrls.ts",
     "src/utils/externalUrl.ts",
+    "src/utils/entityNames.ts",
+    "src/utils/indexHydration.ts",
     "src/utils/sourceCatalog.ts",
     "src/config/palette.ts",
     "src/config/index.ts"

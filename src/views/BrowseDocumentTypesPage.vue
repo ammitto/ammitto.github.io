@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { mapWithPool, BROWSE_INDEX_CONCURRENCY } from '@/utils/entryFetchPool'
+import { fetchNodeOnce, hydrationOutcome } from '@/utils/indexHydration'
 
 interface LocalizedName {
   value: string
@@ -24,6 +25,10 @@ interface IndexNode {
 const documentTypes = ref<DocumentType[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
+// How many index nodes failed to load. Rendered rather than hidden: the
+// totals this page shows are derived from what was fetched, so a silent
+// drop is a silently wrong total.
+const droppedCount = ref(0)
 
 const getDisplayName = (docType: DocumentType): string => {
   const enName = docType.name.find(n => n.lang === 'en')
@@ -61,20 +66,27 @@ onMounted(async () => {
     // and drops a `null` rather than the whole list — which is why the fetch
     // catches its own failure and returns null instead of throwing. One
     // unreachable node shortens the page rather than emptying it.
-    const loadedTypes = await mapWithPool(
+    const fetched = await mapWithPool(
       nodes,
-      async (node): Promise<DocumentType | null> => {
-        const ref = getDocTypeRef(node['@id'])
-        try {
-          const response = await fetch(`/api/v1/node/document-type/${ref}.jsonld`)
-          if (!response.ok) return null
-          return await response.json()
-        } catch {
-          return null
-        }
-      },
+      (node) =>
+        fetchNodeOnce<DocumentType>(
+          `/api/v1/node/document-type/${getDocTypeRef(node['@id'])}.jsonld`,
+        ),
       BROWSE_INDEX_CONCURRENCY,
     )
+
+    // Report what failed rather than swallowing it. Each task catches its own
+    // failure so one unreachable node shortens the list instead of emptying
+    // it — but that also means a total outage arrives here as an empty array,
+    // and rendering the empty state for it would tell the reader the register
+    // holds no document types.
+    const outcome = hydrationOutcome(fetched, nodes.length)
+    if (outcome.allFailed) {
+      error.value = 'Could not load document types. Check your connection and reload.'
+      return
+    }
+    droppedCount.value = outcome.dropped
+    const loadedTypes = outcome.items
 
     documentTypes.value = loadedTypes
   } catch (e) {
@@ -113,6 +125,23 @@ onMounted(async () => {
           <div class="text-sm text-light-muted dark:text-dark-muted">types</div>
         </div>
       </div>
+
+      <!--
+        A short list must say it is short. The totals on this page are derived
+        from what was fetched, so a dropped node silently lowers them; on a
+        register, a quietly incomplete list is the same class of defect as a
+        false negative. role="status" because it reports the outcome of the
+        load the reader just triggered.
+      -->
+      <p
+        v-if="!loading && !error && droppedCount > 0"
+        role="status"
+        class="mb-4 text-sm px-3 py-2 rounded-lg border border-status-suspended/40 bg-status-suspended/10 text-light-text dark:text-dark-text"
+      >
+        {{ droppedCount.toLocaleString() }}
+        {{ droppedCount === 1 ? 'record' : 'records' }} could not be loaded, so
+        this list is incomplete. Reload to try again.
+      </p>
 
       <!-- Loading state -->
       <div v-if="loading" class="flex items-center justify-center py-12">
