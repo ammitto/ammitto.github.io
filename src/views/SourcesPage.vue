@@ -131,12 +131,25 @@ onMounted(() => {
           Data Freshness
         </h2>
         <p class="text-light-muted dark:text-dark-muted">
+          <!--
+            This said the data was generated "from the official sources listed
+            above", which reads as though the rebuild fetches from each
+            authority. It does not: the rebuild republishes what has already
+            been collected, and each list is collected from its authority on
+            its own schedule. So the date below is when this COPY was built,
+            and an individual list can be older than it.
+
+            That gap is what a reader screening a name has to know. How the
+            collection is wired is not, and is deliberately absent.
+          -->
           <template v-if="asOf">
-            This data was generated
-            <span class="font-medium text-light-text dark:text-dark-text">{{ asOf }}</span>
-            from the official sources listed above. A rebuild runs nightly and
-            whenever a change is pushed, so the date above — not a promised
-            cadence — is what any result on this site is true as of.
+            This copy of the data was built
+            <span class="font-medium text-light-text dark:text-dark-text">{{ asOf }}</span>,
+            and is rebuilt daily. Each list above is collected from its own
+            authority separately, so an individual list can be older than that
+            date — the site does not currently publish a per-source collection
+            date. Treat the date as the point after which nothing here has been
+            checked, rather than as the age of every record.
           </template>
           <template v-else>
             Every result on this site is true as of the date the data was

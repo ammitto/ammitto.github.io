@@ -41,8 +41,15 @@ const features = [
     // 2026-08-21 — the date of the last push. deploy.yml now runs nightly,
     // which makes a daily rebuild real but still not real-time, and the date
     // the data carries is the fact a reader actually needs.
-    title: 'Dated and Rebuilt Nightly',
-    description: 'Every record carries the date its data was generated, and the whole corpus is rebuilt nightly from the official sources.',
+    //
+    // "from the official sources" was then wrong in the other direction. The
+    // nightly rebuild does not contact any authority: it republishes what the
+    // per-source data repositories last committed, and each of those collects
+    // from its authority on its own schedule. So the published date is when
+    // THIS copy was built, and an individual list can be older than it. That
+    // gap is the reader-facing fact; how the pieces are wired is not.
+    title: 'Dated, Not Promised',
+    description: 'Every page shows the date this copy of the data was built. Each list is collected from its authority separately, so a given list can be older than that date.',
     icon: '⚡',
   },
   {
