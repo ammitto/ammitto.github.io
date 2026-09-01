@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import Logo from '@/components/atoms/Logo.vue'
 import { siteConfig, sources } from '@/config'
+import { safeExternalUrl } from '@/utils/externalUrl'
 
 const currentYear = new Date().getFullYear()
 </script>
@@ -24,7 +25,8 @@ const currentYear = new Date().getFullYear()
           <ul class="space-y-2">
             <li v-for="source in sources.slice(0, 5)" :key="source.code">
               <a
-                :href="source.url"
+                v-if="safeExternalUrl(source.url)"
+                :href="safeExternalUrl(source.url) as string"
                 target="_blank"
                 rel="noopener noreferrer"
                 class="text-sm text-light-muted dark:text-dark-muted hover:text-brand-link transition-colors"

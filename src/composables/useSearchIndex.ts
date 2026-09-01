@@ -92,7 +92,6 @@ const metadata = ref<SearchIndexResponse['metadata'] | null>(null)
 const authorityFacets = ref<FacetItem[]>([])
 const regimeFacets = ref<FacetItem[]>([])
 const typeFacets = ref<FacetItem[]>([])
-const countryFacets = ref<FacetItem[]>([])
 const statusFacets = ref<FacetItem[]>([])
 const listTypeFacets = ref<FacetItem[]>([])
 
@@ -194,11 +193,23 @@ async function loadFacets(): Promise<void> {
   if (!isBrowser) return
 
   try {
-    const [authRes, regRes, typeRes, countryRes, statusRes, listTypeRes] = await Promise.all([
+    // No countries.json. It was fetched here on every visit to the search page
+    // and nothing rendered it: `countryFacets` was declared, assigned and
+    // exported, and a grep for it across src/ returned only those three lines.
+    // 25,808 bytes (6,430 gzipped) per search-page load for a value no
+    // component reads.
+    //
+    // Not merely unused — currently unusable. The published facet is derived
+    // from the first address line rather than a country field, so it returns
+    // 644 rows in which RUSSIA (7,729), RUSSIAN FEDERATION (2,030), "RUSSIA "
+    // (34) and 88 postal addresses are separate entries, and 393 rows have a
+    // count of one. A filter built on it would silently miss 22% of Russia
+    // matches. Restoring this fetch should wait until the gem normalises the
+    // field to ISO 3166; the defect is recorded in the gem's own notes.
+    const [authRes, regRes, typeRes, statusRes, listTypeRes] = await Promise.all([
       fetch(`${API_BASE}api/v1/facets/authorities.json`),
       fetch(`${API_BASE}api/v1/facets/regimes.json`),
       fetch(`${API_BASE}api/v1/facets/types.json`),
-      fetch(`${API_BASE}api/v1/facets/countries.json`),
       fetch(`${API_BASE}api/v1/facets/statuses.json`),
       fetch(`${API_BASE}api/v1/facets/list_types.json`),
     ])
@@ -216,11 +227,6 @@ async function loadFacets(): Promise<void> {
     if (typeRes.ok) {
       const data: FacetsResponse = await typeRes.json()
       typeFacets.value = data.facets
-    }
-
-    if (countryRes.ok) {
-      const data: FacetsResponse = await countryRes.json()
-      countryFacets.value = data.facets
     }
 
     if (statusRes.ok) {
@@ -419,7 +425,6 @@ export function useSearchIndex() {
     authorityFacets,
     regimeFacets,
     typeFacets,
-    countryFacets,
     statusFacets,
     listTypeFacets,
 

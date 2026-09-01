@@ -4,6 +4,7 @@ import { useRoute, useRouter, RouterLink } from 'vue-router'
 import Badge from '@/components/atoms/Badge.vue'
 import SourceFilter from '@/components/SourceFilter.vue'
 import { getLanguageName } from '@/utils/language'
+import { mapWithPool, BROWSE_INDEX_CONCURRENCY } from '@/utils/entryFetchPool'
 
 interface LegalInstrument {
   '@id': string
@@ -113,17 +114,29 @@ onMounted(async () => {
     const indexData = await indexResponse.json()
     const nodes: IndexNode[] = indexData.nodes || []
 
-    const loadedInstruments: LegalInstrument[] = []
-    for (const node of nodes) {
-      const ref = getInstrumentRef(node['@id'])
-      const response = await fetch(`/api/v1/node/legal-instrument/${ref}.jsonld`)
-      if (response.ok) {
-        const data = await response.json()
-        loadedInstruments.push(data)
-      }
-    }
-
-    instruments.value = loadedInstruments
+    // Pooled, not sequential. This loop awaited each of the index's 817 nodes
+    // in turn and assigned `instruments` only afterwards, so the page showed a
+    // spinner for the whole run: ~0.30s per node round trip, measured against
+    // the live API on 2026-09-01, is about 4.1 minutes before anything renders.
+    //
+    // `mapWithPool` keeps input order, so the rendered order is unchanged, and
+    // drops a `null` rather than the whole list, so one unreachable instrument
+    // shortens the page instead of emptying it — which is why the fetch below
+    // catches its own failure and returns null rather than throwing.
+    instruments.value = await mapWithPool(
+      nodes,
+      async (node): Promise<LegalInstrument | null> => {
+        const ref = getInstrumentRef(node['@id'])
+        try {
+          const response = await fetch(`/api/v1/node/legal-instrument/${ref}.jsonld`)
+          if (!response.ok) return null
+          return await response.json()
+        } catch {
+          return null
+        }
+      },
+      BROWSE_INDEX_CONCURRENCY,
+    )
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Failed to load'
   } finally {

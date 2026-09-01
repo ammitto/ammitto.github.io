@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import Badge from '@/components/atoms/Badge.vue'
 import { useEntityData } from '@/composables/useEntityData'
 import { sources, entityTypes } from '@/config'
+import { safeExternalUrl } from '@/utils/externalUrl'
 
 const route = useRoute()
 const {
@@ -621,8 +622,8 @@ onMounted(async () => {
                   </svg>
                 </RouterLink>
                 <a
-                  v-if="announcement.url"
-                  :href="announcement.url"
+                  v-if="safeExternalUrl(announcement.url)"
+                  :href="safeExternalUrl(announcement.url) as string"
                   target="_blank"
                   rel="noopener noreferrer"
                   class="inline-flex items-center gap-1 text-brand-link hover:underline text-sm"

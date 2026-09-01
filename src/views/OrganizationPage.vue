@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue'
+import { safeExternalUrl } from '@/utils/externalUrl'
 import { useRoute, RouterLink } from 'vue-router'
 import {
   organizationSummaryUrl,
@@ -214,8 +215,8 @@ onMounted(async () => {
               </div>
             </div>
             <a
-              v-if="organization.url"
-              :href="organization.url"
+              v-if="safeExternalUrl(organization.url)"
+              :href="safeExternalUrl(organization.url) as string"
               target="_blank"
               rel="noopener noreferrer"
               class="inline-flex items-center gap-2 px-4 py-2 bg-brand-primary text-white rounded-lg hover:bg-brand-primary/90 transition-colors shrink-0"

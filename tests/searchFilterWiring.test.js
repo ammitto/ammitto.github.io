@@ -72,14 +72,39 @@ test('the composable loads, types and delegates list-type filtering', () => {
 })
 
 test('the composable still loads the facets it already loaded', () => {
-  // Adding a sixth request must not quietly drop the five that were there.
+  // Adding a request must not quietly drop the ones that were there.
+  //
+  // countries.json is deliberately NOT in this list. It was fetched on every
+  // search-page load and nothing rendered it — `countryFacets` was declared,
+  // assigned and exported, and a grep across src/ returned only those three
+  // lines — so it cost 25,808 bytes (6,430 gzipped) per load for a value no
+  // component read. It is also unusable as published: the facet is derived
+  // from the first address line, so RUSSIA, RUSSIAN FEDERATION and 88 postal
+  // addresses are separate rows and a filter built on it would miss 22% of
+  // Russia matches.
+  //
+  // This guard exists to catch an ACCIDENTAL drop, which is the one thing it
+  // cannot tell from a deliberate one — hence the note rather than a silent
+  // edit. Put countries.json back here the moment the gem normalises the
+  // field to ISO 3166 and something renders it.
   requireAll('src/composables/useSearchIndex.ts', [
     'fetch(`${API_BASE}api/v1/facets/authorities.json`)',
     'fetch(`${API_BASE}api/v1/facets/regimes.json`)',
     'fetch(`${API_BASE}api/v1/facets/types.json`)',
-    'fetch(`${API_BASE}api/v1/facets/countries.json`)',
     'fetch(`${API_BASE}api/v1/facets/statuses.json`)',
+    'fetch(`${API_BASE}api/v1/facets/list_types.json`)',
   ])
+
+  // And it must not creep back unnoticed while the data is still unusable.
+  const source = readFileSync(
+    new URL('../src/composables/useSearchIndex.ts', import.meta.url),
+    'utf8',
+  )
+  assert.ok(
+    !source.includes('facets/countries.json'),
+    'countries.json is fetched again — see the note above; it needs a consumer ' +
+      'and an ISO-normalised field first',
+  )
 })
 
 test('the search page carries list types through URL, counts and filtering', () => {

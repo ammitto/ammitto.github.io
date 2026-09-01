@@ -6,6 +6,7 @@ import EntityCard from '@/components/molecules/EntityCard.vue'
 import { sources } from '@/config'
 import { getLanguageName } from '@/utils/language'
 import { normalizeNode } from '@/utils/normalizeNode'
+import { safeExternalUrl } from '@/utils/externalUrl'
 
 const route = useRoute()
 
@@ -396,8 +397,8 @@ onMounted(async () => {
           </dl>
 
           <a
-            v-if="announcement?.announcement?.url"
-            :href="announcement.announcement.url"
+            v-if="safeExternalUrl(announcement?.announcement?.url)"
+            :href="safeExternalUrl(announcement?.announcement?.url) as string"
             target="_blank"
             rel="noopener noreferrer"
             class="inline-flex items-center gap-2 px-4 py-2 bg-brand-primary text-white rounded-lg hover:bg-brand-primary/90 transition-colors mt-4"

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { tileToneVars } from '@/config/palette'
+import { safeExternalUrl } from '@/utils/externalUrl'
 
 const props = defineProps<{
   name: string
@@ -73,7 +74,8 @@ const formattedCount = computed(() => {
         </div>
       </div>
       <a
-        :href="url"
+        v-if="safeExternalUrl(url)"
+        :href="safeExternalUrl(url) as string"
         target="_blank"
         rel="noopener noreferrer"
         class="text-brand-link hover:underline text-sm font-medium"

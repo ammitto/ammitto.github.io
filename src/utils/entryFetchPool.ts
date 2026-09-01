@@ -34,6 +34,35 @@
 export const ENTRY_FETCH_CONCURRENCY = 6
 
 /**
+ * Node files in flight while a browse page hydrates its index.
+ *
+ * Higher than `ENTRY_FETCH_CONCURRENCY` because it solves a different
+ * problem. That cap protects against one entity opening a request per entry;
+ * this one governs a page that knowingly fetches every node an index lists,
+ * where the whole cost is round trips and there is nothing to protect
+ * against but the browser.
+ *
+ * Measured against the live API on 2026-09-01: a single node round-trips in
+ * ~0.30s, and the indexes hold 817 legal instruments, 37 organizations, 35
+ * document types and 29 groups. Fetched one after another — which is what
+ * these pages did — the legal-instruments page spent about 4.1 minutes
+ * before it rendered anything, because it assigned its results only after
+ * the loop finished.
+ *
+ * 12 rather than 6 because ammitto.org is served over HTTP/2 (verified:
+ * `curl -o /dev/null -w '%{http_version}'` returns 2), so the old HTTP/1.1
+ * six-connections-per-origin limit does not apply and the requests are
+ * multiplexed on one connection.
+ *
+ * This is a mitigation, not the fix. 817 round trips at any concurrency is
+ * the wrong shape; legal instruments want a published summary the way
+ * `by-organization/` and `by-document-type/` already give
+ * OrganizationPage and DocumentTypePage a single request. That is gem-side
+ * work and is recorded in the data-defects note.
+ */
+export const BROWSE_INDEX_CONCURRENCY = 12
+
+/**
  * Run `task` over `items` with at most `limit` in flight, and return the
  * results in the order of `items`.
  *
