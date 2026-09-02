@@ -163,9 +163,15 @@ jobs:
           # creates/overwrites files, so without this, stale committed files
           # would survive into the deployed artifact next to fresh output.
           rm -rf ../public/api/v1
-          # --combine emits the aggregated all.jsonld (downloaded by the
-          # client library) and its all.ttl Turtle rendering; the gem
-          # gates both behind the flag and defaults it off.
+          # --combine emits the aggregated all.jsonld and its all.ttl
+          # Turtle rendering; the gem gates both behind the flag and
+          # defaults it off. They are published because the API
+          # advertises them at that path. Two earlier revisions got the
+          # reason wrong in opposite directions, so state it exactly: the
+          # gem does not download all.jsonld automatically, and its public
+          # `ApiClient#fetch_all` exists precisely so a consumer can ask
+          # for it. Nothing in the gem's own fetch or harmonize paths
+          # reaches for the aggregate.
           #
           # The sources are named rather than discovered with --scan: the
           # published set must stay exactly the set the threshold manifest
@@ -249,9 +255,14 @@ jobs:
           jq -es 'length == 1 and (.[0] | (.entities | type == "array") and (.entities | length > 0))' \
             public/api/v1/search-index.json > /dev/null \
             || { echo "search-index.json is not a single JSON object with a non-empty entities array"; exit 1; }
-          # The client library downloads all.jsonld: require one JSON
-          # object with a non-empty @graph, not just a non-empty file
-          # (~59 MB; the slurp parse costs a few seconds).
+          # all.jsonld is an advertised API endpoint, so require exactly
+          # one JSON object with a non-empty @graph: existence or size
+          # alone would accept malformed or empty output. This proves
+          # structure and non-emptiness and nothing more — a graph that
+          # parses but is short of nodes still passes, because nothing
+          # here knows how many it should hold. The per-source floors
+          # below separately catch source entity loss reflected in
+          # stats.json; they do not prove this graph complete either.
           jq -es 'length == 1 and (.[0] | type == "object" and (.["@graph"] | type == "array" and length > 0))' \
             public/api/v1/all.jsonld > /dev/null \
             || { echo "all.jsonld is not a single JSON-LD object with a non-empty @graph"; exit 1; }
