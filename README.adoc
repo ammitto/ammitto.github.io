@@ -10,9 +10,9 @@ It is a https://vuejs.org[Vue.js 3] application built with https://vitejs.dev[Vi
 
 == Features
 
-* **Sanctions Search Database** - Search across 55,000+ sanctioned entities from 15 sources
+* **Sanctions Search Database** - Search sanctioned entities from the publishing sources
 * **Ontology Browser** - Explore the Ammitto knowledge graph schema
-* **Lightweight Search** - Client-side FlexSearch with ~8MB index (vs 69MB full data)
+* **Lightweight Search** - Client-side FlexSearch over a compact index rather than the whole graph
 * **Dark Mode** - Full dark mode support
 * **Responsive Design** - Mobile-first design with Tailwind CSS
 
@@ -69,13 +69,14 @@ The website loads data from `public/api/v1/`:
 |===
 | File | Description
 
-| `search-index.json` | Lightweight search index (~8MB, 46K entities)
+| `search-index.json` | Lightweight search index
 | `facets/*.json` | Filter facet counts
 | `ontology/classes.jsonld` | Ontology class definitions
 | `ontology/properties.jsonld` | Ontology property definitions
 | `ontology/hierarchy.json` | Class hierarchy tree
 | `node/entity/{source}/{id}.jsonld` | Individual entity nodes
-| `all.jsonld` | Complete knowledge graph (69MB)
+| `sources/{source}.jsonld` | Every entity and entry for one source. Published for the 14 sources that contribute entities, so there is no `sources/ru.jsonld` while `ru` is pending
+| `all.jsonld` | Complete knowledge graph
 |===
 
 === Deployment
@@ -86,8 +87,11 @@ The deployment workflow:
 
 . Checks out the website repository
 . Checks out the ammitto gem repository
-. Clones all 15 data-* repositories
-. Runs `ammitto harmonize --scan` to generate API data
+. Clones the data-* repositories the workflow names
+. Runs `ammitto harmonize` over the explicitly named sources to generate
+  API data. They are listed rather than discovered with `--scan`, so that
+  the harmonized source set stays exactly the set
+  `.github/harmonize-thresholds.json` was calibrated against
 . Builds the Vue.js application with Vite
 . Deploys to GitHub Pages
 
@@ -110,7 +114,7 @@ Or manually via GitHub Actions workflow dispatch.
 │  SearchPage.vue                                                  │
 │       │                                                          │
 │       ▼                                                          │
-│  useSearchIndex.ts ──► FlexSearch ──► search-index.json (~8MB)  │
+│  useSearchIndex.ts ──► FlexSearch ──► search-index.json         │
 │       │                                                          │
 │       │ (on demand)                                              │
 │       ▼                                                          │
@@ -128,7 +132,15 @@ Or manually via GitHub Actions workflow dispatch.
 
 == Data Sources
 
-The website displays data from 15 sanctions sources:
+The 14 sources named in `publishing_sources` in
+`.github/harmonize-thresholds.json` contribute entities to the site. A
+fifteenth, `ru`, is harmonized but contributes none: `data-ru` ships no
+processed YAML, so the deploy holds it at exactly zero entities and no
+`sources/ru.jsonld` until its input returns. It still publishes its
+vocabulary — the document types and organizations under
+`sources/supporting/` are independent of the entity corpus — so it is listed
+below because it is in the graph, not because it has entities.
+
 
 [cols="1,1"]
 |===
@@ -142,7 +154,7 @@ The website displays data from 15 sanctions sources:
 | eu_vessels | EU Vessels
 | jp | Japan (MOFA)
 | nz | New Zealand (MFAT)
-| ru | Russia (MID)
+| ru | Russia (MID) -- pending, no entities yet
 | tr | Turkey
 | uk | United Kingdom (OFSI)
 | un | United Nations
@@ -153,4 +165,4 @@ The website displays data from 15 sanctions sources:
 
 == License
 
-The website is available as open source under the terms of the BSD-2-Clause License.
+The website is available as open source under the terms of the MIT License.
