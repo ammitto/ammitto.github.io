@@ -3,9 +3,11 @@ import { onMounted, ref, computed } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
 import Badge from '@/components/atoms/Badge.vue'
 import EntityCard from '@/components/molecules/EntityCard.vue'
+import SourceDocuments from '@/components/molecules/SourceDocuments.vue'
 import { sources } from '@/config'
 import { getLanguageName } from '@/utils/language'
 import { normalizeNode } from '@/utils/normalizeNode'
+import { nodeDocumentPath, nodeDocumentLabel } from '@/utils/nodeDocuments'
 
 const route = useRoute()
 
@@ -168,6 +170,20 @@ onMounted(async () => {
     loading.value = false
   }
 })
+
+// The node `onMounted` fetches, offered to the reader. Split the route id the
+// same way the fetch splits it, so a third segment is discarded here exactly
+// as the fetch discards it.
+const documents = computed(() => {
+  const [source, docId] = groupId.value.split('/')
+  if (!source || !docId) return []
+  const base = import.meta.env.BASE_URL || '/'
+  const id = `${source}/${docId}`
+  const href = nodeDocumentPath('group', id, base)
+  const label = nodeDocumentLabel(id)
+  if (!href || !label) return []
+  return [{ label, href, note: 'this group' }]
+})
 </script>
 
 <template>
@@ -249,6 +265,11 @@ onMounted(async () => {
             />
           </div>
         </div>
+
+        <SourceDocuments
+          subject="this group"
+          :documents="documents"
+        />
       </article>
     </div>
   </div>

@@ -2,8 +2,10 @@
 import { onMounted, ref, computed } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
 import Badge from '@/components/atoms/Badge.vue'
+import SourceDocuments from '@/components/molecules/SourceDocuments.vue'
 import { getLanguageName } from '@/utils/language'
 import { normalizeNode } from '@/utils/normalizeNode'
+import { nodeDocumentPath, nodeDocumentLabel } from '@/utils/nodeDocuments'
 
 const route = useRoute()
 
@@ -229,6 +231,21 @@ onMounted(async () => {
     loading.value = false
   }
 })
+
+// The node `onMounted` fetches, offered to the reader. The path comes from
+// `nodeDocumentPath` rather than being spelled out again here, which is what
+// keeps this link and that fetch naming the same document, and is what
+// validates the identifier: `/legal-instrument/:id(.*)` is catch-all, so the
+// id is whatever was in the address bar.
+const documents = computed(() => {
+  const id = sourceId.value
+  if (!id) return []
+  const base = import.meta.env.BASE_URL || '/'
+  const href = nodeDocumentPath('legal-instrument', id, base)
+  const label = nodeDocumentLabel(id)
+  if (!href || !label) return []
+  return [{ label, href, note: 'this legal instrument' }]
+})
 </script>
 
 <template>
@@ -433,6 +450,11 @@ onMounted(async () => {
             </div>
           </div>
         </div>
+
+        <SourceDocuments
+          subject="this legal instrument"
+          :documents="documents"
+        />
       </div>
     </div>
   </div>

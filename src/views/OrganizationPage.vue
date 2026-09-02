@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
+import SourceDocuments from '@/components/molecules/SourceDocuments.vue'
 import {
   organizationSummaryUrl,
   summaryList,
@@ -8,6 +9,7 @@ import {
   type AnnouncementSummary,
   type OrganizationSummary
 } from '@/utils/summarySlice'
+import { nodeDocumentPath, nodeDocumentLabel } from '@/utils/nodeDocuments'
 
 const route = useRoute()
 
@@ -164,6 +166,19 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
+})
+
+// The node this page fetches, offered to the reader. Only the node — a
+// second link to the by-organization slice was measured at 320px and
+// overflowed the viewport, which the e2e overflow sweep catches.
+const documents = computed(() => {
+  const id = orgId.value
+  if (!id) return []
+  const base = import.meta.env.BASE_URL || '/'
+  const href = nodeDocumentPath('organization', id, base)
+  const label = nodeDocumentLabel(id)
+  if (!href || !label) return []
+  return [{ label, href, note: 'this organization' }]
 })
 </script>
 
@@ -359,6 +374,11 @@ onMounted(async () => {
             {{ organization['@id'] }}
           </code>
         </div>
+
+        <SourceDocuments
+          subject="this organization"
+          :documents="documents"
+        />
       </div>
     </div>
   </div>
