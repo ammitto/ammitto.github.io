@@ -12,7 +12,7 @@ It is a https://vuejs.org[Vue.js 3] application built with https://vitejs.dev[Vi
 
 * **Sanctions Search Database** - Search across 55,000+ sanctioned entities from 14 publishing sources
 * **Ontology Browser** - Explore the Ammitto knowledge graph schema
-* **Lightweight Search** - Client-side FlexSearch with ~8MB index (vs 69MB full data)
+* **Lightweight Search** - Client-side FlexSearch over a compact index rather than the whole graph
 * **Dark Mode** - Full dark mode support
 * **Responsive Design** - Mobile-first design with Tailwind CSS
 
@@ -69,13 +69,13 @@ The website loads data from `public/api/v1/`:
 |===
 | File | Description
 
-| `search-index.json` | Lightweight search index (~8MB, 46K entities)
+| `search-index.json` | Lightweight search index
 | `facets/*.json` | Filter facet counts
 | `ontology/classes.jsonld` | Ontology class definitions
 | `ontology/properties.jsonld` | Ontology property definitions
 | `ontology/hierarchy.json` | Class hierarchy tree
 | `node/entity/{source}/{id}.jsonld` | Individual entity nodes
-| `all.jsonld` | Complete knowledge graph (69MB)
+| `all.jsonld` | Complete knowledge graph
 |===
 
 === Deployment
@@ -132,10 +132,13 @@ Or manually via GitHub Actions workflow dispatch.
 == Data Sources
 
 The 14 sources named in `publishing_sources` in
-`.github/harmonize-thresholds.json` reach the site. A fifteenth, `ru`, is
-harmonized but publishes nothing: `data-ru` ships no processed YAML, so the
-deploy holds it at exactly zero entities and no aggregate until its input
-returns. It is listed below for completeness, not because it has data.
+`.github/harmonize-thresholds.json` contribute entities to the site. A
+fifteenth, `ru`, is harmonized but contributes none: `data-ru` ships no
+processed YAML, so the deploy holds it at exactly zero entities and no
+`sources/ru.jsonld` until its input returns. It still publishes its
+vocabulary — the document types and organizations under
+`sources/supporting/` are independent of the entity corpus — so it is listed
+below because it is in the graph, not because it has entities.
 
 
 [cols="1,1"]
@@ -150,7 +153,7 @@ returns. It is listed below for completeness, not because it has data.
 | eu_vessels | EU Vessels
 | jp | Japan (MOFA)
 | nz | New Zealand (MFAT)
-| ru | Russia (MID) -- pending, publishes nothing
+| ru | Russia (MID) -- pending, no entities yet
 | tr | Turkey
 | uk | United Kingdom (OFSI)
 | un | United Nations
