@@ -75,7 +75,7 @@ The website loads data from `public/api/v1/`:
 | `ontology/properties.jsonld` | Ontology property definitions
 | `ontology/hierarchy.json` | Class hierarchy tree
 | `node/entity/{source}/{id}.jsonld` | Individual entity nodes
-| `sources/{source}.jsonld` | Every entity and entry for one source
+| `sources/{source}.jsonld` | Every entity and entry for one source. Published for the 14 sources that contribute entities, so there is no `sources/ru.jsonld` while `ru` is pending
 | `all.jsonld` | Complete knowledge graph
 |===
 
