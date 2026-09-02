@@ -231,9 +231,12 @@ onMounted(async () => {
   }
 })
 
-// The node `onMounted` fetches, offered to the reader. `id` is spelled the
-// same as in the fetch so the two paths are one string in two places and
-// cannot drift apart silently.
+// The node `onMounted` fetches, offered to the reader. Only `id` is shared
+// between the two: the prefix is written out in both places, and this href
+// prefixes BASE_URL where the fetch above does not. They resolve to the same
+// URL because `vite.config.ts` sets no `base`, so BASE_URL is `/`. Every
+// view in this directory makes the same split, so closing it is a repo-wide
+// change rather than part of this one.
 const documents = computed(() => {
   const id = sourceId.value
   if (!id) return []
