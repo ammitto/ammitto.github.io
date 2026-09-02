@@ -10,7 +10,7 @@ It is a https://vuejs.org[Vue.js 3] application built with https://vitejs.dev[Vi
 
 == Features
 
-* **Sanctions Search Database** - Search across 55,000+ sanctioned entities from 15 sources
+* **Sanctions Search Database** - Search across 55,000+ sanctioned entities from 14 publishing sources
 * **Ontology Browser** - Explore the Ammitto knowledge graph schema
 * **Lightweight Search** - Client-side FlexSearch with ~8MB index (vs 69MB full data)
 * **Dark Mode** - Full dark mode support
@@ -89,7 +89,7 @@ The deployment workflow:
 . Clones the data-* repositories the workflow names
 . Runs `ammitto harmonize` over the explicitly named sources to generate
   API data. They are listed rather than discovered with `--scan`, so that
-  the published set stays exactly the set
+  the harmonized source set stays exactly the set
   `.github/harmonize-thresholds.json` was calibrated against
 . Builds the Vue.js application with Vite
 . Deploys to GitHub Pages
@@ -131,7 +131,12 @@ Or manually via GitHub Actions workflow dispatch.
 
 == Data Sources
 
-The website displays data from 15 sanctions sources:
+The 14 sources named in `publishing_sources` in
+`.github/harmonize-thresholds.json` reach the site. A fifteenth, `ru`, is
+harmonized but publishes nothing: `data-ru` ships no processed YAML, so the
+deploy holds it at exactly zero entities and no aggregate until its input
+returns. It is listed below for completeness, not because it has data.
+
 
 [cols="1,1"]
 |===
@@ -145,7 +150,7 @@ The website displays data from 15 sanctions sources:
 | eu_vessels | EU Vessels
 | jp | Japan (MOFA)
 | nz | New Zealand (MFAT)
-| ru | Russia (MID)
+| ru | Russia (MID) -- pending, publishes nothing
 | tr | Turkey
 | uk | United Kingdom (OFSI)
 | un | United Nations
