@@ -85,9 +85,9 @@ export function nodeDocumentPath(
 /**
  * Filename offered for a node document.
  *
- * Every separator is replaced, not just the first. The inline callers
- * used `id.replace('/', '-')`, which replaces one occurrence, so a
- * two-slash identifier kept a slash in what was presented as a filename.
+ * Segments are encoded as in `nodeDocumentPath`, so a `?` or `*` in an
+ * identifier does not reach a filename Windows will not accept. Every
+ * separator is replaced, not just the first.
  *
  * @param id - identifier, possibly containing `/`
  * @returns the filename, or null when the identifier cannot address a document
@@ -96,5 +96,5 @@ export function nodeDocumentLabel(id: string): string | null {
   const segments = documentSegments(id)
   if (!segments) return null
 
-  return `${segments.join('-')}.jsonld`
+  return `${segments.map(encodeURIComponent).join('-')}.jsonld`
 }

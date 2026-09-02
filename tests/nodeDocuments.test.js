@@ -67,6 +67,8 @@ test('replaces every separator in the filename, not just the first', () => {
   // `id.replace('/', '-')` replaced one, so a two-slash identifier kept a
   // slash in what was presented to the reader as a filename.
   assert.equal(nodeDocumentLabel('cn/2025/14'), 'cn-2025-14.jsonld')
+  // `?` and `*` are not legal in a Windows filename.
+  assert.equal(nodeDocumentLabel('cn/a?b'), 'cn-a%3Fb.jsonld')
   assert.equal(nodeDocumentLabel('cn/2025-14'), 'cn-2025-14.jsonld')
   assert.equal(nodeDocumentLabel('../../secret'), null)
 })
