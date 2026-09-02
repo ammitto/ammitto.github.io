@@ -10,7 +10,7 @@ It is a https://vuejs.org[Vue.js 3] application built with https://vitejs.dev[Vi
 
 == Features
 
-* **Sanctions Search Database** - Search across 55,000+ sanctioned entities from 14 publishing sources
+* **Sanctions Search Database** - Search sanctioned entities from the publishing sources
 * **Ontology Browser** - Explore the Ammitto knowledge graph schema
 * **Lightweight Search** - Client-side FlexSearch over a compact index rather than the whole graph
 * **Dark Mode** - Full dark mode support
@@ -114,7 +114,7 @@ Or manually via GitHub Actions workflow dispatch.
 │  SearchPage.vue                                                  │
 │       │                                                          │
 │       ▼                                                          │
-│  useSearchIndex.ts ──► FlexSearch ──► search-index.json (~8MB)  │
+│  useSearchIndex.ts ──► FlexSearch ──► search-index.json         │
 │       │                                                          │
 │       │ (on demand)                                              │
 │       ▼                                                          │
@@ -165,4 +165,4 @@ below because it is in the graph, not because it has entities.
 
 == License
 
-The website is available as open source under the terms of the BSD-2-Clause License.
+The website is available as open source under the terms of the MIT License.
