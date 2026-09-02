@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, computed, reactive } from 'vue'
+import { ref, computed, reactive, watch, onUnmounted } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
 import Badge from '@/components/atoms/Badge.vue'
 import EntityCard from '@/components/molecules/EntityCard.vue'
@@ -8,6 +8,7 @@ import { sources } from '@/config'
 import { getLanguageName } from '@/utils/language'
 import { normalizeNode } from '@/utils/normalizeNode'
 import { nodeDocumentPath, nodeDocumentLabel } from '@/utils/nodeDocuments'
+import { createLatestLoadGuard } from '@/utils/latestLoad'
 
 const route = useRoute()
 
@@ -74,6 +75,8 @@ const entries = ref<Entry[]>([])
 const legalInstruments = ref<Map<string, LegalInstrument>>(new Map())
 const loading = ref(true)
 const error = ref<string | null>(null)
+const loadGuard = createLatestLoadGuard()
+onUnmounted(loadGuard.invalidate)
 
 // Cache for document types and organizations
 const documentTypes = reactive<Record<string, { identifier: string; name: Array<{ value: string; lang: string }> }>>({})
@@ -182,7 +185,7 @@ const formatDate = (dateStr?: string): string => {
 // getLanguageName is imported from '@/utils/language'
 
 // Load related data (document types and organizations)
-const loadRelatedData = async () => {
+const loadRelatedData = async (isCurrent: () => boolean) => {
   if (!announcement.value?.announcement) return
 
   const ann = announcement.value.announcement
@@ -195,11 +198,15 @@ const loadRelatedData = async () => {
 
   // Fetch document types
   for (const id of idsToFetch.docTypes) {
+    if (!isCurrent()) return
     if (!documentTypes[id]) {
       try {
         const response = await fetch(`/api/v1/node/document-type/${id}.jsonld`)
+        if (!isCurrent()) return
         if (response.ok) {
-          documentTypes[id] = await response.json()
+          const data = await response.json()
+          if (!isCurrent()) return
+          documentTypes[id] = data
         }
       } catch {
         // Ignore errors
@@ -209,11 +216,15 @@ const loadRelatedData = async () => {
 
   // Fetch organizations
   for (const id of idsToFetch.orgs) {
+    if (!isCurrent()) return
     if (!organizations[id]) {
       try {
         const response = await fetch(`/api/v1/node/organization/${id}.jsonld`)
+        if (!isCurrent()) return
         if (response.ok) {
-          organizations[id] = await response.json()
+          const data = await response.json()
+          if (!isCurrent()) return
+          organizations[id] = data
         }
       } catch {
         // Ignore errors
@@ -222,15 +233,34 @@ const loadRelatedData = async () => {
   }
 }
 
-onMounted(async () => {
-  const id = sourceId.value
+watch(sourceId, async (id) => {
+  const isCurrent = loadGuard.begin()
+  announcement.value = null
+  group.value = null
+  entries.value = []
+  legalInstruments.value = new Map()
+  loading.value = true
+  error.value = null
   const [source, docId] = id.split('/')
 
   try {
+    const documentId = source && docId ? `${source}/${docId}` : ''
+    const groupHref = nodeDocumentPath(
+      'group',
+      documentId,
+      import.meta.env.BASE_URL || '/',
+    )
+    if (!groupHref) {
+      error.value = 'Announcement not found'
+      return
+    }
+
     // Load the group for this announcement
-    const groupResponse = await fetch(`/api/v1/node/group/${source}/${docId}.jsonld`)
+    const groupResponse = await fetch(groupHref)
+    if (!isCurrent()) return
     if (groupResponse.ok) {
       const groupData = await groupResponse.json()
+      if (!isCurrent()) return
       group.value = groupData
 
       // Load all entries in the group
@@ -238,17 +268,22 @@ onMounted(async () => {
         for (const entryId of groupData.entry_ids) {
           const entryPath = entryId.replace('https://www.ammitto.org/', 'api/v1/node/')
           const entryResponse = await fetch(`/${entryPath}.jsonld`)
+          if (!isCurrent()) return
           if (entryResponse.ok) {
             // Entry and entity nodes arrive in the producer's JSON-LD vocabulary
             const entryData = normalizeNode<Entry>(await entryResponse.json())
+            if (!isCurrent()) return
             if (!entryData) continue
 
             // Load entity data for this entry
             if (entryData.entity_id) {
               const entityRef = entryData.entity_id.replace('https://www.ammitto.org/entity/', '')
               const entityResponse = await fetch(`/api/v1/node/entity/${entityRef}.jsonld`)
+              if (!isCurrent()) return
               if (entityResponse.ok) {
-                entryData.entity = normalizeNode<Entity>(await entityResponse.json()) ?? undefined
+                const entityData = normalizeNode<Entity>(await entityResponse.json())
+                if (!isCurrent()) return
+                entryData.entity = entityData ?? undefined
               }
             }
 
@@ -268,8 +303,10 @@ onMounted(async () => {
                     .replace('https://www.ammitto.org/instrument/', '')
                   try {
                     const instrumentResponse = await fetch(`/api/v1/node/legal-instrument/${instrumentRef}.jsonld`)
+                    if (!isCurrent()) return
                     if (instrumentResponse.ok) {
                       const instrumentData = await instrumentResponse.json()
+                      if (!isCurrent()) return
                       legalInstruments.value.set(citation.legal_instrument_id, instrumentData)
                     }
                   } catch {
@@ -283,21 +320,24 @@ onMounted(async () => {
       }
 
       // Load related data (document types and organizations)
-      await loadRelatedData()
+      await loadRelatedData(isCurrent)
+      if (!isCurrent()) return
     } else {
       error.value = 'Announcement not found'
     }
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Failed to load'
+    if (isCurrent()) {
+      error.value = e instanceof Error ? e.message : 'Failed to load'
+    }
   } finally {
-    loading.value = false
+    if (isCurrent()) loading.value = false
   }
-})
+}, { immediate: true })
 
 // The group node this page renders, offered to the reader. There is no
 // `node/announcement/` kind — an announcement is a field on each entry, and
 // the group is the only document standing for the whole of it. Split the
-// route id the same way `onMounted` splits it, so a third segment is
+// route id the same way the loader splits it, so a third segment is
 // discarded here exactly as the fetch discards it.
 const documents = computed(() => {
   const [source, docId] = sourceId.value.split('/')

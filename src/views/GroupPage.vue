@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, computed } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
 import Badge from '@/components/atoms/Badge.vue'
 import EntityCard from '@/components/molecules/EntityCard.vue'
@@ -8,6 +8,7 @@ import { sources } from '@/config'
 import { getLanguageName } from '@/utils/language'
 import { normalizeNode } from '@/utils/normalizeNode'
 import { nodeDocumentPath, nodeDocumentLabel } from '@/utils/nodeDocuments'
+import { createLatestLoadGuard } from '@/utils/latestLoad'
 
 const route = useRoute()
 
@@ -55,6 +56,8 @@ const entries = ref<Entry[]>([])
 const entities = ref<Map<string, Entity>>(new Map())
 const loading = ref(true)
 const error = ref<string | null>(null)
+const loadGuard = createLatestLoadGuard()
+onUnmounted(loadGuard.invalidate)
 
 const groupId = computed(() => {
   const id = route.params.id as string
@@ -127,15 +130,33 @@ const announcementLanguage = computed(() => {
   return null
 })
 
-onMounted(async () => {
-  const id = groupId.value
+watch(groupId, async (id) => {
+  const isCurrent = loadGuard.begin()
+  group.value = null
+  entries.value = []
+  entities.value = new Map()
+  loading.value = true
+  error.value = null
   const [source, docId] = id.split('/')
 
   try {
+    const documentId = source && docId ? `${source}/${docId}` : ''
+    const groupHref = nodeDocumentPath(
+      'group',
+      documentId,
+      import.meta.env.BASE_URL || '/',
+    )
+    if (!groupHref) {
+      error.value = 'Group not found'
+      return
+    }
+
     // Load the group
-    const groupResponse = await fetch(`/api/v1/node/group/${source}/${docId}.jsonld`)
+    const groupResponse = await fetch(groupHref)
+    if (!isCurrent()) return
     if (groupResponse.ok) {
       const groupData = await groupResponse.json()
+      if (!isCurrent()) return
       group.value = groupData
 
       // Load all entries and their entities in the group
@@ -143,9 +164,11 @@ onMounted(async () => {
         for (const entryId of groupData.entry_ids) {
           const entryPath = entryId.replace('https://www.ammitto.org/', 'api/v1/node/')
           const entryResponse = await fetch(`/${entryPath}.jsonld`)
+          if (!isCurrent()) return
           if (entryResponse.ok) {
             // Entry and entity nodes arrive in the producer's JSON-LD vocabulary
             const entryData = normalizeNode<Entry>(await entryResponse.json())
+            if (!isCurrent()) return
             if (!entryData) continue
             entries.value.push(entryData)
 
@@ -153,8 +176,10 @@ onMounted(async () => {
             if (entryData.entity_id) {
               const entityPath = entryData.entity_id.replace('https://www.ammitto.org/', 'api/v1/node/')
               const entityResponse = await fetch(`/${entityPath}.jsonld`)
+              if (!isCurrent()) return
               if (entityResponse.ok) {
                 const entityData = normalizeNode<Entity>(await entityResponse.json())
+                if (!isCurrent()) return
                 if (entityData) entities.value.set(entryData.entity_id, entityData)
               }
             }
@@ -165,13 +190,15 @@ onMounted(async () => {
       error.value = 'Group not found'
     }
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Failed to load'
+    if (isCurrent()) {
+      error.value = e instanceof Error ? e.message : 'Failed to load'
+    }
   } finally {
-    loading.value = false
+    if (isCurrent()) loading.value = false
   }
-})
+}, { immediate: true })
 
-// The node `onMounted` fetches, offered to the reader. Split the route id the
+// The node the route watcher fetches, offered to the reader. Split the route id the
 // same way the fetch splits it, so a third segment is discarded here exactly
 // as the fetch discards it.
 const documents = computed(() => {

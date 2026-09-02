@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, computed } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
 import SourceDocuments from '@/components/molecules/SourceDocuments.vue'
 import {
@@ -10,6 +10,7 @@ import {
   type OrganizationSummary
 } from '@/utils/summarySlice'
 import { nodeDocumentPath, nodeDocumentLabel } from '@/utils/nodeDocuments'
+import { createLatestLoadGuard } from '@/utils/latestLoad'
 
 const route = useRoute()
 
@@ -36,6 +37,8 @@ const signedAnnouncements = ref<AnnouncementSummary[]>([])
 const authorizedAnnouncements = ref<AnnouncementSummary[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
+const loadGuard = createLatestLoadGuard()
+onUnmounted(loadGuard.invalidate)
 // Distinguishes "this organization has no documents" from "the summary could
 // not be read". Without it, an artifact published before these slices
 // existed would render as a confident, wrong empty page.
@@ -128,45 +131,72 @@ const getGroupRef = (groupId?: string): string | null => {
  * never painted. The publishing pipeline now emits the same three lists
  * per organization, so the page reads its own summary and nothing else.
  */
-const loadSummary = async (orgIdentifier: string) => {
+const loadSummary = async (orgIdentifier: string, isCurrent: () => boolean) => {
   try {
     const response = await fetch(organizationSummaryUrl(orgIdentifier))
+    if (!isCurrent()) return
     if (!response.ok) {
       summaryUnavailable.value = true
       return
     }
 
     const summary: OrganizationSummary = await response.json()
+    if (!isCurrent()) return
     publishedAnnouncements.value = summaryList<AnnouncementSummary>(summary.published)
     signedAnnouncements.value = summaryList<AnnouncementSummary>(summary.signed)
     authorizedAnnouncements.value = summaryList<AnnouncementSummary>(summary.authorized)
   } catch (e) {
-    summaryUnavailable.value = true
-    console.error('Failed to load organization summary:', e)
+    if (isCurrent()) {
+      summaryUnavailable.value = true
+      console.error('Failed to load organization summary:', e)
+    }
   }
 }
 
-onMounted(async () => {
-  const id = orgId.value
+watch(orgId, async (id) => {
+  const isCurrent = loadGuard.begin()
+  organization.value = null
+  publishedAnnouncements.value = []
+  signedAnnouncements.value = []
+  authorizedAnnouncements.value = []
+  loading.value = true
+  error.value = null
+  summaryUnavailable.value = false
 
   try {
+    const organizationHref = nodeDocumentPath(
+      'organization',
+      id,
+      import.meta.env.BASE_URL || '/',
+    )
+    if (!organizationHref) {
+      error.value = 'Organization not found'
+      return
+    }
+
     // Load organization
-    const response = await fetch(`/api/v1/node/organization/${id}.jsonld`)
+    const response = await fetch(organizationHref)
+    if (!isCurrent()) return
     if (response.ok) {
-      organization.value = await response.json()
+      const data: Organization = await response.json()
+      if (!isCurrent()) return
+      organization.value = data
       // Load the published summary
-      if (organization.value?.identifier) {
-        await loadSummary(organization.value.identifier)
+      if (data.identifier) {
+        await loadSummary(data.identifier, isCurrent)
+        if (!isCurrent()) return
       }
     } else {
       error.value = 'Organization not found'
     }
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Failed to load'
+    if (isCurrent()) {
+      error.value = e instanceof Error ? e.message : 'Failed to load'
+    }
   } finally {
-    loading.value = false
+    if (isCurrent()) loading.value = false
   }
-})
+}, { immediate: true })
 
 // The node this page fetches, offered to the reader. Only the node — a
 // second link to the by-organization slice was measured at 320px and

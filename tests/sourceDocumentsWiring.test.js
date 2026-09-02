@@ -135,6 +135,20 @@ test('the chip carries no decorative glyph', () => {
   assert.ok(!/[\u2190-\u21FF]/.test(markup), 'no arrow characters in the markup')
 })
 
+test('the link says that it downloads and shows its focus ring only for keyboard focus', () => {
+  assert.match(markup, />\s*Download\s*<\/span>/)
+  assert.match(markup, /focus-visible:outline-none/)
+  assert.match(markup, /focus-visible:ring-2/)
+  assert.match(markup, /focus-visible:ring-brand-link/)
+  assert.ok(!/(?<!-)focus:outline-none/.test(markup), 'no focus ring on pointer focus')
+})
+
+test('the download note gets its own readable row on a narrow screen', () => {
+  assert.match(markup, /grid-cols-\[auto_minmax\(0,1fr\)\]/)
+  assert.match(markup, /sm:grid-cols-\[auto_minmax\(0,1fr\)_auto\]/)
+  assert.match(markup, /col-start-2 sm:col-start-auto/)
+})
+
 test('a long identifier can shrink rather than overflow', () => {
   // A flex item defaults to min-width:auto and will not shrink below its
   // content, so a long source/id in a monospace label pushed past 320px.

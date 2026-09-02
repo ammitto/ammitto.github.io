@@ -96,5 +96,11 @@ export function nodeDocumentLabel(id: string): string | null {
   const segments = documentSegments(id)
   if (!segments) return null
 
-  return `${segments.map(encodeURIComponent).join('-')}.jsonld`
+  // encodeURIComponent deliberately leaves `*` untouched. That is valid in
+  // a URL path but not in a Windows filename, so the download label needs the
+  // one extra escape that the URL builder does not.
+  const encoded = segments.map((segment) =>
+    encodeURIComponent(segment).replace(/\*/g, '%2A')
+  )
+  return `${encoded.join('-')}.jsonld`
 }

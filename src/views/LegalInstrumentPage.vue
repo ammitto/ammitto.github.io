@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { onMounted, ref, computed } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
 import Badge from '@/components/atoms/Badge.vue'
 import SourceDocuments from '@/components/molecules/SourceDocuments.vue'
 import { getLanguageName } from '@/utils/language'
 import { normalizeNode } from '@/utils/normalizeNode'
 import { nodeDocumentPath, nodeDocumentLabel } from '@/utils/nodeDocuments'
+import { createLatestLoadGuard } from '@/utils/latestLoad'
 
 const route = useRoute()
 
@@ -86,6 +87,8 @@ const relatedGroups = ref<SanctionGroup[]>([])
 const relatedEntries = ref<SanctionEntry[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
+const loadGuard = createLatestLoadGuard()
+onUnmounted(loadGuard.invalidate)
 
 const sourceId = computed(() => {
   const id = route.params.id as string
@@ -159,32 +162,40 @@ const getGroupRef = (groupId: string): string => {
 }
 
 // Load related sanction groups that cite this instrument
-const loadRelatedSanctions = async (instrumentId: string) => {
+const loadRelatedSanctions = async (instrumentId: string, isCurrent: () => boolean) => {
   try {
     // Load group index
     const groupIndexResponse = await fetch('/api/v1/node/group/index.jsonld')
+    if (!isCurrent()) return
     if (!groupIndexResponse.ok) return
 
     const groupIndex = await groupIndexResponse.json()
+    if (!isCurrent()) return
     const groupNodes = groupIndex.nodes || []
 
     // Check each group for entries that cite this instrument
     for (const groupNode of groupNodes) {
+      if (!isCurrent()) return
       const groupRef = groupNode['@id'].replace('https://www.ammitto.org/group/', '')
       const groupResponse = await fetch(`/api/v1/node/group/${groupRef}.jsonld`)
+      if (!isCurrent()) return
       if (!groupResponse.ok) continue
 
       const groupData = await groupResponse.json()
+      if (!isCurrent()) return
       if (!groupData.entry_ids) continue
 
       // Check entries in this group
       for (const entryId of groupData.entry_ids) {
+        if (!isCurrent()) return
         const entryRef = entryId.replace('https://www.ammitto.org/', 'api/v1/node/') + '.jsonld'
         const entryResponse = await fetch(`/${entryRef}`)
+        if (!isCurrent()) return
         if (!entryResponse.ok) continue
 
         // Entry nodes arrive in the producer's JSON-LD vocabulary
         const entryData = normalizeNode<SanctionEntry>(await entryResponse.json())
+        if (!isCurrent()) return
         if (entryData?.legal_citations) {
           const citesThisInstrument = entryData.legal_citations.some(
             (citation: { legal_instrument_id?: string }) =>
@@ -207,32 +218,53 @@ const loadRelatedSanctions = async (instrumentId: string) => {
       return true
     })
   } catch (e) {
-    console.error('Failed to load related sanctions:', e)
+    if (isCurrent()) console.error('Failed to load related sanctions:', e)
   }
 }
 
-onMounted(async () => {
-  const id = sourceId.value
+watch(sourceId, async (id) => {
+  const isCurrent = loadGuard.begin()
+  instrument.value = null
+  relatedGroups.value = []
+  relatedEntries.value = []
+  loading.value = true
+  error.value = null
 
   try {
-    const response = await fetch(`/api/v1/node/legal-instrument/${id}.jsonld`)
+    const instrumentHref = nodeDocumentPath(
+      'legal-instrument',
+      id,
+      import.meta.env.BASE_URL || '/',
+    )
+    if (!instrumentHref) {
+      error.value = 'Legal instrument not found'
+      return
+    }
+
+    const response = await fetch(instrumentHref)
+    if (!isCurrent()) return
     if (response.ok) {
-      instrument.value = await response.json()
+      const data: LegalInstrument = await response.json()
+      if (!isCurrent()) return
+      instrument.value = data
       // Load related sanctions
-      if (instrument.value) {
-        await loadRelatedSanctions(instrument.value['@id'])
+      if (data) {
+        await loadRelatedSanctions(data['@id'], isCurrent)
+        if (!isCurrent()) return
       }
     } else {
       error.value = 'Legal instrument not found'
     }
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Failed to load'
+    if (isCurrent()) {
+      error.value = e instanceof Error ? e.message : 'Failed to load'
+    }
   } finally {
-    loading.value = false
+    if (isCurrent()) loading.value = false
   }
-})
+}, { immediate: true })
 
-// The node `onMounted` fetches, offered to the reader. The path comes from
+// The node the route watcher fetches, offered to the reader. The path comes from
 // `nodeDocumentPath` rather than being spelled out again here, which is what
 // keeps this link and that fetch naming the same document, and is what
 // validates the identifier: `/legal-instrument/:id(.*)` is catch-all, so the

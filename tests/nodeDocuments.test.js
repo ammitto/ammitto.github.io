@@ -69,6 +69,7 @@ test('replaces every separator in the filename, not just the first', () => {
   assert.equal(nodeDocumentLabel('cn/2025/14'), 'cn-2025-14.jsonld')
   // `?` and `*` are not legal in a Windows filename.
   assert.equal(nodeDocumentLabel('cn/a?b'), 'cn-a%3Fb.jsonld')
+  assert.equal(nodeDocumentLabel('cn/a*b'), 'cn-a%2Ab.jsonld')
   assert.equal(nodeDocumentLabel('cn/2025-14'), 'cn-2025-14.jsonld')
   assert.equal(nodeDocumentLabel('../../secret'), null)
 })

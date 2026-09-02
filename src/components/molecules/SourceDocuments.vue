@@ -69,16 +69,23 @@ defineProps<{
         <a
           :href="doc.href"
           :download="doc.label"
-          class="inline-flex max-w-full items-center gap-2 rounded border
+          class="inline-grid max-w-full grid-cols-[auto_minmax(0,1fr)]
+                 sm:grid-cols-[auto_minmax(0,1fr)_auto]
+                 items-center gap-x-2 gap-y-0.5 rounded border
                  border-light-border dark:border-dark-border px-3 py-1.5
                  text-sm text-light-text dark:text-dark-text
                  hover:bg-light-border/40 dark:hover:bg-dark-border/40
-                 focus:outline-none focus:ring-2 focus:ring-offset-1"
+                 focus-visible:outline-none focus-visible:ring-2
+                 focus-visible:ring-brand-link focus-visible:ring-offset-1
+                 focus-visible:ring-offset-light-bg
+                 dark:focus-visible:ring-offset-dark-bg"
         >
+          <span class="text-xs font-medium shrink-0">Download</span>
           <span class="font-mono break-all min-w-0">{{ doc.label }}</span>
           <span
             v-if="doc.note"
-            class="text-xs text-light-muted dark:text-dark-muted break-words min-w-0"
+            class="col-start-2 sm:col-start-auto text-xs text-light-muted
+                   dark:text-dark-muted break-words min-w-0"
           >{{ doc.note }}</span>
         </a>
       </li>
