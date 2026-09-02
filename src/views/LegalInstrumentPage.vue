@@ -5,6 +5,7 @@ import Badge from '@/components/atoms/Badge.vue'
 import SourceDocuments from '@/components/molecules/SourceDocuments.vue'
 import { getLanguageName } from '@/utils/language'
 import { normalizeNode } from '@/utils/normalizeNode'
+import { nodeDocumentPath, nodeDocumentLabel } from '@/utils/nodeDocuments'
 
 const route = useRoute()
 
@@ -231,23 +232,19 @@ onMounted(async () => {
   }
 })
 
-// The node `onMounted` fetches, offered to the reader. Only `id` is shared
-// between the two: the prefix is written out in both places, and this href
-// prefixes BASE_URL where the fetch above does not. They resolve to the same
-// URL because `vite.config.ts` sets no `base`, so BASE_URL is `/`. Every
-// view in this directory makes the same split, so closing it is a repo-wide
-// change rather than part of this one.
+// The node `onMounted` fetches, offered to the reader. The path comes from
+// `nodeDocumentPath` rather than being spelled out again here, which is what
+// keeps this link and that fetch naming the same document, and is what
+// validates the identifier: `/legal-instrument/:id(.*)` is catch-all, so the
+// id is whatever was in the address bar.
 const documents = computed(() => {
   const id = sourceId.value
   if (!id) return []
   const base = import.meta.env.BASE_URL || '/'
-  return [
-    {
-      label: `${id.replace('/', '-')}.jsonld`,
-      href: `${base}api/v1/node/legal-instrument/${id}.jsonld`,
-      note: 'this legal instrument',
-    },
-  ]
+  const href = nodeDocumentPath('legal-instrument', id, base)
+  const label = nodeDocumentLabel(id)
+  if (!href || !label) return []
+  return [{ label, href, note: 'this legal instrument' }]
 })
 </script>
 

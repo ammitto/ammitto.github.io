@@ -9,6 +9,7 @@ import {
   type AnnouncementSummary,
   type OrganizationSummary
 } from '@/utils/summarySlice'
+import { nodeDocumentPath, nodeDocumentLabel } from '@/utils/nodeDocuments'
 
 const route = useRoute()
 
@@ -174,13 +175,10 @@ const documents = computed(() => {
   const id = orgId.value
   if (!id) return []
   const base = import.meta.env.BASE_URL || '/'
-  return [
-    {
-      label: `${id.replace('/', '-')}.jsonld`,
-      href: `${base}api/v1/node/organization/${id}.jsonld`,
-      note: 'this organization',
-    },
-  ]
+  const href = nodeDocumentPath('organization', id, base)
+  const label = nodeDocumentLabel(id)
+  if (!href || !label) return []
+  return [{ label, href, note: 'this organization' }]
 })
 </script>
 

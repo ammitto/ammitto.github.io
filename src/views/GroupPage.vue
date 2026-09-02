@@ -7,6 +7,7 @@ import SourceDocuments from '@/components/molecules/SourceDocuments.vue'
 import { sources } from '@/config'
 import { getLanguageName } from '@/utils/language'
 import { normalizeNode } from '@/utils/normalizeNode'
+import { nodeDocumentPath, nodeDocumentLabel } from '@/utils/nodeDocuments'
 
 const route = useRoute()
 
@@ -177,13 +178,11 @@ const documents = computed(() => {
   const [source, docId] = groupId.value.split('/')
   if (!source || !docId) return []
   const base = import.meta.env.BASE_URL || '/'
-  return [
-    {
-      label: `${source}-${docId}.jsonld`,
-      href: `${base}api/v1/node/group/${source}/${docId}.jsonld`,
-      note: 'this group',
-    },
-  ]
+  const id = `${source}/${docId}`
+  const href = nodeDocumentPath('group', id, base)
+  const label = nodeDocumentLabel(id)
+  if (!href || !label) return []
+  return [{ label, href, note: 'this group' }]
 })
 </script>
 

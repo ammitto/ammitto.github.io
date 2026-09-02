@@ -10,6 +10,7 @@ import {
   type DocumentTypeSummary,
   type LegalInstrumentSummary
 } from '@/utils/summarySlice'
+import { nodeDocumentPath, nodeDocumentLabel } from '@/utils/nodeDocuments'
 
 const route = useRoute()
 
@@ -166,13 +167,10 @@ const documents = computed(() => {
   const id = docTypeId.value
   if (!id) return []
   const base = import.meta.env.BASE_URL || '/'
-  return [
-    {
-      label: `${id.replace('/', '-')}.jsonld`,
-      href: `${base}api/v1/node/document-type/${id}.jsonld`,
-      note: 'this document type',
-    },
-  ]
+  const href = nodeDocumentPath('document-type', id, base)
+  const label = nodeDocumentLabel(id)
+  if (!href || !label) return []
+  return [{ label, href, note: 'this document type' }]
 })
 </script>
 
