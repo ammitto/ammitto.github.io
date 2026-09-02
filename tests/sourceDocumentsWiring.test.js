@@ -23,7 +23,10 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { getEntityNodePath } from '../.test-build/utils/entityUrls.js'
+import {
+  getEntityNodePath,
+  getEntitySourceCode,
+} from '../.test-build/utils/entityUrls.js'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const read = (p) => readFileSync(join(root, p), 'utf8')
@@ -62,6 +65,21 @@ test('the node path helper accepts a full IRI as well as a ref', () => {
   )
 })
 
+test('the aggregate source comes from the validated entity ref', () => {
+  // Many published entities have no sourceReferences, but their canonical
+  // ref still begins with the source whose aggregate contains the record.
+  assert.equal(getEntitySourceCode('cn/1-general-dynamics'), 'cn')
+  assert.equal(
+    getEntitySourceCode('https://www.ammitto.org/entity/jp/jp-example'),
+    'jp',
+  )
+
+  // The source must not be recovered with a raw split from a ref that the
+  // node-document path itself refuses to address.
+  assert.equal(getEntitySourceCode('cn/../../secret'), null)
+  assert.equal(getEntitySourceCode('cn//secret'), null)
+})
+
 test('the base parameter carries no default', () => {
   // A default would put back the trap the helper exists to remove: a
   // caller that forgets the base gets a root-relative path, which works
@@ -97,8 +115,17 @@ test('the link and the fetch both come from that helper', () => {
 test('the source aggregate is offered only where one is published', () => {
   // `sources/ru.jsonld` is a 404 and `ru` is in SOURCES_WITHOUT_AGGREGATE.
   // Offering it would send a reader to a missing file.
-  assert.match(page, /publishesAggregate\(source\.value\)/)
-  assert.match(page, /api\/v1\/sources\/\$\{source\.value\}\.jsonld/)
+  assert.match(page, /const aggregateSource = getEntitySourceCode\(ref\)/)
+  assert.match(page, /publishesAggregate\(aggregateSource\)/)
+  assert.match(
+    page,
+    /api\/v1\/sources\/\$\{encodeURIComponent\(aggregateSource\)\}\.jsonld/,
+  )
+  assert.doesNotMatch(
+    page,
+    /publishesAggregate\(source\.value\)/,
+    'missing sourceReferences must not hide the aggregate document',
+  )
 })
 
 test('the aggregate link respects the deployment base path', () => {
