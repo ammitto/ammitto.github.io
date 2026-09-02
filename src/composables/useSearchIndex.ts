@@ -253,8 +253,13 @@ async function loadFullEntity(idOrRef: string): Promise<Record<string, unknown> 
 
   try {
     // getEntityNodePath extracts the ref from a full IRI itself, and is
-    // the same call EntityPage makes to build the link it offers.
-    const response = await fetch(getEntityNodePath(idOrRef, API_BASE))
+    // the same call EntityPage makes to build the link it offers. It
+    // returns null for a ref that cannot address a document -- an empty
+    // or dot segment -- and there is nothing to fetch in that case.
+    const path = getEntityNodePath(idOrRef, API_BASE)
+    if (!path) return null
+
+    const response = await fetch(path)
 
     if (!response.ok) {
       throw new Error(`Failed to load entity: ${response.status}`)

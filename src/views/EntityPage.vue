@@ -5,8 +5,9 @@ import Badge from '@/components/atoms/Badge.vue'
 import { useEntityData } from '@/composables/useEntityData'
 import SourceDocuments from '@/components/molecules/SourceDocuments.vue'
 import { sources, entityTypes } from '@/config'
-import { getEntityNodePath } from '@/utils/entityUrls'
+import { getEntityNodePath, extractRef } from '@/utils/entityUrls'
 import { publishesAggregate } from '@/utils/sourceCatalog'
+import { nodeDocumentLabel } from '@/utils/nodeDocuments'
 
 const route = useRoute()
 const {
@@ -151,13 +152,11 @@ const documents = computed(() => {
   const ref = entityId.value
   if (!ref) return []
   const base = import.meta.env.BASE_URL || '/'
-  const docs = [
-    {
-      label: `${ref.replace('/', '-')}.jsonld`,
-      href: getEntityNodePath(ref, base),
-      note: 'this record',
-    },
-  ]
+  const href = getEntityNodePath(ref, base)
+  const label = nodeDocumentLabel(extractRef(ref))
+  if (!href || !label) return []
+
+  const docs = [{ label, href, note: 'this record' }]
   if (source.value && publishesAggregate(source.value)) {
     docs.push({
       label: `${source.value}.jsonld`,

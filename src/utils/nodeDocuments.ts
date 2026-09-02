@@ -15,9 +15,20 @@
  * the catch-all routes make necessary.
  */
 
-/** Node kinds that are published one document per identifier. */
+/**
+ * Node kinds this builder addresses.
+ *
+ * There is no `announcement` kind. An announcement is a field on each
+ * entry rather than a document of its own, which is why AnnouncementPage
+ * offers the `group` node it actually fetched -- see the comment at
+ * `AnnouncementPage.vue:298`. Naming it here would have made a dead link
+ * a compile-time-valid thing to ask for.
+ *
+ * `entity` is absent for a different reason: it has its own builder,
+ * `getEntityNodePath`, because an entity ref can arrive as a full IRI and
+ * has to be extracted first.
+ */
 export type NodeKind =
-  | 'announcement'
   | 'document-type'
   | 'group'
   | 'legal-instrument'

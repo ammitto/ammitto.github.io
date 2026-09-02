@@ -17,6 +17,7 @@ import {
   nodeDocumentPath,
   nodeDocumentLabel,
 } from '../.test-build/utils/nodeDocuments.js'
+import { getEntityNodePath } from '../.test-build/utils/entityUrls.js'
 
 test('builds the path a page fetches, for a plain identifier', () => {
   assert.equal(
@@ -68,4 +69,26 @@ test('replaces every separator in the filename, not just the first', () => {
   assert.equal(nodeDocumentLabel('cn/2025/14'), 'cn-2025-14.jsonld')
   assert.equal(nodeDocumentLabel('cn/2025-14'), 'cn-2025-14.jsonld')
   assert.equal(nodeDocumentLabel('../../secret'), null)
+})
+
+test('the entity path validates the same way the other kinds do', () => {
+  // EntityPage and loadFullEntity both build their path here, and
+  // `/entity/:id(.*)` is catch-all like the rest.
+  assert.equal(
+    getEntityNodePath('uk/aqd0087', '/'),
+    '/api/v1/node/entity/uk/aqd0087.jsonld',
+  )
+  assert.equal(getEntityNodePath('../../secret', '/'), null)
+  assert.equal(getEntityNodePath('uk//aqd0087', '/'), null)
+  assert.equal(
+    getEntityNodePath('uk/a?b', '/'),
+    '/api/v1/node/entity/uk/a%3Fb.jsonld',
+  )
+})
+
+test('the entity path still extracts a ref from a full IRI', () => {
+  assert.equal(
+    getEntityNodePath('https://www.ammitto.org/entity/uk/aqd0087', '/'),
+    '/api/v1/node/entity/uk/aqd0087.jsonld',
+  )
 })

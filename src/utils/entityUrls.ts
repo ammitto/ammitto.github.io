@@ -1,3 +1,5 @@
+import { documentSegments } from './nodeDocuments.js'
+
 /**
  * Entity URL utilities
  *
@@ -45,10 +47,20 @@ export function extractRef(idOrRef: string): string {
  * gets a root-relative path that works in development and breaks
  * wherever the site is served from a subpath.
  *
+ * `/entity/:id(.*)` is catch-all, so `ref` is whatever was in the address
+ * bar. Segments are validated and encoded the way `nodeDocumentPath` does
+ * it for the other node kinds: an id carrying `..`, an empty segment, a
+ * `?` or a `#` would otherwise walk out of `node/entity/` or end the path
+ * early, and the link would stop naming the record on the page.
+ *
  * @param ref - Entity ref (e.g., "uk/aqd0087") or full IRI
  * @param base - Path the site is served from; pass `BASE_URL`
- * @returns API path (e.g., "/api/v1/node/entity/uk/aqd0087.jsonld")
+ * @returns API path, or null when the ref cannot address a document
  */
-export function getEntityNodePath(ref: string, base: string): string {
-  return `${base}api/v1/node/entity/${extractRef(ref)}.jsonld`
+export function getEntityNodePath(ref: string, base: string): string | null {
+  const segments = documentSegments(extractRef(ref))
+  if (!segments) return null
+
+  const encoded = segments.map(encodeURIComponent).join('/')
+  return `${base}api/v1/node/entity/${encoded}.jsonld`
 }
