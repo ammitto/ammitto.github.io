@@ -75,6 +75,7 @@ The website loads data from `public/api/v1/`:
 | `ontology/properties.jsonld` | Ontology property definitions
 | `ontology/hierarchy.json` | Class hierarchy tree
 | `node/entity/{source}/{id}.jsonld` | Individual entity nodes
+| `sources/{source}.jsonld` | Every entity and entry for one source
 | `all.jsonld` | Complete knowledge graph
 |===
 
