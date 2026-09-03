@@ -201,7 +201,7 @@ const loadRelatedData = async (isCurrent: () => boolean) => {
     if (!isCurrent()) return
     if (!documentTypes[id]) {
       try {
-        const response = await fetch(`/api/v1/node/document-type/${id}.jsonld`)
+        const response = await fetch(`${import.meta.env.BASE_URL || '/'}api/v1/node/document-type/${id}.jsonld`)
         if (!isCurrent()) return
         if (response.ok) {
           const data = await response.json()
@@ -219,7 +219,7 @@ const loadRelatedData = async (isCurrent: () => boolean) => {
     if (!isCurrent()) return
     if (!organizations[id]) {
       try {
-        const response = await fetch(`/api/v1/node/organization/${id}.jsonld`)
+        const response = await fetch(`${import.meta.env.BASE_URL || '/'}api/v1/node/organization/${id}.jsonld`)
         if (!isCurrent()) return
         if (response.ok) {
           const data = await response.json()
@@ -267,7 +267,7 @@ watch(sourceId, async (id) => {
       if (groupData?.entry_ids) {
         for (const entryId of groupData.entry_ids) {
           const entryPath = entryId.replace('https://www.ammitto.org/', 'api/v1/node/')
-          const entryResponse = await fetch(`/${entryPath}.jsonld`)
+          const entryResponse = await fetch(`${import.meta.env.BASE_URL || '/'}${entryPath}.jsonld`)
           if (!isCurrent()) return
           if (entryResponse.ok) {
             // Entry and entity nodes arrive in the producer's JSON-LD vocabulary
@@ -278,7 +278,7 @@ watch(sourceId, async (id) => {
             // Load entity data for this entry
             if (entryData.entity_id) {
               const entityRef = entryData.entity_id.replace('https://www.ammitto.org/entity/', '')
-              const entityResponse = await fetch(`/api/v1/node/entity/${entityRef}.jsonld`)
+              const entityResponse = await fetch(`${import.meta.env.BASE_URL || '/'}api/v1/node/entity/${entityRef}.jsonld`)
               if (!isCurrent()) return
               if (entityResponse.ok) {
                 const entityData = normalizeNode<Entity>(await entityResponse.json())
@@ -302,7 +302,7 @@ watch(sourceId, async (id) => {
                     .replace('https://www.ammitto.org/legal-instrument/', '')
                     .replace('https://www.ammitto.org/instrument/', '')
                   try {
-                    const instrumentResponse = await fetch(`/api/v1/node/legal-instrument/${instrumentRef}.jsonld`)
+                    const instrumentResponse = await fetch(`${import.meta.env.BASE_URL || '/'}api/v1/node/legal-instrument/${instrumentRef}.jsonld`)
                     if (!isCurrent()) return
                     if (instrumentResponse.ok) {
                       const instrumentData = await instrumentResponse.json()

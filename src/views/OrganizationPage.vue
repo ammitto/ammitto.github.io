@@ -133,7 +133,7 @@ const getGroupRef = (groupId?: string): string | null => {
  */
 const loadSummary = async (orgIdentifier: string, isCurrent: () => boolean) => {
   try {
-    const response = await fetch(organizationSummaryUrl(orgIdentifier))
+    const response = await fetch((import.meta.env.BASE_URL || '/').replace(/\/$/, '') + organizationSummaryUrl(orgIdentifier))
     if (!isCurrent()) return
     if (!response.ok) {
       summaryUnavailable.value = true

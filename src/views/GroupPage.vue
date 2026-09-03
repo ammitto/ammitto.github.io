@@ -163,7 +163,7 @@ watch(groupId, async (id) => {
       if (groupData?.entry_ids) {
         for (const entryId of groupData.entry_ids) {
           const entryPath = entryId.replace('https://www.ammitto.org/', 'api/v1/node/')
-          const entryResponse = await fetch(`/${entryPath}.jsonld`)
+          const entryResponse = await fetch(`${import.meta.env.BASE_URL || '/'}${entryPath}.jsonld`)
           if (!isCurrent()) return
           if (entryResponse.ok) {
             // Entry and entity nodes arrive in the producer's JSON-LD vocabulary
@@ -175,7 +175,7 @@ watch(groupId, async (id) => {
             // Load the entity for this entry
             if (entryData.entity_id) {
               const entityPath = entryData.entity_id.replace('https://www.ammitto.org/', 'api/v1/node/')
-              const entityResponse = await fetch(`/${entityPath}.jsonld`)
+              const entityResponse = await fetch(`${import.meta.env.BASE_URL || '/'}${entityPath}.jsonld`)
               if (!isCurrent()) return
               if (entityResponse.ok) {
                 const entityData = normalizeNode<Entity>(await entityResponse.json())

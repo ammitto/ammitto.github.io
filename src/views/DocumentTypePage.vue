@@ -125,7 +125,7 @@ const getGroupRef = (groupId?: string): string | null => {
  */
 const loadSummary = async (docTypeIdentifier: string, isCurrent: () => boolean) => {
   try {
-    const response = await fetch(documentTypeSummaryUrl(docTypeIdentifier))
+    const response = await fetch((import.meta.env.BASE_URL || '/').replace(/\/$/, '') + documentTypeSummaryUrl(docTypeIdentifier))
     if (!isCurrent()) return
     if (!response.ok) {
       summaryUnavailable.value = true

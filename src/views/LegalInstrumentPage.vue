@@ -177,7 +177,7 @@ const loadRelatedSanctions = async (instrumentId: string, isCurrent: () => boole
     for (const groupNode of groupNodes) {
       if (!isCurrent()) return
       const groupRef = groupNode['@id'].replace('https://www.ammitto.org/group/', '')
-      const groupResponse = await fetch(`/api/v1/node/group/${groupRef}.jsonld`)
+      const groupResponse = await fetch(`${import.meta.env.BASE_URL || '/'}api/v1/node/group/${groupRef}.jsonld`)
       if (!isCurrent()) return
       if (!groupResponse.ok) continue
 
@@ -189,7 +189,7 @@ const loadRelatedSanctions = async (instrumentId: string, isCurrent: () => boole
       for (const entryId of groupData.entry_ids) {
         if (!isCurrent()) return
         const entryRef = entryId.replace('https://www.ammitto.org/', 'api/v1/node/') + '.jsonld'
-        const entryResponse = await fetch(`/${entryRef}`)
+        const entryResponse = await fetch(`${import.meta.env.BASE_URL || '/'}${entryRef}`)
         if (!isCurrent()) return
         if (!entryResponse.ok) continue
 
