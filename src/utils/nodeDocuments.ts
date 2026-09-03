@@ -85,9 +85,10 @@ export function nodeDocumentPath(
 /**
  * Filename offered for a node document.
  *
- * Segments are encoded as in `nodeDocumentPath`, so a `?` or `*` in an
- * identifier does not reach a filename Windows will not accept. Every
- * separator is replaced, not just the first.
+ * Segments are encoded as in `nodeDocumentPath`, with one addition:
+ * `encodeURIComponent` leaves `*` untouched (valid in a URL path, not in a
+ * Windows filename), so it is escaped here as well. Every separator is
+ * replaced, not just the first.
  *
  * @param id - identifier, possibly containing `/`
  * @returns the filename, or null when the identifier cannot address a document

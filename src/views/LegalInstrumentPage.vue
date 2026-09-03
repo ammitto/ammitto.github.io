@@ -165,7 +165,7 @@ const getGroupRef = (groupId: string): string => {
 const loadRelatedSanctions = async (instrumentId: string, isCurrent: () => boolean) => {
   try {
     // Load group index
-    const groupIndexResponse = await fetch('/api/v1/node/group/index.jsonld')
+    const groupIndexResponse = await fetch(`${import.meta.env.BASE_URL || '/'}api/v1/node/group/index.jsonld`)
     if (!isCurrent()) return
     if (!groupIndexResponse.ok) return
 
