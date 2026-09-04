@@ -32,6 +32,28 @@ export function extractRef(idOrRef: string): string {
   return idOrRef
 }
 
+const entityDocumentSegments = (ref: string): string[] | null =>
+  documentSegments(extractRef(ref))
+
+/**
+ * Return the source segment of an entity ref after applying the same
+ * validation used to address its published node document.
+ *
+ * An entity's `sourceReferences` describe claims in the record and are not
+ * guaranteed to be present. The canonical ref still locates the entity under
+ * `<source>/<id>`, so it is the reliable place to find the aggregate that
+ * contains the record. Invalid catch-all route values must not be partially
+ * recovered with a raw `split('/')`: if the node path is unsafe, there is no
+ * aggregate link to offer either.
+ *
+ * @param ref - Entity ref (e.g., "uk/aqd0087") or full IRI
+ * @returns The validated source code, or null when the ref is invalid
+ */
+export function getEntitySourceCode(ref: string): string | null {
+  const segments = entityDocumentSegments(ref)
+  return segments?.[0] ?? null
+}
+
 /**
  * Get the path of an entity's published node document.
  *
@@ -58,7 +80,7 @@ export function extractRef(idOrRef: string): string {
  * @returns API path, or null when the ref cannot address a document
  */
 export function getEntityNodePath(ref: string, base: string): string | null {
-  const segments = documentSegments(extractRef(ref))
+  const segments = entityDocumentSegments(ref)
   if (!segments) return null
 
   const encoded = segments.map(encodeURIComponent).join('/')

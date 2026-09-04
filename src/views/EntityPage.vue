@@ -5,7 +5,11 @@ import Badge from '@/components/atoms/Badge.vue'
 import { useEntityData } from '@/composables/useEntityData'
 import SourceDocuments from '@/components/molecules/SourceDocuments.vue'
 import { sources, entityTypes } from '@/config'
-import { getEntityNodePath, extractRef } from '@/utils/entityUrls'
+import {
+  getEntityNodePath,
+  getEntitySourceCode,
+  extractRef,
+} from '@/utils/entityUrls'
 import { publishesAggregate } from '@/utils/sourceCatalog'
 import { nodeDocumentLabel } from '@/utils/nodeDocuments'
 
@@ -143,7 +147,12 @@ watch(entityId, (newId) => {
 // `getEntityNodePath` is the call `loadFullEntity` makes to fetch this
 // record, so the link and the fetch cannot describe different paths.
 //
-// The source aggregate is offered only when the deploy publishes one.
+// The source aggregate comes from the canonical ref, not sourceReferences:
+// those describe claims in the record and many published entities have none.
+// The helper applies the same validation as the node-document path, so an
+// invalid catch-all route cannot be partially recovered into an aggregate URL.
+//
+// The aggregate is offered only when the deploy publishes one.
 // `publishesAggregate` is the same boundary the browse page uses to
 // decide whether to request it at all; `ru` is excluded there and
 // `sources/ru.jsonld` is a 404 today, so offering the link would send a
@@ -157,10 +166,18 @@ const documents = computed(() => {
   if (!href || !label) return []
 
   const docs = [{ label, href, note: 'this record' }]
-  if (source.value && publishesAggregate(source.value)) {
+  const aggregateSource = getEntitySourceCode(ref)
+  const aggregateLabel = aggregateSource
+    ? nodeDocumentLabel(aggregateSource)
+    : null
+  if (
+    aggregateSource
+    && aggregateLabel
+    && publishesAggregate(aggregateSource)
+  ) {
     docs.push({
-      label: `${source.value}.jsonld`,
-      href: `${base}api/v1/sources/${source.value}.jsonld`,
+      label: aggregateLabel,
+      href: `${base}api/v1/sources/${encodeURIComponent(aggregateSource)}.jsonld`,
       note: 'every record from this source',
     })
   }
