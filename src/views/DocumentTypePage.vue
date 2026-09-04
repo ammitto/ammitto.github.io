@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, computed } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
 import SourceDocuments from '@/components/molecules/SourceDocuments.vue'
 import {
@@ -11,6 +11,7 @@ import {
   type LegalInstrumentSummary
 } from '@/utils/summarySlice'
 import { nodeDocumentPath, nodeDocumentLabel } from '@/utils/nodeDocuments'
+import { createLatestLoadGuard } from '@/utils/latestLoad'
 
 const route = useRoute()
 
@@ -33,6 +34,8 @@ const relatedAnnouncements = ref<AnnouncementSummary[]>([])
 const relatedInstruments = ref<LegalInstrumentSummary[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
+const loadGuard = createLatestLoadGuard()
+onUnmounted(loadGuard.invalidate)
 // Distinguishes "nothing carries this document type" from "the summary could
 // not be read". Without it the empty state below would state, falsely and
 // confidently, that no documents exist.
@@ -120,45 +123,71 @@ const getGroupRef = (groupId?: string): string | null => {
  * lists per document type, so the page reads its own summary and nothing
  * else.
  */
-const loadSummary = async (docTypeIdentifier: string) => {
+const loadSummary = async (docTypeIdentifier: string, isCurrent: () => boolean) => {
   try {
-    const response = await fetch(documentTypeSummaryUrl(docTypeIdentifier))
+    const response = await fetch((import.meta.env.BASE_URL || '/').replace(/\/$/, '') + documentTypeSummaryUrl(docTypeIdentifier))
+    if (!isCurrent()) return
     if (!response.ok) {
       summaryUnavailable.value = true
       return
     }
 
     const summary: DocumentTypeSummary = await response.json()
+    if (!isCurrent()) return
     relatedAnnouncements.value = summaryList<AnnouncementSummary>(summary.announcements)
     relatedInstruments.value = summaryList<LegalInstrumentSummary>(summary.legalInstruments)
   } catch (e) {
-    summaryUnavailable.value = true
-    console.error('Failed to load document type summary:', e)
+    if (isCurrent()) {
+      summaryUnavailable.value = true
+      console.error('Failed to load document type summary:', e)
+    }
   }
 }
 
-onMounted(async () => {
-  const id = docTypeId.value
+watch(docTypeId, async (id) => {
+  const isCurrent = loadGuard.begin()
+  documentType.value = null
+  relatedAnnouncements.value = []
+  relatedInstruments.value = []
+  loading.value = true
+  error.value = null
+  summaryUnavailable.value = false
 
   try {
+    const documentHref = nodeDocumentPath(
+      'document-type',
+      id,
+      import.meta.env.BASE_URL || '/',
+    )
+    if (!documentHref) {
+      error.value = 'Document type not found'
+      return
+    }
+
     // Load document type
-    const response = await fetch(`/api/v1/node/document-type/${id}.jsonld`)
+    const response = await fetch(documentHref)
+    if (!isCurrent()) return
     if (response.ok) {
-      documentType.value = await response.json()
+      const data: DocumentType = await response.json()
+      if (!isCurrent()) return
+      documentType.value = data
       // Load related announcements and instruments
-      const identifier = documentType.value?.identifier
+      const identifier = data.identifier
       if (identifier) {
-        await loadSummary(identifier)
+        await loadSummary(identifier, isCurrent)
+        if (!isCurrent()) return
       }
     } else {
       error.value = 'Document type not found'
     }
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Failed to load'
+    if (isCurrent()) {
+      error.value = e instanceof Error ? e.message : 'Failed to load'
+    }
   } finally {
-    loading.value = false
+    if (isCurrent()) loading.value = false
   }
-})
+}, { immediate: true })
 
 // The node this page fetches, offered to the reader. Only the node — a
 // second link to the by-document-type slice was measured at 320px and
