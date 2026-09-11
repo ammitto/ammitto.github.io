@@ -59,60 +59,67 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ammitto/ammitto
-          # Pinned to ammitto/ammitto main, moved nineteen commits from
-          # 722b65a. Unlike the last move, this one changes almost
-          # nothing that is published, and that is the finding rather
-          # than an absence of checking.
+          # Pinned to ammitto/ammitto main, moved twenty commits from
+          # 1cdc8702, on 2026-09-11. Like the last move, this one was
+          # checked for published-output drift before being made, and
+          # unlike the last move it found none.
           #
-          # Both pins were harmonized over ONE set of shallow clones of
-          # the 15 data-* repositories, taken 2026-09-01, so the delta is
-          # the gem alone. Both runs: 14 succeeded, 0 failed, 1 exempted,
-          # exit 0. Both produce 123,827 files and the file lists are
-          # identical. 8,152 files differ byte-for-byte; 8,151 of those
-          # differ ONLY in a retrievedAt timestamp, because the two runs
-          # ran four minutes apart.
+          # Both pins were harmonized over the same fifteen shallow clones
+          # of the data-* repositories, using this step's real --combine
+          # invocation. Both runs exited 0 with 61,303 entities. Both
+          # output trees hold 124,065 files, and the file lists are
+          # identical: no file exists in only one tree. 8,151 files differ
+          # byte-for-byte, and every one of those differs ONLY in a build
+          # timestamp (retrievedAt on the per-source aggregates, generated
+          # on the two combined ones) — confirmed by re-diffing the same
+          # 8,151 files with those keys normalized out, which left zero
+          # differences. Net: zero content differences, not the one
+          # behavioural difference the last move found.
           #
-          # That leaves exactly ONE behavioural difference in the whole
-          # tree: by-organization/cn/ministry-of-commerce.jsonld drops
-          # from 21 published documents to 7. That is 70c8565 (gem #58),
-          # which matches an organization on its identifier instead of a
-          # prefix of it. The 14 that go are the Unreliable Entity List
-          # Working Mechanism's, a different body whose id the substring
-          # test was swallowing. The over-count has been live on this
-          # site since the slices were introduced.
+          # Because the harmonized output is byte-identical apart from
+          # timestamps, every count .github/harmonize-thresholds.json's
+          # floors were checked against at the last move is unchanged by
+          # this one, so it is again deliberately NOT regenerated for this
+          # reason (see the DEBT paragraph below for the separate, larger
+          # reason it is stale).
           #
-          # Every per-source entity count is identical across the two
-          # pins, so .github/harmonize-thresholds.json is deliberately
-          # NOT regenerated and every floor holds with exactly the margin
-          # it was derived with. Checked rather than assumed, against the
-          # new pin's stats.json: au 3856/2698, ca 5582/3907, ch
-          # 8667/6064, cn 322/225, eu 6329/4430, eu_vessels 597/417, jp
-          # 5097/3567, nz 2112/1478, tr 276/193, uk 6349/4444, un
-          # 1011/707, un_vessels 59/41, us 19342/13444, wb 1585/1109, and
-          # the total 61,184 against 42,731. ru stays pending.
+          # This is a delta over the harmonized OUTPUT only. This
+          # repository's own gates — typecheck, unit tests, the production
+          # build, the dist/404.html SPA-fallback check, and the Playwright
+          # suite — do not touch the gem at all (ci.yml never checks it
+          # out; SKIP_API_DATA=1 keeps the committed public/api/v1
+          # snapshot), so they were run separately against this change and
+          # are unaffected by which gem SHA deploy.yml pins. See the PR
+          # this commit ships in for their exit codes.
           #
-          # The nineteen commits also carry the Canada bilingual element
-          # fix (#80), the blank-identifier refusal (#77) and the
-          # collapse guard (#81). None of them changes this output,
-          # because the site harmonizes each repository's processed YAML
-          # rather than re-parsing the source documents, and data-ca had
-          # already re-harvested with the fixed gem. They matter to the
-          # harvest, not to this build.
+          # Of the twenty, exactly one (#101) is the kind of change that
+          # would move output: it deletes the UK and EU processed-entity
+          # source files outright, and the byte-identical harmonize above
+          # is the direct evidence that nothing in this site's committed
+          # data-* YAML reached that code. 70c8565 (the cn
+          # ministry-of-commerce matching fix, the last move's one
+          # behavioural difference) already landed via the PRIOR pin and
+          # is not among these twenty, so it contributes no new delta
+          # here. The rest (per-file model splits, RuboCop housekeeping, a
+          # CLI doc fix, the data-ru acknowledgement handling, the
+          # circa-marker constant) touch parsing paths this site's
+          # already-harvested, already-committed data-* YAML does not
+          # re-exercise.
           #
           # DEBT, not introduced here but made larger by it: the manifest's
-          # gem_commit still reads 5e8b95c, which was already six commits
-          # behind the pin it replaced and is now twenty-five behind. Its
+          # gem_commit still reads 5e8b95c, which was twenty-five commits
+          # behind the pin this replaces and is now forty-five behind. Its
           # own derivation note says to regenerate the ENTIRE file from the
           # next reviewed full 15-source harvest rather than hand-tune
-          # floors, and that is owed. Not done here because regeneration
-          # needs the fifteen solo runs that note describes, so no source's
-          # failure can be masked by another, and that is a recalibration
-          # rather than a pin move. The workflow reads only
-          # publishing_sources, pending_sources, source_floors and
-          # total_entities_floor, none of the provenance fields, so the
+          # floors, and that is still owed, for the same reason it was owed
+          # last time: regeneration needs the fifteen solo runs that note
+          # describes, so no source's failure can be masked by another, and
+          # that is a recalibration rather than a pin move. The workflow
+          # reads only publishing_sources, pending_sources, source_floors
+          # and total_entities_floor, none of the provenance fields, so the
           # staleness costs accuracy in the record and nothing in the gate.
           # Pin-to-SHA stays the policy.
-          ref: 1cdc8702c49a42a4238f8beb52719d30dcbbffdf
+          ref: c7084d0e9c7d4289c7cd0d1e74404c37ddde683d
           path: ammitto-gem
 
       - name: Checkout data repositories
