@@ -1,59 +1,103 @@
 # TODO: Knowledge Graph Website Integration
 
+> **Status, checked 2026-09-14.** This is the original planning document,
+> written before any of it shipped, and most of it has been overtaken since.
+> Phase 1 landed: `node/` documents, `by-list/` slices and
+> `facets/list_types.json` are all published today. Phase 2's search work and
+> Phase 4 landed: `SearchEntity` carries `listType` and `useSearchIndex.ts`
+> loads all six facet files. Phase 3 was superseded rather than built: the
+> site grew `/browse/groups`, `/browse/organizations`, `/browse/document-types`,
+> `/browse/announcements` and `/browse/legal-instruments` instead of the
+> `/entry`, `/list` and `/browse/lists` routes proposed below, and
+> `useListData.ts`, `EntryPage.vue`, `ListPage.vue` and `BrowseListsPage.vue`
+> were never created. Phase 5 (JSON-LD script tags, RDFa, content negotiation)
+> and Phase 6 are still open.
+>
+> The "Current State" section below has been corrected against the deployed
+> API and this checkout. Everything from "Phase 1" down is left as written:
+> those unchecked boxes record what was planned, not what is true.
+
 ## Current State
 
 ### Website Architecture
 - **Framework**: Vue 3 + Vite + vue-router + Vite-SSG (static site generation)
 - **Search**: FlexSearch for client-side search
 - **Styling**: Tailwind CSS
-- **Location**: `/Users/mulgogi/src/ammitto/ammitto.github.io/`
+- **Repository**: `ammitto/ammitto.github.io`
 
 ### Current API Structure
-The website expects:
+What `https://www.ammitto.org/api/v1` actually serves, read from its own
+catalogue at `/index.jsonld` on 2026-09-14:
+
 ```
 api/v1/
-├── search-index.json         # Lightweight search index
-├── facets/                   # Facet counts for filters
-│   ├── authorities.json
-│   ├── list_types.json       # NEW - needs to be added
-│   ├── regimes.json
-│   ├── types.json
-│   ├── countries.json
-│   └── statuses.json
-├── node/                     # Individual node files (MISSING!)
-│   ├── entity/{source}/{id}.jsonld
-│   ├── entry/{source}/{list_type}/{id}.jsonld
-│   ├── list/{source}/{list_type}.jsonld
-│   ├── authority/{code}.jsonld
-│   ├── regime/{code}.jsonld
-│   └── instrument/{source}/{id}.jsonld
-├── by-list/                  # Browse by list type (MISSING!)
-│   ├── {source}/
-│   │   ├── {list_type}.jsonld
-│   │   └── index.jsonld
-│   └── index.jsonld
-├── sources/{code}.jsonld     # Per-source combined data (EXISTS)
-├── all.jsonld                # Combined graph (EXISTS)
-└── stats.json                # Statistics (EXISTS)
+├── index.jsonld              # Catalogue: every file with its byte size,
+│                             #   every collection with its members
+├── search-index.json         # Search index (20 MB)
+├── stats.json                # Per-source and total counts
+├── context.jsonld            # The context every document here references
+├── all.jsonld                # Whole graph, JSON-LD (156 MB)
+├── all.ttl                   # Whole graph, Turtle (116 MB)
+├── sources/{code}.jsonld     # One aggregate per source (14 today)
+├── facets/                   # authorities, countries, list_types,
+│                             #   regimes, statuses, types
+├── node/                     # One document per node, by type: entity,
+│                             #   entry, authority, regime, group,
+│                             #   legal-instrument, organization,
+│                             #   document-type — each with an index.jsonld
+├── by-list/                  # Browse by list type
+├── by-authority/             # 14 members
+├── by-regime/                # 179 members
+├── by-type/                  # 4 members
+├── by-status/                # 2 members
+├── by-organization/
+├── by-document-type/
+└── ontology/                 # classes.jsonld, properties.jsonld,
+                              #   hierarchy.json
 ```
 
+Two of the paths proposed below were never published: there is no
+`node/list/` (those slices live under `by-list/`) and no `node/instrument/`
+(legal instruments are at `node/legal-instrument/`). Both return 404.
+
 ### Current Routes
+Read from `src/router/index.ts`:
+
 ```
-/                   - Home
-/search             - Search entities
-/entity/:id         - Entity detail page (expects ref format: "un/KPi.066")
-/browse             - Browse landing
-/browse/entities    - Browse entities
-/browse/sanctions   - Browse sanctions
-/browse/actions     - Browse actions
-/ontology           - Ontology browser
+/                          - Home
+/search                    - Search entities
+/api                       - API documentation
+/entity/:id(.*)            - Entity detail
+/announcement/:id(.*)      - Announcement detail
+/group/:id(.*)             - Group detail
+/legal-instrument/:id(.*)  - Legal instrument detail
+/document-type/:id(.*)     - Document type detail
+/organization/:id(.*)      - Organization detail
+/about                     - About
+/ruby                      - Ruby gem
+/schema                    - Schema
+/sources                   - Sources
+/browse                    - Browse landing
+/browse/entities           - Browse entities
+/browse/sanctions          - Browse sanctions
+/browse/actions            - Browse actions
+/browse/legal-instruments  - Browse legal instruments
+/browse/groups             - Browse groups
+/browse/announcements      - Browse announcements
+/browse/document-types     - Browse document types
+/browse/organizations      - Browse organizations
+/ontology                  - Ontology browser
+/license                   - License
+/:pathMatch(.*)*           - Not found (must stay last)
 ```
 
 ### Current Composables
-- `useSearchIndex.ts` - Loads search-index.json, FlexSearch, facets
-- `useEntityData.ts` - Loads full entity from node files
+- `useSearchIndex.ts` - Loads search-index.json, FlexSearch, and all six
+  facet files including `list_types.json`; `SearchEntity` carries `listType`
+- `useEntityData.ts` - Loads a full entity from its node file
 - `useSanctionsData.ts` - Loads sanctions/entries data
 - `useOntologyData.ts` - Loads ontology data
+- `useScrollAnimation.ts` - Scroll-triggered animation helper
 
 ---
 
