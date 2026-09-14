@@ -9,6 +9,14 @@ const baseUrl = 'https://www.ammitto.org/api/v1'
 // The page used to list two endpoints against a base URL that redirects,
 // with a @context we do not emit and counts from a corpus a seventh the
 // size of today's. Start from the catalogue when this needs updating.
+//
+// The sizes, counts and timestamps in the samples below are a dated
+// reading, not a live value. They were read on 2026-09-14 from
+// /index.jsonld, /stats.json, /facets/types.json and
+// /ontology/classes.jsonld, and every harmonize run moves them, so a
+// mismatch against the deployed API is this page going stale rather than
+// the producer changing shape. No test checks these against the live
+// API: tests/apiDocsAccuracy.test.js reads source text only and says so.
 const endpoints = [
   {
     method: 'GET',
@@ -20,14 +28,14 @@ const endpoints = [
   "@context": "https://ammitto.org/api/v1/context.jsonld",
   "@type": "Index",
   "slice": "catalogue",
-  "generated": "2026-08-20T13:30:48Z",
+  "generated": "2026-09-14T11:54:44Z",
   "entries": [
     {
       "name": "all.jsonld",
       "url": "all.jsonld",
       "mediaType": "application/ld+json",
       "description": "Every node in one graph",
-      "bytes": 155683385
+      "bytes": 156423069
     },
     {
       "name": "sources",
@@ -44,14 +52,14 @@ const endpoints = [
     description: 'Entity and entry counts per source, and the totals. About 1 KB — read this rather than counting a larger file.',
     example: `curl ${baseUrl}/stats.json`,
     response: `{
-  "generated_at": "2026-08-20T13:30:48Z",
+  "generated_at": "2026-09-14T11:54:44Z",
   "sources": {
     "eu": { "entities": 6329, "entries": 6329 },
-    "us": { "entities": 19207, "entries": 19207 },
-    "uk": { "entities": 6349, "entries": 6349 }
+    "us": { "entities": 19410, "entries": 19410 },
+    "uk": { "entities": 6355, "entries": 6355 }
   },
-  "total_entities": 61051,
-  "total_entries": 61051,
+  "total_entities": 61332,
+  "total_entries": 61332,
   "total_regimes": 179
 }`
   },
@@ -93,7 +101,7 @@ const endpoints = [
     method: 'GET',
     path: '/all.jsonld and /all.ttl',
     description:
-      'The whole graph in one file — JSON-LD or RDF/Turtle. Large: 155 MB and 115 MB respectively, though the JSON-LD transfers at about 8 MB gzipped. Prefer a source aggregate or a node document unless you genuinely want everything.',
+      'The whole graph in one file — JSON-LD or RDF/Turtle. Large: 156 MB and 116 MB respectively, though the JSON-LD transfers at about 8 MB gzipped. Prefer a source aggregate or a node document unless you genuinely want everything.',
     example: `curl -H 'Accept-Encoding: gzip' ${baseUrl}/all.jsonld`,
     response: `{
   "@context": "https://ammitto.org/api/v1/context.jsonld",
@@ -125,9 +133,10 @@ const endpoints = [
     example: `curl ${baseUrl}/facets/types.json`,
     response: `{
   "facets": [
-    { "code": "person", "name": "Person", "icon": "user", "count": 31239 },
-    { "code": "organization", "name": "Organization", "icon": "building", "count": 26819 },
-    { "code": "vessel", "name": "Vessel", "icon": "ship", "count": 2651 }
+    { "code": "person", "name": "Person", "icon": "user", "count": 31318 },
+    { "code": "organization", "name": "Organization", "icon": "building", "count": 26946 },
+    { "code": "vessel", "name": "Vessel", "icon": "ship", "count": 2726 },
+    { "code": "aircraft", "name": "Aircraft", "icon": "plane", "count": 342 }
   ]
 }`
   },
