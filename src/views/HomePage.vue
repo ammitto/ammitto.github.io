@@ -128,11 +128,18 @@ const features = [
             Get Started
           </h2>
           <p class="text-light-muted dark:text-dark-muted mb-8">
-            Access our API or download the data directly. No API key required.
+            Access our API or
+            <RouterLink to="/download" class="text-brand-link hover:underline">
+              download the data directly
+            </RouterLink>.
+            No API key required.
           </p>
           <div class="flex flex-wrap justify-center gap-4">
             <RouterLink to="/api" class="btn-primary">
               API Documentation
+            </RouterLink>
+            <RouterLink to="/download" class="btn-secondary">
+              Download Data
             </RouterLink>
             <RouterLink to="/search" class="btn-secondary">
               Search Database

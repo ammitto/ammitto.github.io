@@ -20,6 +20,7 @@ export const STATIC_ROUTES = [
   { path: '/', contains: 'Ammitto' },
   { path: '/search', contains: 'Search' },
   { path: '/api', contains: 'API' },
+  { path: '/download', contains: 'Download' },
   { path: '/about', contains: 'Ammitto' },
   { path: '/ruby', contains: 'Ruby' },
   { path: '/schema', contains: 'Schema' },
@@ -135,6 +136,7 @@ export const CONTRAST_SCAN_ROUTES = [
   { path: '/sources', requires: '.tone-tile' },
   { path: '/ontology', requires: '.tone-ink' },
   { path: '/api', requires: '.tone-pill' },
+  { path: '/download', requires: '.download-page' },
   // These three render SourceFilter, whose selected pill is the one place a
   // translucent overlay used to composite over a tested tone. `.tone-tile`
   // is that pill: SourceFilter puts the class on whichever option is

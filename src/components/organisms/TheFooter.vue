@@ -64,6 +64,14 @@ const currentYear = new Date().getFullYear()
             </li>
             <li>
               <RouterLink
+                to="/download"
+                class="text-sm text-light-muted dark:text-dark-muted hover:text-brand-link transition-colors"
+              >
+                Download Data
+              </RouterLink>
+            </li>
+            <li>
+              <RouterLink
                 to="/ontology"
                 class="text-sm text-light-muted dark:text-dark-muted hover:text-brand-link transition-colors"
               >

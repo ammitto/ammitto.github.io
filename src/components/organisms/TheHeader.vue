@@ -13,6 +13,7 @@ const navItems = [
   { name: 'Browse', path: '/browse', nameRoute: 'browse' },
   { name: 'Ontology', path: '/ontology', nameRoute: 'ontology' },
   { name: 'API', path: '/api', nameRoute: 'api' },
+  { name: 'Download', path: '/download', nameRoute: 'download' },
   { name: 'About', path: '/about', nameRoute: 'about' },
   { name: 'License', path: '/license', nameRoute: 'license' },
 ]
