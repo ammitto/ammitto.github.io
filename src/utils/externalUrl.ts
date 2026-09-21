@@ -1,0 +1,60 @@
+/**
+ * Whether a URL that arrived with the data may be put in an `href`.
+ *
+ * Every source URL on this site comes from a foreign government feed by way of
+ * the harmonizer: an announcement's `url`, an organization's `url`, a legal
+ * instrument's `url`. Seven templates bind those values straight into
+ * `:href` (AnnouncementPage, OrganizationPage, LegalInstrumentPage,
+ * BrowseOrganizationsPage, EntityPage, SourceCard, TheFooter), and a grep for
+ * a scheme check across `src/` found none — `entityUrls.ts:27` tests a prefix
+ * to strip an IRI, which is a different job.
+ *
+ * Vue does not sanitise `:href`. A value of `javascript:...` in any of fifteen
+ * upstream feeds therefore becomes a link that runs script when a reader
+ * clicks it, and the reader has every reason to click: the whole point of that
+ * link is "go and read the official designation".
+ *
+ * No such value is in the corpus today — this is the guard for input nobody
+ * here controls, not a report of an exploit.
+ *
+ * Deliberately an allowlist. A denylist of `javascript:` misses `data:`,
+ * `vbscript:`, and the whitespace and control-character tricks that hide them
+ * (`java script:`, a leading newline); `new URL()` normalises those away
+ * before the protocol is read, which is why parsing beats pattern-matching.
+ */
+const ALLOWED_PROTOCOLS = new Set(['http:', 'https:', 'mailto:'])
+
+/**
+ * The URL if it is safe to link to, otherwise null.
+ *
+ * Returns null rather than a placeholder so callers must decide what an
+ * unsafe or absent URL looks like — every one of them renders no link at all,
+ * which is the honest outcome: a source document whose address cannot be
+ * trusted is a source document this site cannot send anyone to.
+ *
+ * A relative URL resolves against the site's own origin and is therefore
+ * safe, but these fields are external by contract, so a value that is not an
+ * absolute URL is rejected rather than silently made same-origin.
+ */
+export function safeExternalUrl(url: unknown): string | null {
+  if (typeof url !== 'string') return null
+
+  const trimmed = url.trim()
+  if (!trimmed) return null
+
+  let parsed: URL
+  try {
+    parsed = new URL(trimmed)
+  } catch {
+    // Not an absolute URL. Relative source links are not a shape the feeds
+    // produce, and guessing an origin for one would invent a destination.
+    return null
+  }
+
+  if (!ALLOWED_PROTOCOLS.has(parsed.protocol)) return null
+
+  // Return the parsed form, not the raw string: `new URL` has already
+  // normalised the escapes and stray control characters that let a hostile
+  // value read as one scheme and resolve as another.
+  return parsed.href
+}

@@ -71,12 +71,21 @@ function formatJson(data: Record<string, unknown> | null): string {
   return JSON.stringify(data, null, 2)
 }
 
-// Get icon for node
-function getNodeIcon(node: HierarchyNode): string {
-  if (node.icon) return node.icon
-  if (node.name.includes('Entity')) return 'database'
-  if (node.name.includes('Entry')) return 'file-text'
-  return 'folder'
+/**
+ * Whether a class's instance count is worth printing.
+ *
+ * `api/v1/ontology/hierarchy.json` returns `count: 0` for every class — checked
+ * live on 2026-08-28, on Entity and on each of its children — so the rail read
+ * "Entity (0) / Person (0) / Organization (0)". A schema browser that reports
+ * an empty graph, on a site whose front page says 61,099 entities, is worse
+ * than one that reports nothing: the reader cannot tell "we did not measure
+ * this" from "there is nothing here".
+ *
+ * When the producer starts emitting real counts these appear with no further
+ * change here.
+ */
+function hasCount(node: HierarchyNode): boolean {
+  return typeof node.count === 'number' && node.count > 0
 }
 
 /**
@@ -190,9 +199,21 @@ onMounted(async () => {
                       :aria-current="selectedClass === child.name ? 'true' : undefined"
                       @click="selectClass(child.name)"
                     >
-                      <span aria-hidden="true" class="text-light-muted dark:text-dark-muted">{{ getNodeIcon(child) }}</span>
+                      <!--
+                        A dot, not the icon field. That field carries a Lucide
+                        icon NAME — "database", "user", "building-2" — and this
+                        rendered it as text, so the rail read "database Entity",
+                        "user Person", "building-2 Authority" on the live site.
+                        Nothing here can draw a Lucide glyph, so the honest
+                        marker is the colour the data already supplies.
+                      -->
+                      <span
+                        aria-hidden="true"
+                        class="tone-ink bg-current inline-block w-2 h-2 rounded-full flex-shrink-0"
+                        :style="inkToneVars(child.color || getTypeColor(child.code || ''))"
+                      />
                       <span class="hierarchy-label font-medium text-light-text dark:text-dark-text">{{ child.label }}</span>
-                      <span class="text-xs text-light-muted dark:text-dark-muted">
+                      <span v-if="hasCount(child)" class="text-xs text-light-muted dark:text-dark-muted">
                         ({{ child.count.toLocaleString() }})
                       </span>
                     </button>
@@ -215,15 +236,14 @@ onMounted(async () => {
                           :aria-current="selectedClass === subChild.name ? 'true' : undefined"
                           @click="selectClass(subChild.name)"
                         >
+                          <!-- Same dot as the parent row; see the comment there. -->
                           <span
                             aria-hidden="true"
                             :style="inkToneVars(subChild.color || getTypeColor(subChild.code || ''))"
-                            class="tone-ink"
-                          >
-                            {{ subChild.icon || '📄' }}
-                          </span>
+                            class="tone-ink bg-current inline-block w-2 h-2 rounded-full flex-shrink-0"
+                          />
                           <span class="hierarchy-label text-light-text dark:text-dark-text">{{ subChild.label }}</span>
-                          <span class="text-xs text-light-muted dark:text-dark-muted">
+                          <span v-if="hasCount(subChild)" class="text-xs text-light-muted dark:text-dark-muted">
                             ({{ subChild.count.toLocaleString() }})
                           </span>
                         </button>

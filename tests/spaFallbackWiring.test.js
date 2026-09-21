@@ -61,14 +61,20 @@ test('the build writes an SPA fallback', () => {
     /onFinished\s*(\(|:)/,
     'the fallback is written from an onFinished hook',
   )
+  // Either spelling of the path. The hook builds a `dist` constant now,
+  // because the sitemap written beside the fallback needs the directory too,
+  // so `resolve(dist, '404.html')` is as valid as the old inline
+  // `resolve(__dirname, 'dist/404.html')`. What must hold is that the
+  // fallback is written and that it is a copy of the shell — pinning one
+  // spelling would fail a rewrite that changed nothing.
   assert.match(
     source,
-    /dist\/404\.html/,
+    /(dist\/404\.html|resolve\(dist,\s*'404\.html'\))/,
     'the build must emit dist/404.html',
   )
   assert.match(
     source,
-    /dist\/index\.html/,
+    /(dist\/index\.html|resolve\(dist,\s*'index\.html'\))/,
     'the fallback is a copy of the rendered shell',
   )
 })

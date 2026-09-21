@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import Logo from '@/components/atoms/Logo.vue'
 import { siteConfig, sources } from '@/config'
+import { safeExternalUrl } from '@/utils/externalUrl'
 
 const currentYear = new Date().getFullYear()
 </script>
@@ -22,9 +23,20 @@ const currentYear = new Date().getFullYear()
         <div>
           <h4 class="font-semibold mb-4 text-light-text dark:text-dark-text">Data Sources</h4>
           <ul class="space-y-2">
-            <li v-for="source in sources.slice(0, 5)" :key="source.code">
+            <!--
+              The anchor is this item's only content, so the guard sits on the
+              <li>: without it a rejected URL would leave an empty bullet in
+              the list, which reads as a rendering fault rather than as a
+              source whose address could not be trusted.
+            -->
+            <li
+              v-for="source in sources.slice(0, 5)"
+              :key="source.code"
+              v-show="safeExternalUrl(source.url)"
+            >
               <a
-                :href="source.url"
+                v-if="safeExternalUrl(source.url)"
+                :href="safeExternalUrl(source.url) as string"
                 target="_blank"
                 rel="noopener noreferrer"
                 class="text-sm text-light-muted dark:text-dark-muted hover:text-brand-link transition-colors"

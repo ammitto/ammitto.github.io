@@ -4,13 +4,55 @@ import EntityCard from '@/components/molecules/EntityCard.vue'
 import { useSanctionsData } from '@/composables/useSanctionsData'
 import { entityTypes } from '@/config'
 
-const { entities, loading, loadAllEntities, entityTypeCounts } = useSanctionsData()
+const {
+  entities,
+  loading,
+  loadAllEntities,
+  entityTypeCounts,
+  stats,
+  publishedTypeCounts,
+  failedSources,
+  loadStats,
+} = useSanctionsData()
+
+/**
+ * Corpus totals as published, falling back to what this browser has loaded.
+ *
+ * The chips used to print `entities.length` and `entityTypeCounts`, both of
+ * which count rows this composable has finished fetching — so on 2026-08-28
+ * the page said "All (61,040)" and "Vessel (2,603)" where the published data
+ * says 61,099 and 2,662. A reader cannot tell a corpus size from a download
+ * progress figure, and the smaller number is the one that looks authoritative
+ * because it is the one on screen.
+ */
+const totalEntities = computed(
+  () => stats.value?.total_entities ?? entities.value.length,
+)
+const typeCount = (code: string): number =>
+  publishedTypeCounts.value?.[code] ?? entityTypeCounts.value[code] ?? 0
+
+/**
+ * True when a source aggregate actually failed.
+ *
+ * `loadSourceEntities` swallows a failed fetch and returns [], so without this
+ * the page renders a silently short register as though it were complete.
+ *
+ * Driven by recorded errors, NOT by comparing `entities.length` against
+ * `stats.total_entities`. The arithmetic version looked equivalent and was
+ * wrong: `loadSources` deliberately skips the codes in
+ * `SOURCES_WITHOUT_AGGREGATE`, so on the live site the assembled list is
+ * 61,040 against a published 61,099 — a gap of exactly 59, which is
+ * un_vessels, skipped by design. That check would have shown a failure notice
+ * on every visit.
+ */
+const isPartial = computed(() => !loading.value && failedSources.value.length > 0)
 
 const selectedType = ref<string | null>(null)
 const page = ref(1)
 const pageSize = 20
 
 onMounted(() => {
+  loadStats()
   loadAllEntities()
 })
 
@@ -81,7 +123,7 @@ const entityAdapter = (entity: any) => {
             ? 'bg-brand-primary text-white'
             : 'bg-light-surface dark:bg-dark-surface text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text'"
         >
-          All ({{ entities.length.toLocaleString() }})
+          All<span v-if="totalEntities"> ({{ totalEntities.toLocaleString() }})</span>
         </button>
         <button
           v-for="type in entityTypes"
@@ -92,7 +134,7 @@ const entityAdapter = (entity: any) => {
             ? 'bg-brand-primary text-white'
             : 'bg-light-surface dark:bg-dark-surface text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text'"
         >
-          {{ type.icon }} {{ type.name }} ({{ (entityTypeCounts[type.code] || 0).toLocaleString() }})
+          {{ type.icon }} {{ type.name }}<span v-if="typeCount(type.code)"> ({{ typeCount(type.code).toLocaleString() }})</span>
         </button>
       </div>
 
@@ -105,6 +147,23 @@ const entityAdapter = (entity: any) => {
         <div class="mb-4 text-sm text-light-muted dark:text-dark-muted">
           Showing {{ paginatedEntities.length.toLocaleString() }} of {{ filteredEntities.length.toLocaleString() }} entities
         </div>
+
+        <!--
+          Say so when the list is short. A failed source aggregate is caught and
+          returned as an empty array, so an incomplete register would otherwise
+          render exactly like a complete one — on a sanctions list that is the
+          same class of defect as a false negative in search.
+        -->
+        <p
+          v-if="isPartial"
+          role="status"
+          class="mb-4 text-sm px-3 py-2 rounded-lg border border-status-suspended/40 bg-status-suspended/10 text-light-text dark:text-dark-text"
+        >
+          {{ failedSources.length }}
+          {{ failedSources.length === 1 ? 'source' : 'sources' }} failed to load
+          ({{ failedSources.join(', ') }}), so this list is incomplete —
+          {{ entities.length.toLocaleString() }} entities shown. Reload to try again.
+        </p>
 
         <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <EntityCard
