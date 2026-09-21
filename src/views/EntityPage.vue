@@ -12,6 +12,8 @@ import {
 } from '@/utils/entityUrls'
 import { publishesAggregate } from '@/utils/sourceCatalog'
 import { nodeDocumentLabel } from '@/utils/nodeDocuments'
+import { safeExternalUrl } from '@/utils/externalUrl'
+import { primaryNameOf } from '@/utils/entityNames'
 
 const route = useRoute()
 const {
@@ -305,8 +307,23 @@ onMounted(async () => {
             <Badge :variant="entityType as any">
               {{ typeInfo?.icon }} {{ typeInfo?.name }}
             </Badge>
-            <Badge variant="source" :source-code="source ?? undefined">
-              {{ sourceInfo?.name }}
+            <!--
+              The authority that listed this entity.
+
+              `v-if` because a badge with no text is worse than no badge: this
+              rendered as a bare grey pill between "Organization" and "active"
+              on every record, because the published nodes carry an empty
+              `sourceReferences` array and nothing else supplied the code.
+              `useEntityData` now falls back to the source segment of the route,
+              so this is normally filled; the guard covers a code the catalogue
+              does not recognise, where the label would be blank again.
+            -->
+            <Badge
+              v-if="sourceInfo?.name"
+              variant="source"
+              :source-code="source ?? undefined"
+            >
+              {{ sourceInfo.name }}
             </Badge>
             <Badge :variant="(entryStatus || 'active') as any">
               {{ entryStatus || 'Active' }}
@@ -315,7 +332,7 @@ onMounted(async () => {
 
           <!-- Primary Name -->
           <h1 class="text-3xl font-bold text-light-text dark:text-dark-text mb-2">
-            {{ entity.names?.find(n => n.is_primary)?.full_name || entity.names?.[0]?.full_name || 'Unknown' }}
+            {{ primaryNameOf(entity.names) ?? 'Unknown' }}
           </h1>
 
           <!-- Entity ID -->
@@ -654,8 +671,8 @@ onMounted(async () => {
                   </svg>
                 </RouterLink>
                 <a
-                  v-if="announcement.url"
-                  :href="announcement.url"
+                  v-if="safeExternalUrl(announcement.url)"
+                  :href="safeExternalUrl(announcement.url) as string"
                   target="_blank"
                   rel="noopener noreferrer"
                   class="inline-flex items-center gap-1 text-brand-link hover:underline text-sm"

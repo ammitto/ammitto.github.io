@@ -69,6 +69,21 @@ interface JsonLdResponse {
   '@graph': JsonLdEntity[]
 }
 
+/**
+ * `api/v1/stats.json`, the one place the site should read a count from.
+ *
+ * Every `total_*` key below is published by the live endpoint and was measured
+ * there on 2026-08-28: entities 61,099, entries 61,099, instruments 817,
+ * regimes 179, authorities 14, groups 29, document_types 35, organizations 37.
+ * They are optional because the CN-only snapshot committed under
+ * `public/api/v1` predates several of them, so a local render must degrade
+ * rather than throw.
+ *
+ * The counts matter because the pages used to carry their own. `BrowsePage`
+ * shipped the literal strings "6 laws", "17 groups", "7 types" and "8 orgs" —
+ * true of an old China-only snapshot and wrong by up to 136x against this
+ * endpoint. A displayed number with no derivation cannot stay right.
+ */
 interface StatsResponse {
   generated_at: string
   sources: Record<string, { entities: number; entries: number }>
@@ -77,6 +92,9 @@ interface StatsResponse {
   total_instruments?: number
   total_regimes?: number
   total_authorities?: number
+  total_groups?: number
+  total_document_types?: number
+  total_organizations?: number
 }
 
 // Cache for loaded data
@@ -85,6 +103,18 @@ const loadingStates = ref<Map<string, boolean>>(new Map())
 const errorStates = ref<Map<string, string | null>>(new Map())
 const stats = ref<StatsResponse | null>(null)
 const statsLoading = ref(false)
+
+/**
+ * Published per-type totals from `api/v1/facets/types.json`.
+ *
+ * Distinct from `entityTypeCounts`, which tallies whatever this composable has
+ * managed to fetch and is therefore a progress indicator, not a corpus size.
+ * The two disagreed on the live site on 2026-08-28: the browse page's own
+ * tally reported "All (61,040)" and "Vessel (2,603)" while the published
+ * facets reported 61,099 and 2,662. The published figure is what the deploy
+ * measured; the tally is what this browser has downloaded so far.
+ */
+const publishedTypeCounts = ref<Record<string, number> | null>(null)
 
 // FlexSearch index for fast text search
 const searchIndex = new FlexSearch.Index({
@@ -140,18 +170,47 @@ function transformEntity(entity: JsonLdEntity, sourceCode: string): SanctionEnti
  * Load stats from API
  */
 async function loadStats(): Promise<StatsResponse | null> {
-  if (stats.value) return stats.value
+  // Both halves must be present to count as loaded. Returning early on
+  // `stats.value` alone meant a transient failure of `facets/types.json` was
+  // permanent for the session: stats cached, the facet map left null, and
+  // every later call short-circuited before it could retry. The browse chips
+  // then silently fell back to counting downloaded rows for the rest of the
+  // visit, which is the very substitution this change exists to stop.
+  if (stats.value && publishedTypeCounts.value) return stats.value
 
   statsLoading.value = true
 
   try {
-    const response = await fetch(`${API_BASE}api/v1/stats.json`)
+    if (!stats.value) {
+      const response = await fetch(`${API_BASE}api/v1/stats.json`)
 
-    if (!response.ok) {
-      throw new Error(`Failed to load stats: ${response.status}`)
+      if (!response.ok) {
+        throw new Error(`Failed to load stats: ${response.status}`)
+      }
+
+      stats.value = await response.json()
     }
 
-    stats.value = await response.json()
+    // Same run, same publication: fetched here so a caller cannot end up
+    // holding a corpus total from one source and per-type totals from another.
+    try {
+      const typeRes = await fetch(`${API_BASE}api/v1/facets/types.json`)
+      if (typeRes.ok) {
+        const body = await typeRes.json()
+        const map: Record<string, number> = Object.create(null)
+        for (const facet of body.facets || []) {
+          if (typeof facet?.code === 'string' && typeof facet.count === 'number') {
+            map[facet.code] = facet.count
+          }
+        }
+        publishedTypeCounts.value = map
+      }
+    } catch (e) {
+      // A missing facet file must not cost the caller its stats; the views
+      // fall back to their own tally and say so.
+      console.error('Failed to load type facets:', e)
+    }
+
     return stats.value
   } catch (e) {
     console.error('Failed to load stats:', e)
@@ -390,6 +449,30 @@ export function useSanctionsData() {
     return null
   })
 
+  /**
+   * The source codes whose aggregate actually failed to load.
+   *
+   * `loadSourceEntities` catches every fetch/parse failure, records it here and
+   * returns [], so a partial register is otherwise indistinguishable from a
+   * complete one — on a sanctions list, the same class of defect as a false
+   * negative in search.
+   *
+   * Driven by recorded errors rather than by comparing the assembled row count
+   * against `stats.total_entities`. That arithmetic looks equivalent and is
+   * not: `loadSources` deliberately SKIPS the codes in
+   * `SOURCES_WITHOUT_AGGREGATE`, so on the live site the assembled list is
+   * 61,040 against a published 61,099 — a 59-row gap that is exactly
+   * un_vessels, skipped by design rather than failed. A count-difference check
+   * would therefore have cried failure on every visit.
+   */
+  const failedSources = computed(() => {
+    const failed: string[] = []
+    for (const [key, err] of errorStates.value) {
+      if (err) failed.push(key)
+    }
+    return failed
+  })
+
   const entityCount = computed(() => {
     if (stats.value) {
       return stats.value.total_entities
@@ -422,15 +505,42 @@ export function useSanctionsData() {
     return counts
   })
 
+  /**
+   * How many sources the published data actually contains.
+   *
+   * Deliberately derived from `stats.sources` rather than from
+   * `config.sources.length`. The two disagree: the catalogue names 15 sources
+   * because `sourceCatalog.ts` keeps a source listed while its data repo is
+   * still pending (`ru`), and the deploy publishes an aggregate for 14. The
+   * site used to print both — the home hero said "14 Sources" while the same
+   * page said "15 official sources" four screens down, and /search said
+   * "Search across 14 data sources" directly above a filter panel headed
+   * "Sources (15)".
+   *
+   * The catalogue count is the right answer to "what does Ammitto know about";
+   * this is the right answer to "what can you search today", which is what
+   * every one of those strings was claiming.
+   */
+  const publishedSourceCount = computed(() =>
+    stats.value ? Object.keys(stats.value.sources).length : 0,
+  )
+
+  /** When the published data was generated, ISO string, or ''. */
+  const generatedAt = computed(() => stats.value?.generated_at || '')
+
   return {
     entities,
     loading: isLoading,
     error,
     entityCount,
+    publishedSourceCount,
+    generatedAt,
     sourceCounts,
     entityTypeCounts,
     stats,
     statsLoading,
+    publishedTypeCounts,
+    failedSources,
     loadStats,
     loadAllEntities,
     loadSourceEntities,

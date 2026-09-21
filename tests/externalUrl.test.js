@@ -1,0 +1,76 @@
+/**
+ * `safeExternalUrl` — the scheme allowlist for URLs that arrive with the data.
+ *
+ * Seven templates bind a feed-supplied `url` straight into `:href`. Vue does
+ * not sanitise that, and a grep across `src/` found no scheme check anywhere,
+ * so a `javascript:` value in any of fifteen upstream government feeds would
+ * have become a click-to-execute link — on a page whose entire purpose is to
+ * send the reader to the official designation.
+ *
+ * No such value is in the corpus today. These tests exist because the input is
+ * not ours to control.
+ */
+
+import test from 'node:test'
+import assert from 'node:assert/strict'
+
+import { safeExternalUrl } from '../.test-build/utils/externalUrl.js'
+
+test('ordinary source links pass through', () => {
+  assert.equal(
+    safeExternalUrl('https://www.un.org/securitycouncil/sanctions/information'),
+    'https://www.un.org/securitycouncil/sanctions/information',
+  )
+  assert.equal(safeExternalUrl('http://example.gov/list'), 'http://example.gov/list')
+  assert.equal(safeExternalUrl('mailto:corrections@example.org'), 'mailto:corrections@example.org')
+})
+
+test('script-bearing schemes are rejected', () => {
+  assert.equal(safeExternalUrl('javascript:alert(1)'), null)
+  assert.equal(safeExternalUrl('JavaScript:alert(1)'), null)
+  assert.equal(safeExternalUrl('data:text/html,<script>alert(1)</script>'), null)
+  assert.equal(safeExternalUrl('vbscript:msgbox(1)'), null)
+})
+
+test('the evasions a denylist would miss are rejected too', () => {
+  // `new URL` strips leading/trailing control characters and whitespace before
+  // the protocol is read, so these normalise to `javascript:` and are caught.
+  // A regex looking for the literal string would not have seen them.
+  assert.equal(safeExternalUrl('  javascript:alert(1)'), null)
+  assert.equal(safeExternalUrl('\njavascript:alert(1)'), null)
+  assert.equal(safeExternalUrl('\tjava\nscript:alert(1)'), null)
+  assert.equal(safeExternalUrl(' javascript:alert(1)'), null)
+  // Written as an escape, never as a raw byte: a literal NUL in the source
+  // makes this file binary to git and invisible to grep, which is how it
+  // got here in the first place.
+  assert.equal(safeExternalUrl('\u0000javascript:alert(1)'), null)
+  // Mid-scheme NUL is the one input `new URL` rejects outright rather than
+  // normalising, so it exercises the catch rather than the allowlist.
+  assert.equal(safeExternalUrl('java\u0000script:alert(1)'), null)
+})
+
+test('a value that is not an absolute URL is rejected, not made same-origin', () => {
+  // These fields are external by contract. Resolving one against our own
+  // origin would invent a destination the source never named.
+  assert.equal(safeExternalUrl('/entity/uk/aqd0087'), null)
+  assert.equal(safeExternalUrl('example.gov/list'), null)
+  assert.equal(safeExternalUrl('//evil.example/x'), null)
+})
+
+test('absent and malformed values return null rather than throwing', () => {
+  // The feeds compact absent fields away, so undefined is the common case and
+  // must not reach `new URL` unguarded.
+  assert.equal(safeExternalUrl(undefined), null)
+  assert.equal(safeExternalUrl(null), null)
+  assert.equal(safeExternalUrl(''), null)
+  assert.equal(safeExternalUrl('   '), null)
+  assert.equal(safeExternalUrl(42), null)
+  assert.equal(safeExternalUrl({}), null)
+})
+
+test('the returned value is the normalised form, not the raw string', () => {
+  // Whatever reaches the href should be what the parser resolved, so a value
+  // cannot read as one scheme here and resolve as another in the browser.
+  assert.equal(safeExternalUrl('https://EXAMPLE.gov/a'), 'https://example.gov/a')
+  assert.equal(safeExternalUrl(' https://example.gov/a '), 'https://example.gov/a')
+})

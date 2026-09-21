@@ -9,6 +9,8 @@ import { roleClaims, statedGender, vesselImoNumber } from '@/utils/entityFacts'
 import { entryPeriodRows, listingRemarks } from '@/utils/entryAdapters'
 import { regimeLabels } from '@/utils/regimeAdapters'
 import { identificationTable } from '@/utils/identificationDisplay'
+import { sourceCodeFromRef } from '@/utils/entityUrls'
+import { primaryNameOf, aliasesOf } from '@/utils/entityNames'
 import type { IdentificationRecord } from '@/utils/identificationDisplay'
 import {
   legalBasisIris,
@@ -335,21 +337,11 @@ export function useEntityData() {
     legalBasisRows(legalBasisIris(entries.value), legalBasisNodes.value),
   )
 
-  // Get primary name from entity
-  const primaryName = computed(() => {
-    if (!entity.value?.names?.length) return null
-
-    const primary = entity.value.names.find(n => n.is_primary)
-    return primary?.full_name || entity.value.names[0]?.full_name || 'Unknown'
-  })
-
-  // Get aliases (non-primary names)
-  const aliases = computed(() => {
-    if (!entity.value?.names) return []
-    return entity.value.names
-      .filter(n => !n.is_primary)
-      .map(n => n.full_name)
-  })
+  // Both of these delegate: the same selection was written four times and
+  // every copy carried the same defect, so fixing one of them left the entity
+  // page rendering its own inlined version. See src/utils/entityNames.ts.
+  const primaryName = computed(() => primaryNameOf(entity.value?.names) ?? 'Unknown')
+  const aliases = computed(() => aliasesOf(entity.value?.names))
 
   // Get country from entity
   const country = computed(() => {
@@ -376,10 +368,24 @@ export function useEntityData() {
     return selectBirthCountry(entity.value.birth_info)
   })
 
-  // Get source code from entity
+  /**
+   * Which authority listed this entity.
+   *
+   * Falls back to the source segment of the route when the node carries no
+   * `source_references`, which — measured live on 2026-08-28 — is every node:
+   * `sourceReferences` is `[]` on both `cn/1-general-dynamics` and
+   * `uk/aqd0087`. Reading only the array meant this resolved to null on every
+   * record, and EntityPage rendered an empty grey badge where the authority
+   * belongs, on the page search engines actually land people on.
+   *
+   * The node's own claim still wins where it exists: the URL is where the file
+   * was published, which is the right answer only until the data states a
+   * better one.
+   */
   const source = computed(() => {
-    if (!entity.value?.source_references?.length) return null
-    return entity.value.source_references[0].source_code
+    const stated = entity.value?.source_references?.[0]?.source_code
+    if (stated) return stated
+    return entityId.value ? sourceCodeFromRef(entityId.value) : null
   })
 
   // Get source reference number

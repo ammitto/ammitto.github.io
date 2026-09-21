@@ -1,6 +1,50 @@
 <script setup lang="ts">
+import { computed, onMounted } from 'vue'
 import { sources } from '@/config'
 import { pillToneVars, tileToneVars } from '@/config/palette'
+import { useSanctionsData } from '@/composables/useSanctionsData'
+
+const { stats, loadStats } = useSanctionsData()
+
+onMounted(() => {
+  loadStats()
+})
+
+/**
+ * The count badge for one browse card.
+ *
+ * These badges used to be literal strings baked into `browseOptions` below:
+ * "6 laws", "17 groups", "17 announcements", "7 types", "8 orgs". They were
+ * true of the China-only snapshot they were written against and wrong against
+ * every deploy since — measured on the live endpoint on 2026-08-28, legal
+ * instruments are 817, not 6, an error of 136x; document types 35, not 7;
+ * organizations 37, not 8; groups 29, not 17.
+ *
+ * A badge with no derivation cannot stay right, so there is no literal left to
+ * go stale. Until stats.json resolves the badge renders nothing rather than a
+ * zero, because "0 laws" is a claim and a missing badge is not.
+ */
+function badge(key: keyof NonNullable<typeof stats.value>, noun: string): string {
+  const n = stats.value?.[key]
+  if (typeof n !== 'number') return ''
+  return `${n.toLocaleString()} ${n === 1 ? noun.replace(/s$/, '') : noun}`
+}
+
+const counts = computed((): Record<string, string> => ({
+  'Legal Instruments': badge('total_instruments', 'laws'),
+  'Sanction Groups': badge('total_groups', 'groups'),
+  // Announcements deliberately has no badge. `stats.json` publishes no
+  // `total_announcements`, and `api/v1/index.jsonld` names no announcements
+  // collection to count (checked live, 2026-08-28: the index lists 16 entries
+  // and none of them is announcements or groups; api/v1/announcements/index.jsonld
+  // is a 404). The old literal said "17 announcements" and the old "17 groups"
+  // beside it suggests the two were the same number from the same snapshot.
+  // Borrowing `total_groups` here would put back exactly the kind of unsourced
+  // count this change exists to remove, so the badge stays absent until the
+  // producer publishes one.
+  'Document Types': badge('total_document_types', 'types'),
+  Organizations: badge('total_organizations', 'orgs'),
+}))
 
 const browseOptions = [
   {
@@ -33,7 +77,6 @@ const dataObjects = [
     icon: '📜',
     link: '/browse/legal-instruments',
     color: '#3b82f6',
-    count: '6 laws',
   },
   {
     title: 'Sanction Groups',
@@ -41,7 +84,6 @@ const dataObjects = [
     icon: '📁',
     link: '/browse/groups',
     color: '#ec4899',
-    count: '17 groups',
   },
   {
     title: 'Announcements',
@@ -49,7 +91,6 @@ const dataObjects = [
     icon: '📢',
     link: '/browse/announcements',
     color: '#06b6d4',
-    count: '17 announcements',
   },
   {
     title: 'Document Types',
@@ -57,7 +98,6 @@ const dataObjects = [
     icon: '📄',
     link: '/browse/document-types',
     color: '#f97316',
-    count: '7 types',
   },
   {
     title: 'Organizations',
@@ -65,7 +105,6 @@ const dataObjects = [
     icon: '🏛️',
     link: '/browse/organizations',
     color: '#84cc16',
-    count: '8 orgs',
   },
 ]
 </script>
@@ -123,8 +162,11 @@ const dataObjects = [
               >
                 {{ obj.icon }}
               </div>
-              <span class="text-xs px-2 py-1 rounded-full bg-light-bg dark:bg-dark-bg text-light-muted dark:text-dark-muted">
-                {{ obj.count }}
+              <span
+                v-if="counts[obj.title]"
+                class="text-xs px-2 py-1 rounded-full bg-light-bg dark:bg-dark-bg text-light-muted dark:text-dark-muted"
+              >
+                {{ counts[obj.title] }}
               </span>
             </div>
             <h3 class="font-semibold text-lg mb-2 text-light-text dark:text-dark-text group-hover:text-brand-link transition-colors">

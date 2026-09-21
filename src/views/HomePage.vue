@@ -10,6 +10,7 @@ useScrollAnimation()
 
 const searchQuery = ref('')
 const entityCount = ref(0)
+const sourceCount = ref(0)
 
 // Load stats from API
 onMounted(async () => {
@@ -18,6 +19,9 @@ onMounted(async () => {
     if (response.ok) {
       const stats = await response.json()
       entityCount.value = stats.total_entities || 0
+      // Published sources, not catalogued ones: the two differ by `ru`, whose
+      // data repo is still pending.
+      sourceCount.value = Object.keys(stats.sources || {}).length
     }
   } catch (e) {
     console.error('Failed to load stats:', e)
@@ -31,8 +35,21 @@ const features = [
     icon: '🔗',
   },
   {
-    title: 'Real-time Updates',
-    description: 'Data is synchronized daily from official government sources to ensure accuracy.',
+    // Was "Real-time Updates" / "synchronized daily". Neither was true: no
+    // workflow carried a `schedule:` trigger, so the site rebuilt only when
+    // someone pushed, and on 2026-08-28 the published data was generated
+    // 2026-08-21 — the date of the last push. deploy.yml now runs nightly,
+    // which makes a daily rebuild real but still not real-time, and the date
+    // the data carries is the fact a reader actually needs.
+    //
+    // "from the official sources" was then wrong in the other direction. The
+    // nightly rebuild does not contact any authority: it republishes what the
+    // per-source data repositories last committed, and each of those collects
+    // from its authority on its own schedule. So the published date is when
+    // THIS copy was built, and an individual list can be older than it. That
+    // gap is the reader-facing fact; how the pieces are wired is not.
+    title: 'Dated, Not Promised',
+    description: 'Every page shows the date this copy of the data was built. Each list is collected from its authority separately, so a given list can be older than that date.',
     icon: '⚡',
   },
   {
@@ -86,8 +103,16 @@ const features = [
           Data Sources
         </h2>
         <p class="text-center text-light-muted dark:text-dark-muted mb-12 max-w-2xl mx-auto">
-          We aggregate sanctions data from {{ sources.length }} official sources worldwide,
-          currently covering {{ entityCount.toLocaleString() }} entities.
+          <!--
+            `sources.length` is the CATALOGUE size (15) and never changed after
+            mount, so this sentence stated 15 permanently while the hero four
+            screens up settled on the published 14 — the site contradicting
+            itself on one page. Both numbers now come from stats.json, and the
+            sentence omits them rather than printing the prerender zeros.
+          -->
+          We aggregate sanctions data from<span v-if="sourceCount">&nbsp;{{ sourceCount }}</span>
+          official sources worldwide<span v-if="entityCount">, currently covering
+          {{ entityCount.toLocaleString() }} entities</span>.
         </p>
         <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
           <RouterLink

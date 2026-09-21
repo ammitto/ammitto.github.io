@@ -7,6 +7,7 @@ import { getLanguageName } from '@/utils/language'
 import { normalizeNode } from '@/utils/normalizeNode'
 import { nodeDocumentPath, nodeDocumentLabel } from '@/utils/nodeDocuments'
 import { createLatestLoadGuard } from '@/utils/latestLoad'
+import { safeExternalUrl } from '@/utils/externalUrl'
 
 const route = useRoute()
 
@@ -326,8 +327,8 @@ const documents = computed(() => {
               </div>
             </div>
             <a
-              v-if="instrument.url"
-              :href="instrument.url"
+              v-if="safeExternalUrl(instrument.url)"
+              :href="safeExternalUrl(instrument.url) as string"
               target="_blank"
               rel="noopener noreferrer"
               class="inline-flex items-center gap-2 px-4 py-2 bg-brand-primary text-white rounded-lg hover:bg-brand-primary/90 transition-colors shrink-0"

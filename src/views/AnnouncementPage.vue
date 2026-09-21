@@ -9,6 +9,8 @@ import { getLanguageName } from '@/utils/language'
 import { normalizeNode } from '@/utils/normalizeNode'
 import { nodeDocumentPath, nodeDocumentLabel } from '@/utils/nodeDocuments'
 import { createLatestLoadGuard } from '@/utils/latestLoad'
+import { safeExternalUrl } from '@/utils/externalUrl'
+import { primaryNameOf } from '@/utils/entityNames'
 
 const route = useRoute()
 
@@ -99,11 +101,11 @@ const getEntityRef = (entityId: string): string => {
 
 // Get primary name from entity
 const getEntityPrimaryName = (entry: Entry): string => {
-  if (entry.entity?.names) {
-    const primary = entry.entity.names.find(n => n.is_primary)
-    if (primary?.full_name) return primary.full_name
-    if (entry.entity.names[0]?.full_name) return entry.entity.names[0].full_name
-  }
+  // Delegated, but the id-derived fallback below is kept: it reads better than
+  // the word "Unknown", which is why primaryNameOf returns null rather than
+  // baking a placeholder in.
+  const named = primaryNameOf(entry.entity?.names)
+  if (named) return named
   // Fallback: extract from entry ID
   const parts = entry.id.split('/')
   return parts[parts.length - 1].replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
@@ -454,8 +456,8 @@ const documents = computed(() => {
           </dl>
 
           <a
-            v-if="announcement?.announcement?.url"
-            :href="announcement.announcement.url"
+            v-if="safeExternalUrl(announcement?.announcement?.url)"
+            :href="safeExternalUrl(announcement?.announcement?.url) as string"
             target="_blank"
             rel="noopener noreferrer"
             class="inline-flex items-center gap-2 px-4 py-2 bg-brand-primary text-white rounded-lg hover:bg-brand-primary/90 transition-colors mt-4"
