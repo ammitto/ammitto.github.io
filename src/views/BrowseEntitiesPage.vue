@@ -92,7 +92,7 @@ const entityAdapter = (entity: any) => {
             ? 'bg-brand-primary text-white'
             : 'bg-light-surface dark:bg-dark-surface text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text'"
         >
-          {{ type.icon }} {{ type.name }} ({{ (entityTypeCounts[type.code] || 0).toLocaleString() }})
+          {{ type.name }} ({{ (entityTypeCounts[type.code] || 0).toLocaleString() }})
         </button>
       </div>
 
@@ -106,7 +106,7 @@ const entityAdapter = (entity: any) => {
           Showing {{ paginatedEntities.length.toLocaleString() }} of {{ filteredEntities.length.toLocaleString() }} entities
         </div>
 
-        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div class="border-t border-light-border dark:border-dark-border">
           <EntityCard
             v-for="entity in paginatedEntities"
             :key="entity.id"

@@ -123,7 +123,7 @@ const entityTypeDescriptions = [
           <div
             v-for="type in entityTypeDescriptions"
             :key="type.type"
-            class="glass-card p-4"
+            class="surface-panel p-4"
           >
             <h3 class="font-semibold text-light-text dark:text-dark-text">
               {{ type.type }}
@@ -153,7 +153,7 @@ const entityTypeDescriptions = [
         <h2 class="text-2xl font-semibold mb-4 text-light-text dark:text-dark-text">
           Field Descriptions
         </h2>
-        <div class="glass-card overflow-hidden">
+        <div class="surface-panel overflow-hidden">
           <table class="w-full">
             <thead>
               <tr class="border-b border-light-border dark:border-dark-border">

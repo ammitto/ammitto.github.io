@@ -4,23 +4,73 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Discrete static instances, not variable-range files: the woff2s under
+   public/fonts/ are per-weight static subsets (Latin only), matching what
+   this page actually needs rather than a full variable-axis file. */
+@font-face {
+  font-family: 'Bodoni Moda';
+  src: url('/fonts/bodoni-moda-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Bodoni Moda';
+  src: url('/fonts/bodoni-moda-600.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  src: url('/fonts/ibm-plex-sans-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  src: url('/fonts/ibm-plex-sans-500.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  src: url('/fonts/ibm-plex-sans-600.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  src: url('/fonts/ibm-plex-mono-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  src: url('/fonts/ibm-plex-mono-500.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   /* Brand colors */
-  --color-brand-primary: #0066cc;
-  --color-brand-secondary: #1a1a2e;
-  --color-brand-accent: #f59e0b;
+  --color-brand-primary: #a3155f;
+  --color-brand-secondary: #11161a;
+  --color-brand-accent: #a3155f;
 
   /*
    * Link/accent TEXT colour, as an RGB triplet for the Tailwind token
-   * `brand.link`. Deliberately separate from --color-brand-primary: the brand
-   * blue is also a solid fill under white text (.btn-primary,
-   * bg-brand-primary), and it is that fill, not the text, that must keep
-   * #0066cc. As text on the dark theme's near-black surfaces #0066cc measures
-   * 3.06-3.42:1, so html.dark below swaps in a lighter tint of the same hue.
-   * Single-sourced with linkTokens in src/config/palette.ts; the values are
-   * cross-checked by tests/contrast.test.js.
+   * `brand.link`. #a3155f is the approved magenta accent. As text on the
+   * dark theme's surfaces this is far below AA, so html.dark below swaps in
+   * a lighter tint of the same hue. Single-sourced with linkTokens in
+   * src/config/palette.ts; cross-checked by tests/contrast.test.js.
    */
-  --color-brand-link: 0 102 204; /* #0066cc */
+  --color-brand-link: 163 21 95; /* #a3155f */
 
   /* Status colors */
   --color-status-active: #ef4444;
@@ -35,24 +85,45 @@
    */
 
   /* Light mode */
-  --color-light-bg: 245 245 247; /* #f5f5f7 */
-  --color-light-surface: 255 255 255; /* #ffffff */
-  --color-light-text: 26 26 46; /* #1a1a2e */
+  --color-light-bg: 237 239 234; /* #edefea — ledger stock */
+  --color-light-surface: 247 248 245; /* #f7f8f5 */
+  --color-light-text: 17 22 26; /* #11161a */
   /*
-   * Was 107 114 128 (#6b7280), which measures 4.44:1 on the #f5f5f7 page
-   * background — under AA on 118 elements per page sweep (nav links, hero
-   * subtitle, stat labels, section blurbs). One shade darker clears it
-   * everywhere: 5.63:1 on the page background, 6.13:1 on white cards.
+   * Re-derived for the ledger ground, keeping the rule the #6b7280 fix
+   * established: a muted tone clears AA on every surface, not merely on one.
+   * Measured 5.99:1 on the page background and 6.32:1 on cards.
    */
-  --color-light-muted: 91 98 112; /* #5b6270 */
-  --color-light-border: 229 231 235; /* #e5e7eb */
+  --color-light-muted: 84 92 98; /* #545c62 */
+  --color-light-border: 211 216 208; /* #d3d8d0 */
 
   /* Dark mode */
-  --color-dark-bg: 15 15 26; /* #0f0f1a */
-  --color-dark-surface: 26 26 46; /* #1a1a2e */
-  --color-dark-text: 245 245 247; /* #f5f5f7 */
-  --color-dark-muted: 156 163 175; /* #9ca3af */
-  --color-dark-border: 45 45 68; /* #2d2d44 */
+  --color-dark-bg: 16 20 24; /* #101418 */
+  --color-dark-surface: 24 29 34; /* #181d22 */
+  --color-dark-text: 237 239 234; /* #edefea */
+  --color-dark-muted: 154 164 172; /* #9aa4ac */
+  --color-dark-border: 42 49 56; /* #2a3138 */
+}
+
+/*
+ * Headings take the display face EVERYWHERE.
+ *
+ * This was previously applied by hand, with a `font-display` utility written
+ * onto individual headings — which meant two pages had it and twenty-three did
+ * not, so most of the site still rendered its headings in the body sans and
+ * the typography read as unchanged. A type system belongs in one rule, not in
+ * twenty-five templates.
+ *
+ * h4 and below stay in the sans: Bodoni is a high-contrast Didone whose thin
+ * strokes break up below roughly 20px, so it is a display face here and used
+ * as one.
+ */
+h1,
+h2,
+h3 {
+  font-family: 'Bodoni Moda', Georgia, 'Times New Roman', serif;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  line-height: 1.12;
 }
 
 /* Base styles */
@@ -66,7 +137,7 @@ html {
  * palette is defined in tailwind.config.js from the variables above.
  */
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition: background-color 0.2s, color 0.2s;
@@ -77,7 +148,7 @@ html.dark {
   color-scheme: dark;
   /* Lighter tint of the brand hue for link/accent TEXT only; see the
    * --color-brand-link comment above. */
-  --color-brand-link: 108 176 245; /* #6cb0f5 */
+  --color-brand-link: 240 160 200; /* #f0a0c8 */
 }
 
 /*
@@ -149,24 +220,103 @@ html.dark .tone-ink {
   }
 }
 
-/* Glass card effect */
-.glass-card {
-  background-color: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(8px);
-  border-radius: 0.75rem;
+/* Flat surfaces and ruled record sections */
+.surface-panel {
+  background-color: rgb(var(--color-light-surface));
   border: 1px solid rgb(var(--color-light-border));
-  transition: all 0.2s;
 }
 
-.dark .glass-card {
-  background-color: rgba(26, 26, 46, 0.8);
+.dark .surface-panel {
+  background-color: rgb(var(--color-dark-surface));
   border-color: rgb(var(--color-dark-border));
 }
 
-.glass-card:hover {
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+.record-section {
+  border-top: 2px solid rgb(var(--color-light-text));
+  border-bottom: 1px solid rgb(var(--color-light-border));
+  padding-block: 1.25rem;
 }
 
+.dark .record-section {
+  border-top-color: rgb(var(--color-dark-text));
+  border-bottom-color: rgb(var(--color-dark-border));
+}
+
+.record-section + .record-section {
+  border-top-width: 1px;
+}
+
+/*
+ * The register measure.
+ *
+ * `.container-wide` caps at 80rem and centres, which is why every page in this
+ * app reads as the same 1280px column no matter how wide the display is — and
+ * why no `xl:` or `2xl:` utility appears anywhere in src/. A register is a
+ * sheet, not a column: this runs to 120rem with a fluid margin, so the rules
+ * reach the edges of the paper and the layout keeps adapting past 1280.
+ */
+.container-register {
+  width: 100%;
+  max-width: 120rem;
+  margin-inline: auto;
+  padding-inline: clamp(1rem, 4vw, 4.5rem);
+}
+
+/* A rule with the weight of a section break rather than a hairline. */
+.rule-heavy {
+  border: 0;
+  border-top: 2px solid rgb(var(--color-light-text));
+}
+.dark .rule-heavy {
+  border-top-color: rgb(var(--color-dark-text));
+}
+
+/*
+ * The proportional rule. A row's count drawn as a line, the way a ledger
+ * would tally it — not a chart, no axis, no fill. `--w` is set inline per row
+ * as a percentage of the largest count in that column.
+ */
+.tally {
+  display: block;
+  height: 3px;
+  width: var(--w, 0%);
+  background-color: currentColor;
+  opacity: 0.55;
+  /*
+   * Sits ON the row's hairline rather than above it, so the row keeps one
+   * separator and the tally reads as a weight drawn along it — a tally struck
+   * against an entry — instead of a second, shorter underline competing with
+   * the first.
+   */
+  margin-top: 0.6rem;
+  margin-bottom: -2px;
+  transition: opacity 0.16s ease, width 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.register-row:hover .tally {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tally {
+    transition: none;
+  }
+}
+
+/*
+ * Panels are ruled, not floated.
+ *
+ * This class is used on essentially every page, which makes it the single
+ * highest-leverage surface in the app: the rounded, blurred, drop-shadowed
+ * card was most of why the site read as generic, and squaring it converts
+ * every view at once rather than one file at a time.
+ *
+ * `backdrop-filter: blur(8px)` is gone. It was decorative, it forced a
+ * compositing layer on every scroll, and — like the hero gradient before it —
+ * it put text on an indeterminate colour.
+ *
+ * The `background-color: rgba(...)` declaration below must keep this exact
+ * literal form: tests/contrast.test.js parses it to recompute the composite
+ * that surfaces.light.card / surfaces.dark.card claim to be.
+ */
 /* Buttons */
 .btn-primary {
   display: inline-flex;
@@ -176,12 +326,13 @@ html.dark .tone-ink {
   background-color: var(--color-brand-primary);
   color: white;
   font-weight: 500;
-  border-radius: 0.5rem;
-  transition: all 0.15s;
+  border-radius: 0;
+  border: 1px solid var(--color-brand-primary);
+  transition: background-color 0.15s, border-color 0.15s;
 }
 
 .btn-primary:hover {
-  background-color: rgba(0, 102, 204, 0.9);
+  background-color: rgba(163, 21, 95, 0.9);
 }
 
 .btn-primary:focus {
@@ -195,10 +346,10 @@ html.dark .tone-ink {
   justify-content: center;
   padding: 0.5rem 1rem;
   background-color: rgb(var(--color-light-surface));
-  border: 1px solid rgb(var(--color-light-border));
+  border: 1px solid rgb(var(--color-light-text));
   font-weight: 500;
-  border-radius: 0.5rem;
-  transition: all 0.15s;
+  border-radius: 0;
+  transition: background-color 0.15s, border-color 0.15s;
 }
 
 .dark .btn-secondary {
@@ -211,7 +362,7 @@ html.dark .tone-ink {
 }
 
 .dark .btn-secondary:hover {
-  background-color: rgba(26, 26, 46, 0.8);
+  background-color: rgba(24, 29, 34, 0.8);
 }
 
 .btn-secondary:focus {

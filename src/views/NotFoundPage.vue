@@ -33,7 +33,7 @@ useHead({
           Page not found
         </h1>
 
-        <div class="glass-card p-6 mb-8 border-l-4 border-amber-500">
+        <div class="surface-panel p-6 mb-8 border-l-4 border-amber-500">
           <p class="text-light-text dark:text-dark-text mb-0">
             Nothing is published at
             <code class="font-mono break-all">{{ route.fullPath }}</code>.

@@ -180,10 +180,10 @@ export function normalizeSourceCode(code: string): string {
 }
 
 export const entityTypes = [
-  { code: 'person', name: 'Person', color: '#f59e0b', icon: '👤' },
-  { code: 'organization', name: 'Organization', color: '#10b981', icon: '🏢' },
-  { code: 'vessel', name: 'Vessel', color: '#06b6d4', icon: '🚢' },
-  { code: 'aircraft', name: 'Aircraft', color: '#8b5cf6', icon: '✈️' },
+  { code: 'person', name: 'Person', color: '#f59e0b' },
+  { code: 'organization', name: 'Organization', color: '#10b981' },
+  { code: 'vessel', name: 'Vessel', color: '#06b6d4' },
+  { code: 'aircraft', name: 'Aircraft', color: '#8b5cf6' },
 ] as const
 
 /**

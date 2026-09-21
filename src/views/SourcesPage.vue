@@ -22,7 +22,7 @@ onMounted(() => {
         Each source is synced daily to ensure accuracy and completeness.
       </p>
 
-      <div class="mb-8 p-4 glass-card">
+      <div class="mb-8 p-4 surface-panel">
         <div class="flex flex-wrap gap-8">
           <div>
             <div class="text-2xl font-bold text-brand-link">
@@ -67,7 +67,7 @@ onMounted(() => {
         />
       </div>
 
-      <div class="mt-12 p-6 glass-card">
+      <div class="mt-12 p-6 surface-panel">
         <h2 class="text-xl font-semibold mb-4 text-light-text dark:text-dark-text">
           Data Freshness
         </h2>

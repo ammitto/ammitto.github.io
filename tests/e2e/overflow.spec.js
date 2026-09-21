@@ -96,7 +96,11 @@ for (const viewport of NARROW_VIEWPORTS) {
           `${LONG_ALIAS} (formerly known as)`,
         ],
         primaryName: i === 0 ? UNBREAKABLE_NAME : `${LONG_ALIAS} ${i}`,
-        country: 'The Democratic Socialist Republic of Somewhere Very Long Indeed',
+        country:
+          i === 0
+            ? UNBREAKABLE_NAME
+            : 'The Democratic Socialist Republic of Somewhere Very Long Indeed',
+        ...(i === 0 ? { birthYear: UNBREAKABLE_NAME } : {}),
       })),
     }
 

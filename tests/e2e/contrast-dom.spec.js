@@ -340,5 +340,8 @@ test('badge and link colours differ between the themes in the rendered page', as
   expect(light.linkColor, '/search rendered no .text-brand-link element (light)').toBeTruthy()
   expect(dark.linkColor, '/search rendered no .text-brand-link element (dark)').toBeTruthy()
   expect(light.linkColor, 'link colour must be theme-dependent').not.toEqual(dark.linkColor)
-  expect(light.linkColor, 'the light-mode link must stay the brand blue').toBe('rgb(0, 102, 204)')
+  // Single source of truth is linkTokens.light in src/config/palette.ts. This
+  // literal is the rendered form of that token: its job is to prove the value
+  // actually reaches the browser, which no unit test can show.
+  expect(light.linkColor, 'the light-mode link must use the approved accent').toBe('rgb(163, 21, 95)')
 })

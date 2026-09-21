@@ -39,7 +39,7 @@ defineProps<{
   -->
   <section
     v-if="documents.length"
-    class="glass-card p-4 mt-8"
+    class="surface-panel p-4 mt-8"
     :aria-label="`Data for ${subject}`"
   >
     <h2 class="text-sm font-semibold text-light-text dark:text-dark-text">

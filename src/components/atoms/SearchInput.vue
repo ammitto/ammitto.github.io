@@ -6,6 +6,13 @@ const props = defineProps<{
   placeholder?: string
   size?: 'sm' | 'md' | 'lg'
   loading?: boolean
+  /**
+   * Forwarded to the <input> itself so a <label for> can point at it. Without
+   * this the attribute falls through to the wrapper <div> instead, and the
+   * label associates with nothing — which is what the site shipped: a search
+   * field carrying a placeholder and no accessible name.
+   */
+  id?: string
 }>()
 
 const emit = defineEmits<{
@@ -57,6 +64,7 @@ const focus = () => inputRef.value?.focus()
     </svg>
     <input
       ref="inputRef"
+      :id="id"
       v-model="internalValue"
       type="text"
       :placeholder="placeholder"

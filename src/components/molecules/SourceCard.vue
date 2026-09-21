@@ -21,7 +21,7 @@ const formattedCount = computed(() => {
 </script>
 
 <template>
-  <article class="glass-card p-6 hover:border-opacity-100 transition-all group">
+  <article class="surface-panel p-6 hover:border-opacity-100 transition-all group">
     <div class="flex items-start justify-between mb-4">
       <div class="flex items-center gap-3">
         <div

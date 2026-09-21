@@ -78,7 +78,7 @@ test('the sanctions block opens for an entity whose only extra fact is its legal
   // of the guard would resolve the instrument and then render no card.
   const flat = flatten(read('src/views/EntityPage.vue'))
   assert.ok(
-    flat.includes('|| legalBases.length > 0" class="glass-card p-8"'),
+    flat.includes('|| legalBases.length > 0" class="record-section'),
     'the Sanctions Information card must render when only the legal basis is known',
   )
 })

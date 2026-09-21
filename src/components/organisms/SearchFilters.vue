@@ -54,7 +54,7 @@ const toggleStatus = (code: string) => {
 </script>
 
 <template>
-  <div class="glass-card p-6">
+  <div class="surface-panel p-6">
     <div class="flex items-center justify-between mb-4">
       <h3 class="font-semibold text-light-text dark:text-dark-text">Filters</h3>
       <button
@@ -91,7 +91,7 @@ const toggleStatus = (code: string) => {
           <FilterPill
             v-for="type in entityTypes"
             :key="type.code"
-            :label="type.icon + ' ' + type.name"
+            :label="type.name"
             :count="counts.entityTypes[type.code]"
             :active="filters.entityTypes.includes(type.code)"
             :color="type.color"

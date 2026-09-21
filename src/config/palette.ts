@@ -199,55 +199,55 @@ function lchToRgb(lch: Lch): Rgb {
  * ------------------------------------------------------------------ */
 
 /**
- * Every backdrop text can land on, per theme. `card` is the `.glass-card`
- * composite — the card paints itself at 80% opacity over the page background,
- * so the colour a reader actually sees is the blend, and that is what the
- * contrast test must use. Keep this in step with the `:root` variables and
- * `.glass-card` rules in `src/assets/styles/main.css`; `tests/contrast.test.js`
- * parses that file and fails if the two drift apart.
+ * Every backdrop text can land on, per theme. `.glass-card`'s 80%-opacity
+ * composite is retired — `.surface-panel`/`.record-section` (the Register
+ * redesign's ruled-row primitives) paint an opaque background, so there is
+ * no blend left to model here. Keep this in step with the `:root` variables
+ * in `src/assets/styles/main.css`; `tests/contrast.test.js` parses that file
+ * and fails if the two drift apart.
  */
-export const surfaces: Record<Theme, { bg: string; surface: string; card: string }> = {
+export const surfaces: Record<Theme, { bg: string; surface: string }> = {
   light: {
-    bg: '#f5f5f7',
-    surface: '#ffffff',
-    // rgba(255,255,255,0.8) over #f5f5f7
-    card: '#fdfdfd',
+    bg: '#edefea',
+    surface: '#f7f8f5',
   },
   dark: {
-    bg: '#0f0f1a',
-    surface: '#1a1a2e',
-    // rgba(26,26,46,0.8) over #0f0f1a
-    card: '#18182a',
+    bg: '#101418',
+    surface: '#181d22',
   },
 }
 
 /** Body text and the de-emphasised text tone, per theme. */
 export const textTokens: Record<Theme, { fg: string; muted: string }> = {
   light: {
-    fg: '#1a1a2e',
-    // Was #6b7280, which measured 4.44:1 on the #f5f5f7 page background —
-    // 118 elements sitting just under AA across every page.
-    muted: '#5b6270',
+    fg: '#11161a',
+    // Carried forward from the #6b7280 fix: a muted tone must clear AA on
+    // every surface, not merely look grey. Re-derived for the ledger ground
+    // and re-measured by tests/contrast.test.js.
+    muted: '#545c62',
   },
   dark: {
-    fg: '#f5f5f7',
-    muted: '#9ca3af',
+    fg: '#edefea',
+    muted: '#9aa4ac',
   },
 }
 
 /**
- * Link/accent text. The light value is the brand blue and must not change —
- * it is the brand. On dark backgrounds #0066cc measured 3.06–3.42:1, so dark
- * mode gets a lighter tint of the same hue.
+ * Link/accent text.
  *
- * This is deliberately separate from `brand.primary`, which stays #0066cc in
- * both themes because it is also a solid fill under white text (`.btn-primary`,
- * `bg-brand-primary`); lightening that fill would break the white-on-blue pair
- * instead.
+ * The light value is #3853a5, lifted verbatim out of the brand mark: it is the
+ * deep stop of the gradient ramp in assets/ammitto-logo_full.svg. The previous
+ * #0066cc was not in the logo at all, and measured 4.81:1 at worst against the
+ * surfaces — inside AA, but under the 5:1 floor this palette holds itself to.
+ * The logo's own blue measures 6.15:1 at worst and 7.12:1 as a fill under white,
+ * so this is a stricter colour as well as a more coherent one.
+ *
+ * Dark mode gets a lighter tint of the same hue (4.2° apart), because #3853a5
+ * as text on the dark surfaces is far below AA.
  */
 export const linkTokens: Record<Theme, string> = {
-  light: '#0066cc',
-  dark: '#6cb0f5',
+  light: '#a3155f',
+  dark: '#f0a0c8',
 }
 
 /* ------------------------------------------------------------------ *
@@ -298,7 +298,7 @@ const ROLE_TARGETS: Record<Theme, { fg: RoleTarget; bg: RoleTarget; border: Role
 /** Initials printed on a `tileTone` fill, per theme. */
 export const TILE_INK: Record<Theme, string> = {
   light: '#ffffff',
-  dark: '#0f0f1a',
+  dark: '#101418',
 }
 
 function roleColor(seed: string, target: RoleTarget): string {
