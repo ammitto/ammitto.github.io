@@ -4,6 +4,7 @@ import type { RouteRecordRaw } from 'vue-router'
 import HomePage from '@/views/HomePage.vue'
 import SearchPage from '@/views/SearchPage.vue'
 import ApiDocsPage from '@/views/ApiDocsPage.vue'
+import DownloadPage from '@/views/DownloadPage.vue'
 import EntityPage from '@/views/EntityPage.vue'
 import AnnouncementPage from '@/views/AnnouncementPage.vue'
 import GroupPage from '@/views/GroupPage.vue'
@@ -31,6 +32,7 @@ export const routes: RouteRecordRaw[] = [
   { path: '/', name: 'home', component: HomePage },
   { path: '/search', name: 'search', component: SearchPage },
   { path: '/api', name: 'api', component: ApiDocsPage },
+  { path: '/download', name: 'download', component: DownloadPage },
   { path: '/entity/:id(.*)', name: 'entity', component: EntityPage },
   { path: '/announcement/:id(.*)', name: 'announcement', component: AnnouncementPage },
   { path: '/group/:id(.*)', name: 'group', component: GroupPage },

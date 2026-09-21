@@ -194,6 +194,12 @@ for n in data['@graph']:
       <p class="text-light-muted dark:text-dark-muted mb-8 max-w-3xl">
         Access sanctions data through our free, public API. No API key required.
       </p>
+      <p class="text-light-muted dark:text-dark-muted mb-8">
+        Prefer a direct file download?
+        <RouterLink to="/download" class="text-brand-link hover:underline">
+          Download the published datasets
+        </RouterLink>.
+      </p>
 
       <section class="mb-12">
         <h2 class="text-2xl font-semibold mb-4 text-light-text dark:text-dark-text">
