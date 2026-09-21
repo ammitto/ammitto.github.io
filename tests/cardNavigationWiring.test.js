@@ -105,12 +105,16 @@ test('the focused card is visible to the person focusing it', () => {
   }
 })
 
-test('the decorative type icon is not read out as the link name', () => {
-  // Every child of the card is now part of one link's accessible name.
-  // The icon duplicates the word printed beside it, so announcing it only
-  // prefixes each result with the emoji's own description.
+test('the result uses a ruled row and a country tile instead of an emoji icon', () => {
+  const source = read(CARD)
+
   assert.ok(
-    flatten(read(CARD)).includes('<span aria-hidden="true">{{ typeInfo?.icon }}</span>'),
-    `${CARD} must hide the decorative type icon from assistive technology`,
+    /class="entity-row\b/.test(source),
+    `${CARD} must render the result as an entity row`,
   )
+  assert.match(source, /border-b border-light-border/)
+  assert.match(source, /grid-cols-1/)
+  assert.match(source, /<CountryTile\b/)
+  assert.doesNotMatch(source, /typeInfo\?\.icon/)
+  assert.doesNotMatch(source, /glass-card/)
 })

@@ -210,7 +210,7 @@ for n in data['@graph']:
           Endpoints
         </h2>
         <div class="space-y-6">
-          <div v-for="endpoint in endpoints" :key="endpoint.path" class="glass-card p-6">
+          <div v-for="endpoint in endpoints" :key="endpoint.path" class="surface-panel p-6">
             <!-- flex-wrap + break-all: endpoint paths are unbreakable strings
                  and pushed the page past a 320px viewport. -->
             <div class="flex flex-wrap items-center gap-3 mb-3">

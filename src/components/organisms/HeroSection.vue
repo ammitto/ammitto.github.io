@@ -1,100 +1,146 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import SearchInput from '@/components/atoms/SearchInput.vue'
-import Badge from '@/components/atoms/Badge.vue'
-import { siteConfig, sources } from '@/config'
+
+/**
+ * The opening of the site, written for the person who actually arrives here.
+ *
+ * That person is a compliance officer, an analyst, a journalist or a lawyer,
+ * and they have come with a name in their head: is this company sanctioned,
+ * and by whom. What was here before that question was a landing page — and
+ * then, briefly, a very handsome one that answered it no better: an enormous
+ * numeral, three columns of counts about the corpus, and the word "colophon".
+ * All of it was information about the dataset rather than help with the task.
+ *
+ * So this says, in a sentence anyone can read, what the tool does; states when
+ * the data was last built, because for sanctions work recency IS the trust
+ * signal and burying it is close to negligent; and gives the search real
+ * example queries, because an empty box on a specialist database tells a
+ * newcomer nothing about what it will accept.
+ *
+ * The worked example sits in the `example` slot beside the search rather than
+ * a scroll below it, so a first-time visitor sees the question and the shape
+ * of the answer at the same time.
+ *
+ * Fetches nothing — tests/heroPayloadWiring.test.js holds it to that.
+ */
+const props = defineProps<{
+  entityCount: number
+  /**
+   * How many lists the site COVERS — the catalogue count, not the number of
+   * sources the current build happened to harvest. Those differ: the local
+   * snapshot carries one, which rendered the opening sentence as "published by
+   * 1 governments". A visitor is being told what the tool covers, so the
+   * catalogue is the honest number; the harvest count belongs on the source
+   * pages, where it is about a particular build.
+   */
+  sourceCount: number
+  generatedAt: string
+}>()
 
 const router = useRouter()
-const searchQuery = ref('')
+const query = ref('')
 
-// Stats loaded from API
-const entityCount = ref(0)
-const sourceCount = ref(15)
-const typeCount = ref(0)
-
-const handleSearch = () => {
-  if (searchQuery.value.trim()) {
-    router.push({ name: 'search', query: { q: searchQuery.value.trim() } })
-  } else {
-    router.push({ name: 'search' })
-  }
+const submit = () => {
+  const q = query.value.trim()
+  router.push(q ? { name: 'search', query: { q } } : { name: 'search' })
 }
 
-onMounted(async () => {
-  try {
-    // Both figures come from stats.json, which this page needs anyway
-    // for the source count. The entity count used to be read from
-    // search-index.json instead: every row in the corpus, megabytes of
-    // it, fetched on each visit to the front page so that one number
-    // could be taken off the top.
-    const statsResponse = await fetch('/api/v1/stats.json')
-    if (statsResponse.ok) {
-      const stats = await statsResponse.json()
-      entityCount.value = stats.total_entities || 0
-      sourceCount.value = Object.keys(stats.sources || {}).length
-    }
+/** Real records in the published data, not invented placeholders. */
+const examples = [
+  { label: 'Lockheed Martin', q: 'Lockheed Martin' },
+  { label: 'General Dynamics', q: 'General Dynamics' },
+  { label: 'Hudson Institute', q: 'Hudson Institute' },
+]
 
-    // Load type facets for type count
-    const typesResponse = await fetch('/api/v1/facets/types.json')
-    if (typesResponse.ok) {
-      const types = await typesResponse.json()
-      typeCount.value = types.facets?.length || 0
-    }
-  } catch (e) {
-    console.error('Failed to load stats:', e)
-  }
+const runExample = (q: string) => router.push({ name: 'search', query: { q } })
+
+/** "3 March 2026" — a date a person reads, never an ISO timestamp. */
+const builtOn = computed(() => {
+  if (!props.generatedAt) return ''
+  const d = new Date(props.generatedAt)
+  return Number.isNaN(d.getTime())
+    ? ''
+    : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
 })
 </script>
 
 <template>
-  <!--
-    `hero-section` names the component in the DOM, the way `.ontology-browser`
-    and `.hierarchy-node` do elsewhere. ALLOWED_INCOMPLETE in
-    tests/e2e/contrast-dom.spec.js scopes its two entries to it: the gradient
-    below makes axe decline to judge the text over it, and without a container
-    to point at, that allowance would extend to the whole page.
-  -->
-  <section class="hero-section relative py-20 overflow-hidden">
-    <div class="absolute inset-0 bg-gradient-to-br from-brand-primary/5 via-transparent to-brand-primary/10" />
+  <section class="hero-section border-b border-light-border dark:border-dark-border">
+    <div class="container-register pt-12 pb-10 md:pt-16 md:pb-12">
+      <div class="grid gap-10 lg:grid-cols-12 lg:gap-16 lg:items-start">
+        <div class="lg:col-span-7">
+          <h1
+            class="font-display text-display-lg font-semibold text-light-text dark:text-dark-text text-balance"
+          >
+            Find out whether a person, company or vessel is under sanctions.
+          </h1>
 
-    <div class="container-wide relative">
-      <div class="max-w-3xl mx-auto text-center">
-        <h1 class="text-4xl md:text-5xl lg:text-6xl font-bold mb-4 text-light-text dark:text-dark-text">
-          {{ siteConfig.tagline }}
-        </h1>
-        <p class="text-lg md:text-xl text-light-muted dark:text-dark-muted mb-8">
-          {{ siteConfig.description }}
-        </p>
+          <p class="mt-5 max-w-[58ch] text-lg text-light-muted dark:text-dark-muted">
+            One searchable copy of the sanctions lists published by
+            {{ sourceCount }} governments and international bodies — the UN, the EU,
+            the United States, the United Kingdom and others. Free to search, and
+            free to download in full.
+          </p>
 
-        <div class="flex flex-wrap justify-center gap-4 mb-8">
-          <Badge v-for="source in sources.slice(0, 4)" :key="source.code" variant="source" :source-code="source.code">
-            {{ source.name }}
-          </Badge>
+          <form class="mt-9" @submit.prevent="submit">
+            <label
+              for="register-search"
+              class="block font-medium text-light-text dark:text-dark-text mb-2"
+            >
+              Search by name, country or identifier
+            </label>
+            <div class="flex gap-2">
+              <input
+                id="register-search"
+                v-model="query"
+                type="search"
+                placeholder="e.g. Lockheed Martin"
+                autocomplete="off"
+                class="w-full border border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface px-4 py-3 text-lg text-light-text dark:text-dark-text placeholder:text-light-muted dark:placeholder:text-dark-muted focus:outline-none focus:border-brand-link focus:ring-1 focus:ring-brand-link"
+              />
+              <button type="submit" class="btn-primary shrink-0 px-6">Search</button>
+            </div>
+
+            <p
+              class="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-light-muted dark:text-dark-muted"
+            >
+              <span>Try:</span>
+              <button
+                v-for="(ex, i) in examples"
+                :key="ex.q"
+                type="button"
+                class="text-brand-link hover:underline focus-visible:underline"
+                @click="runExample(ex.q)"
+              >
+                {{ ex.label
+                }}<span
+                  v-if="i < examples.length - 1"
+                  class="text-light-muted dark:text-dark-muted"
+                  >,</span
+                >
+              </button>
+            </p>
+          </form>
+
+          <!--
+            Recency is the first thing a compliance reader checks and the thing
+            that decides whether they trust the answer. Stated plainly, in
+            words, beside the record count — not buried in an About page.
+          -->
+          <p v-if="builtOn" class="mt-8 text-sm text-light-muted dark:text-dark-muted">
+            <span class="font-medium text-light-text dark:text-dark-text">{{
+              entityCount.toLocaleString()
+            }}</span>
+            records, last built on
+            <span class="font-medium text-light-text dark:text-dark-text">{{ builtOn }}</span
+            >. Always check the issuing authority before acting on a result.
+          </p>
         </div>
 
-        <form @submit.prevent="handleSearch" class="max-w-xl mx-auto mb-12">
-          <SearchInput
-            v-model="searchQuery"
-            placeholder="Search by name, country, or identifier..."
-            size="lg"
-          />
-        </form>
-
-        <div class="flex flex-wrap justify-center gap-8">
-          <div class="text-center">
-            <div class="text-3xl font-bold text-brand-link">{{ entityCount.toLocaleString() }}</div>
-            <div class="text-sm text-light-muted dark:text-dark-muted">Entities</div>
-          </div>
-          <div class="text-center">
-            <div class="text-3xl font-bold text-brand-link">{{ sourceCount }}</div>
-            <div class="text-sm text-light-muted dark:text-dark-muted">Sources</div>
-          </div>
-          <div class="text-center">
-            <div class="text-3xl font-bold text-brand-link">{{ typeCount }}</div>
-            <div class="text-sm text-light-muted dark:text-dark-muted">Types</div>
-          </div>
-        </div>
+        <aside class="lg:col-span-5">
+          <slot name="example" />
+        </aside>
       </div>
     </div>
   </section>

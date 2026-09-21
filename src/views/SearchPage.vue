@@ -209,6 +209,8 @@ const activeFilterCount = computed(() =>
   filters.value.statuses.length
 )
 
+const filtersOpen = ref(false)
+
 // Source names for display
 const sources = computed(() =>
   authorityFacets.value.map(f => ({ code: f.code, name: f.name || f.code }))
@@ -235,24 +237,41 @@ const statuses = computed(() =>
     <!-- Search Header -->
     <div class="bg-light-surface/50 dark:bg-dark-surface/50 border-b border-light-border dark:border-dark-border">
       <div class="container-wide py-8">
-        <div class="max-w-3xl mx-auto">
+        <div class="max-w-3xl">
           <!-- Title -->
-          <h1 class="text-3xl font-bold mb-2 text-center">
-            Search Sanctions Database
+          <h1 class="font-display text-display-md font-semibold mb-2 text-light-text dark:text-dark-text">
+            Search the register
           </h1>
-          <p class="text-light-muted dark:text-dark-muted text-center mb-8">
-            Search across {{ sourceCount }} data sources covering {{ entityCount.toLocaleString() }} sanctioned entities.
+          <p class="text-light-muted dark:text-dark-muted mb-8">
+            {{ entityCount.toLocaleString() }} records from {{ sourceCount }}
+            {{ sourceCount === 1 ? 'source' : 'sources' }}. Search by name, alias,
+            country or identifier.
           </p>
 
           <!-- Search Input -->
           <div>
+            <label for="search-page-input" class="sr-only">
+              Search by name, alias, country or identifier
+            </label>
             <SearchInput
+              id="search-page-input"
               v-model="searchQuery"
               placeholder="Search by name, alias, country, or identifier..."
               size="lg"
               :loading="loading"
             />
           </div>
+
+          <button
+            type="button"
+            class="mt-4 inline-flex items-center gap-2 border border-light-border px-3 py-2 text-sm font-medium text-light-text dark:border-dark-border dark:text-dark-text lg:hidden"
+            :aria-expanded="filtersOpen"
+            aria-controls="search-filters"
+            @click="filtersOpen = !filtersOpen"
+          >
+            Filters
+            <span v-if="activeFilterCount">({{ activeFilterCount }})</span>
+          </button>
 
           <!-- Active Filters Summary -->
           <div v-if="hasActiveFilters" class="mt-4 flex items-center justify-center gap-2 flex-wrap">
@@ -323,7 +342,7 @@ const statuses = computed(() =>
     <!-- Main Content -->
     <div class="container-wide py-8">
       <!-- Error State -->
-      <div v-if="error" class="glass-card p-8 text-center mb-8">
+      <div v-if="error" class="surface-panel p-8 text-center mb-8">
         <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-status-delisted/20 flex items-center justify-center">
           <svg class="w-8 h-8 text-status-delisted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -337,9 +356,13 @@ const statuses = computed(() =>
       </div>
 
       <!-- Main Content - Filters always visible -->
-      <div v-else class="flex flex-col lg:flex-row gap-8">
+      <div v-else class="flex flex-col gap-8 lg:flex-row">
         <!-- Filters Sidebar -->
-        <aside class="lg:w-72 flex-shrink-0">
+        <aside
+          id="search-filters"
+          :class="filtersOpen ? 'block' : 'hidden lg:block'"
+          class="flex-shrink-0 lg:w-72"
+        >
           <div class="sticky top-24">
             <SearchFilters
               :filters="filters"
@@ -367,7 +390,7 @@ const statuses = computed(() =>
           </div>
 
           <!-- Results Grid -->
-          <div v-if="paginatedEntities.length > 0" class="grid sm:grid-cols-2 gap-4">
+          <div v-if="paginatedEntities.length > 0" class="border-t border-light-border dark:border-dark-border">
             <EntityCard
               v-for="entity in paginatedEntities"
               :key="entity.id"
@@ -386,7 +409,10 @@ const statuses = computed(() =>
           </div>
 
           <!-- No Results -->
-          <div v-else class="glass-card p-12 text-center">
+          <div
+            v-if="paginatedEntities.length === 0 && !loading"
+            class="surface-panel p-12 text-center"
+          >
             <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-light-surface dark:bg-dark-surface flex items-center justify-center">
               <svg class="w-8 h-8 text-light-muted dark:text-dark-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />

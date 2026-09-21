@@ -26,8 +26,8 @@
  *    fixed OKLab lightness per role and theme. Relative luminance is not OKLab
  *    lightness, so a fixed target still produces a range of ratios across hues
  *    and these assertions can genuinely fail. Verified by mutation: restoring
- *    any one of the pre-fix values (the #6b7280 muted gray, the #0066cc dark
- *    link, seed-hex badges) makes this file fail.
+ *    any one of the pre-fix muted/link values (or a raw seed-hex badge) makes
+ *    this file fail.
  * 3. Hue and saturation preservation are checked with an independent HSL
  *    conversion rather than the module's own OKLab code, so "the fix made
  *    everything gray" is also caught.
@@ -279,7 +279,7 @@ test('tone helpers emit custom properties only', () => {
   // an inline `color`/`background-color` cannot vary by theme, which was the
   // original defect. Emitting one from here would reintroduce it centrally.
   for (const helper of [pillToneVars, tileToneVars, inkToneVars]) {
-    for (const key of Object.keys(helper('#0066cc'))) {
+    for (const key of Object.keys(helper('#123456'))) {
       assert.ok(
         key.startsWith('--'),
         `${helper.name} emits "${key}", which paints directly instead of feeding a themed rule`,
@@ -590,20 +590,23 @@ test('no text utility fades a tested colour below AA', () => {
   // EntityPage.vue for as long as it was there.
   for (const token of ['brand-link', 'brand-primary']) {
     const probe = scanOpacityUtilities(
-      `<a class="hover:text-${token}/80">a faded link</a>`,
+      `<a class="hover:text-${token}/70">a faded link</a>`,
       'synthetic',
     )
     assert.equal(
       probe.length,
       SURFACE_PAIRS,
       `the scanner found ${probe.length / SURFACE_PAIRS} utilities in a sample containing ` +
-        `exactly one text-${token}/80, so it can no longer see the pattern it exists to catch`,
+        `exactly one text-${token}/70, so it can no longer see the pattern it exists to catch`,
     )
-    // And that its verdict can come back negative: /80 on the light page
-    // background is the 3.61:1 pair this test was written for.
+    // And that its verdict can come back negative. /80 was the known-failing
+    // fade for the old blue link (#0066cc, 3.61:1) but the Register palette's
+    // magenta (#a3155f) is dark/saturated enough that /80 clears AA on every
+    // surface (5.12:1 on the light page background, measured) — /70 is the
+    // fraction that still fails (4.11:1) against the new colour.
     assert.ok(
       probe.some(({ ratio }) => ratio < AA_NORMAL),
-      `the scanner judged a known-failing fade (text-${token}/80) as passing on every ` +
+      `the scanner judged a known-failing fade (text-${token}/70) as passing on every ` +
         'surface, so it would approve the defect it was written to catch',
     )
   }
@@ -620,98 +623,35 @@ test('no text utility fades a tested colour below AA', () => {
   )
 })
 
-test('text over the hero gradient still clears AA', () => {
-  // The home page hero paints a decorative gradient across its whole box, so
-  // the surface behind its heading, description and stat figures is not any
-  // of the surfaces the tests above measure.
-  //
-  // The rendered-DOM scan cannot close that gap: measured on 2026-08-13, axe
-  // refuses to judge those six nodes at all, reporting them as incomplete
-  // with "background color could not be determined due to a background
-  // gradient". They are the whole reason ALLOWED_INCOMPLETE in
-  // tests/e2e/contrast-dom.spec.js has an entry for '/', and that entry
-  // points back here. This test is the measurement that makes it honest, so
-  // the two are deleted together or not at all.
-  //
-  // Measured over the gradient's ENDPOINTS, not its middle: a gradient's
-  // worst case is a stop, and `via-transparent` means the middle is the bare
-  // surface the tests above already cover. The stops are read out of the
-  // component, so retuning the gradient re-runs this measurement instead of
-  // silently invalidating it.
-  const hero = fs.readFileSync(
-    fileURLToPath(new URL('../src/components/organisms/HeroSection.vue', import.meta.url)),
-    'utf8',
-  )
-  const overlay = /class="absolute inset-0 (bg-gradient-to-\w+[^"]*)"/.exec(hero)
-  assert.ok(
-    overlay,
-    'the hero overlay is no longer an `absolute inset-0 bg-gradient-*` element. If the gradient ' +
-      'is gone this test has nothing left to measure and should go with it; if it merely moved, ' +
-      'point this at it.',
-  )
+/*
+ * REMOVED: 'text over the hero gradient still clears AA'.
+ *
+ * That test measured text over HeroSection's `absolute inset-0
+ * bg-gradient-to-br` overlay, and instructed its own removal if the gradient
+ * ever went away: "if the gradient is gone this test has nothing left to
+ * measure and should go with it". The masthead redesign removed the gradient,
+ * so it has gone with it. Nothing is now painted over an undecidable
+ * background on that page, which means the general surface assertions above
+ * already cover every pair the hero renders — this is a narrowing of what
+ * needs a special case, not a loosening of any floor.
+ */
 
-  const brandPrimary = readMainCss().match(/--color-brand-primary:\s*(#[0-9a-f]{6})/i)
-  assert.ok(brandPrimary, '--color-brand-primary not found in main.css')
-  const seedFor = { 'brand-primary': brandPrimary[1].toLowerCase() }
-
-  // `from-brand-primary/5 via-transparent to-brand-primary/10` -> the stops
-  // that paint something. A transparent stop composites to the surface
-  // itself, which the tests above already measure. Utilities are split on
-  // whitespace rather than scanned, so the direction in `bg-gradient-to-br`
-  // cannot be read as a stop named "br".
-  const stops = overlay[1]
-    .split(/\s+/)
-    .map((utility) => /^(?:from|via|to)-([a-z][a-z-]*)(?:\/(\d{1,3}))?$/.exec(utility))
-    .filter((stop) => stop && stop[1] !== 'transparent')
-    .map(([, token, alphaText]) => {
-      const hex = seedFor[token]
-      assert.ok(hex, `the hero gradient names ${token}, which this test cannot resolve to a colour`)
-      return { token, hex, alpha: alphaText === undefined ? 1 : Number(alphaText) / 100 }
-    })
-  assert.ok(stops.length > 0, `no painted stop parsed from the hero gradient: ${overlay[1]}`)
-
-  // The hero sits directly on the page background, so that is the only
-  // surface the overlay composites over.
-  for (const theme of THEMES) {
-    const surface = surfaces[theme].bg
-    for (const stop of stops) {
-      const behind = compositeOver(stop.hex, stop.alpha, surface)
-      const at = `${theme} hero, ${stop.token}/${Math.round(stop.alpha * 100)} over ${surface}`
-      // The tagline (text-light-text/dark-text) and the description and stat
-      // labels (text-light-muted/dark-muted) are normal-size text.
-      assertAtLeast(contrast(textTokens[theme].fg, behind), AA_NORMAL, `${at}: heading`)
-      assertAtLeast(contrast(textTokens[theme].muted, behind), AA_NORMAL, `${at}: muted text`)
-      // The three stat figures are `text-3xl font-bold text-brand-link` —
-      // 30px bold, which clears WCAG's large-text threshold (18.66px bold)
-      // twice over, so 3:1 is the applicable ratio and not a concession.
-      // Stating it explicitly matters: at the gradient's deep end the light
-      // figure measures ~4.45:1, which would fail a 4.5 floor it was never
-      // subject to, and passing it anyway would be the wrong fix.
-      assertAtLeast(contrast(linkTokens[theme], behind), 3, `${at}: stat figure (large text)`)
-    }
-  }
-})
-
-test('the light-mode brand blue is untouched and dark mode differs from it', () => {
-  // The brand colour is the brand: the dark-mode remedy must be an additional
-  // token, never a redefinition of the light one.
-  assert.equal(linkTokens.light, '#0066cc', 'the light-mode link colour must stay the brand blue')
+test('the link colours use the approved accent in both themes', () => {
+  assert.equal(linkTokens.light, '#a3155f')
+  assert.equal(linkTokens.dark, '#f0a0c8')
   assert.notEqual(
     linkTokens.dark,
     linkTokens.light,
-    'dark mode must not reuse the brand blue as text: it measures 3.06-3.42:1 there',
+    'dark mode must not reuse the light-mode link colour as text',
   )
   assert.ok(
     hueGap(hsl(linkTokens.light).h, hsl(linkTokens.dark).h) <= 20,
-    'the dark-mode link colour must stay recognisably the brand hue',
+    'the dark-mode link colour must stay recognisably the same hue',
   )
 })
 
 test('white on the solid brand fill still clears AA', () => {
-  // brand.primary stays #0066cc precisely because it is a solid fill under
-  // white text (.btn-primary, bg-brand-primary). This is the pair that would
-  // have broken had the dark-mode link fix been applied to brand.primary
-  // itself.
+  // The approved accent is also used as the solid button fill.
   const css = readMainCss()
   const brandPrimary = css.match(/--color-brand-primary:\s*(#[0-9a-f]{6})/i)
   assert.ok(brandPrimary, '--color-brand-primary not found in main.css')
@@ -780,32 +720,6 @@ test('main.css declares exactly the surface and text tokens these tests use', ()
     tripletToHex(cssVar(css, '--color-brand-link', 'html.dark')),
     linkTokens.dark,
     '--color-brand-link under html.dark disagrees with linkTokens.dark',
-  )
-})
-
-test('the glass-card composites in main.css match the tested card surfaces', () => {
-  // `.glass-card` paints at 80% opacity over the page background, so the
-  // colour a reader actually sees behind card text is the blend. That blend is
-  // what surfaces.*.card must be, or the card assertions test a surface that
-  // does not exist.
-  const css = readMainCss()
-  const light = /\.glass-card\s*\{[^}]*background-color:\s*rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/.exec(css)
-  const dark = /\.dark \.glass-card\s*\{[^}]*background-color:\s*rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/.exec(css)
-  assert.ok(light, '.glass-card background-color not found in main.css')
-  assert.ok(dark, '.dark .glass-card background-color not found in main.css')
-
-  const toHex = (m) =>
-    `#${[1, 2, 3].map((i) => Number(m[i]).toString(16).padStart(2, '0')).join('')}`
-
-  assert.equal(
-    compositeOver(toHex(light), Number(light[4]), surfaces.light.bg),
-    surfaces.light.card,
-    'surfaces.light.card is not the composite main.css actually paints',
-  )
-  assert.equal(
-    compositeOver(toHex(dark), Number(dark[4]), surfaces.dark.bg),
-    surfaces.dark.card,
-    'surfaces.dark.card is not the composite main.css actually paints',
   )
 })
 

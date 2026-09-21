@@ -27,7 +27,7 @@ onMounted(() => {
         Enforcement actions, updates, and changes to sanctions listings.
       </p>
 
-      <div class="glass-card p-8 text-center mb-8">
+      <div class="surface-panel p-8 text-center mb-8">
         <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-brand-primary/20 flex items-center justify-center">
           <svg class="w-8 h-8 text-brand-link" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -41,7 +41,7 @@ onMounted(() => {
         </p>
       </div>
 
-      <div class="glass-card p-6 mb-8">
+      <div class="surface-panel p-6 mb-8">
         <h3 class="font-semibold text-lg mb-4 text-light-text dark:text-dark-text">
           Recent Activity
         </h3>
@@ -54,7 +54,7 @@ onMounted(() => {
       <div class="grid md:grid-cols-2 gap-6">
         <RouterLink
           to="/search"
-          class="glass-card p-6 hover:border-brand-primary/50 transition-all group"
+          class="surface-panel p-6 hover:border-brand-primary/50 transition-all group"
         >
           <h3 class="font-semibold text-lg mb-2 text-light-text dark:text-dark-text group-hover:text-brand-link transition-colors">
             Search Database
@@ -66,7 +66,7 @@ onMounted(() => {
 
         <RouterLink
           to="/sources"
-          class="glass-card p-6 hover:border-brand-primary/50 transition-all group"
+          class="surface-panel p-6 hover:border-brand-primary/50 transition-all group"
         >
           <h3 class="font-semibold text-lg mb-2 text-light-text dark:text-dark-text group-hover:text-brand-link transition-colors">
             View Sources

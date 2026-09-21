@@ -167,7 +167,7 @@ const configOptions = [
         <h2 class="text-2xl font-semibold mb-4 text-light-text dark:text-dark-text">
           API Reference
         </h2>
-        <div class="glass-card overflow-hidden">
+        <div class="surface-panel overflow-hidden">
           <div class="overflow-x-auto">
             <table class="w-full">
               <thead>
@@ -206,7 +206,7 @@ const configOptions = [
           <code class="font-mono">primary_name</code> hands back a
           <code class="font-mono">NameVariant</code> object.
         </p>
-        <div class="glass-card overflow-hidden">
+        <div class="surface-panel overflow-hidden">
           <div class="overflow-x-auto">
             <table class="w-full">
               <tbody class="text-light-muted dark:text-dark-muted">
@@ -229,7 +229,7 @@ const configOptions = [
         <h2 class="text-2xl font-semibold mb-4 text-light-text dark:text-dark-text">
           Configuration Options
         </h2>
-        <div class="glass-card overflow-hidden">
+        <div class="surface-panel overflow-hidden">
           <div class="overflow-x-auto">
             <table class="w-full">
               <thead>

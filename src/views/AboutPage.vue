@@ -62,7 +62,7 @@ useScrollAnimation()
             This isn't random design — it represents the reality of modern sanctions:
           </p>
 
-          <div class="glass-card p-6 my-6">
+          <div class="surface-panel p-6 my-6">
             <h3 class="font-semibold text-lg mb-3 text-light-text dark:text-dark-text">
               The Three-Way Gaze
             </h3>

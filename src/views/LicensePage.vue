@@ -18,7 +18,7 @@ useHead({
         </h1>
 
         <div class="prose-custom">
-          <div class="glass-card p-6 mb-8 border-l-4 border-green-500">
+          <div class="surface-panel p-6 mb-8 border-l-4 border-green-500">
             <h2 class="text-xl font-bold mb-2 text-green-600">Truly Free & Open</h2>
             <p class="text-light-text dark:text-dark-text mb-0">
               Unlike many "open" data services that restrict commercial use, Ammitto is released under
@@ -51,25 +51,25 @@ useHead({
           <p>Ammitto is different:</p>
 
           <div class="grid sm:grid-cols-2 gap-4 my-6">
-            <div class="glass-card p-4">
+            <div class="surface-panel p-4">
               <h3 class="font-semibold text-brand-link mb-2">✓ No Attribution</h3>
               <p class="text-sm text-light-muted dark:text-dark-muted">
                 Use our data without crediting us. We don't need marketing from forced attribution.
               </p>
             </div>
-            <div class="glass-card p-4">
+            <div class="surface-panel p-4">
               <h3 class="font-semibold text-brand-link mb-2">✓ Commercial OK</h3>
               <p class="text-sm text-light-muted dark:text-dark-muted">
                 Build commercial products, charge for your services, keep all profits.
               </p>
             </div>
-            <div class="glass-card p-4">
+            <div class="surface-panel p-4">
               <h3 class="font-semibold text-brand-link mb-2">✓ No Registration</h3>
               <p class="text-sm text-light-muted dark:text-dark-muted">
                 Download directly. No account, no API key, no tracking.
               </p>
             </div>
-            <div class="glass-card p-4">
+            <div class="surface-panel p-4">
               <h3 class="font-semibold text-brand-link mb-2">✓ Open Formats</h3>
               <p class="text-sm text-light-muted dark:text-dark-muted">
                 JSON-LD with documented schemas. No proprietary formats or undocumented fields.
@@ -79,7 +79,7 @@ useHead({
 
           <h2>Formal License</h2>
 
-          <div class="glass-card p-6 font-mono text-sm">
+          <div class="surface-panel p-6 font-mono text-sm">
             <p class="mb-4"><strong>CC0 1.0 Universal (CC0 1.0)</strong></p>
             <p class="mb-4">Public Domain Dedication</p>
             <p class="text-light-muted dark:text-dark-muted">

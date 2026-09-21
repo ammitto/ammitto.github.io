@@ -2,6 +2,7 @@
 import { onMounted, computed, watch, reactive } from 'vue'
 import { useRoute } from 'vue-router'
 import Badge from '@/components/atoms/Badge.vue'
+import CountryTile from '@/components/atoms/CountryTile.vue'
 import { useEntityData } from '@/composables/useEntityData'
 import SourceDocuments from '@/components/molecules/SourceDocuments.vue'
 import { sources, entityTypes } from '@/config'
@@ -283,12 +284,12 @@ onMounted(async () => {
         Back to Search
       </RouterLink>
 
-      <div v-if="entityLoading" class="glass-card p-8 text-center">
+      <div v-if="entityLoading" class="record-section text-center">
         <div class="w-8 h-8 border-2 border-brand-primary border-t-transparent rounded-full animate-spin mx-auto" />
         <p class="mt-4 text-light-muted dark:text-dark-muted">Loading entity...</p>
       </div>
 
-      <div v-else-if="entityError" class="glass-card p-8 text-center">
+      <div v-else-if="entityError" class="record-section text-center">
         <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-status-delisted/20 flex items-center justify-center">
           <svg class="w-8 h-8 text-status-delisted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -300,10 +301,15 @@ onMounted(async () => {
 
       <article v-else-if="entity" class="space-y-6">
         <!-- Header -->
-        <div class="glass-card p-8">
+        <div class="record-section">
           <div class="flex flex-wrap items-center gap-3 mb-4">
+            <CountryTile
+              v-if="sourceInfo"
+              :code="sourceInfo.country"
+              :color="sourceInfo.color"
+            />
             <Badge :variant="entityType as any">
-              {{ typeInfo?.icon }} {{ typeInfo?.name }}
+              {{ typeInfo?.name }}
             </Badge>
             <Badge variant="source" :source-code="source ?? undefined">
               {{ sourceInfo?.name }}
@@ -325,7 +331,7 @@ onMounted(async () => {
         </div>
 
         <!-- Names by Script -->
-        <div v-if="namesByScript.length > 0" class="glass-card p-8">
+        <div v-if="namesByScript.length > 0" class="record-section">
           <h2 class="text-xl font-semibold mb-4 text-light-text dark:text-dark-text">
             Names
           </h2>
@@ -345,7 +351,7 @@ onMounted(async () => {
                 >
                   <span v-if="name.isPrimary" class="font-semibold">{{ name.fullName }}</span>
                   <span v-else class="text-light-muted dark:text-dark-muted">{{ name.fullName }}</span>
-                  <Badge v-if="name.isPrimary" variant="active" class="ml-2 text-xs">Primary</Badge>
+                  <Badge v-if="name.isPrimary" variant="default" class="ml-2 text-xs">Primary</Badge>
                 </li>
               </ul>
             </div>
@@ -353,7 +359,7 @@ onMounted(async () => {
         </div>
 
         <!-- Basic Details -->
-        <div class="glass-card p-8">
+        <div class="record-section">
           <h2 class="text-xl font-semibold mb-4 text-light-text dark:text-dark-text">
             Details
           </h2>
@@ -427,7 +433,7 @@ onMounted(async () => {
         </div>
 
         <!-- Sanctions Information (from entries) -->
-        <div v-if="effects.length > 0 || periodRows.length > 0 || listTypes.length > 0 || regimes.length > 0 || legalBases.length > 0" class="glass-card p-8">
+        <div v-if="effects.length > 0 || periodRows.length > 0 || listTypes.length > 0 || regimes.length > 0 || legalBases.length > 0" class="record-section">
           <h2 class="text-xl font-semibold mb-4 text-light-text dark:text-dark-text">
             Sanctions Information
           </h2>
@@ -522,7 +528,7 @@ onMounted(async () => {
         </div>
 
         <!-- Reasons (from entries) -->
-        <div v-if="reasons.length > 0" class="glass-card p-8">
+        <div v-if="reasons.length > 0" class="record-section">
           <h2 class="text-xl font-semibold mb-4 text-light-text dark:text-dark-text">
             Sanction Reasons
           </h2>
@@ -547,7 +553,7 @@ onMounted(async () => {
         </div>
 
         <!-- Connections (Group, Announcement links) -->
-        <div v-if="groupIds.length > 0 || entries.length > 0" class="glass-card p-8">
+        <div v-if="groupIds.length > 0 || entries.length > 0" class="record-section">
           <h2 class="text-xl font-semibold mb-4 text-light-text dark:text-dark-text">
             Connections
           </h2>
@@ -579,7 +585,7 @@ onMounted(async () => {
         </div>
 
         <!-- Announcements (from entries) -->
-        <div v-if="announcements.length > 0" class="glass-card p-8">
+        <div v-if="announcements.length > 0" class="record-section">
           <h2 class="text-xl font-semibold mb-4 text-light-text dark:text-dark-text">
             Official Announcements
           </h2>
@@ -677,7 +683,7 @@ onMounted(async () => {
         </div>
 
         <!-- Nationalities -->
-        <div v-if="nationalities.length > 0" class="glass-card p-8">
+        <div v-if="nationalities.length > 0" class="record-section">
           <h2 class="text-xl font-semibold mb-4 text-light-text dark:text-dark-text">
             Nationality
           </h2>
@@ -701,7 +707,7 @@ onMounted(async () => {
           interchangeable. Where both fields state the same string they
           collapse to one row named for both.
         -->
-        <div v-if="roleClaims.length > 0" class="glass-card p-8">
+        <div v-if="roleClaims.length > 0" class="record-section">
           <h2 class="text-xl font-semibold mb-4 text-light-text dark:text-dark-text">
             Position / Title
           </h2>
@@ -721,7 +727,7 @@ onMounted(async () => {
           row instead of being squeezed into a fourth column that most
           records would leave empty.
         -->
-        <div v-if="identificationTable.rows.length > 0" class="glass-card p-8">
+        <div v-if="identificationTable.rows.length > 0" class="record-section">
           <h2 class="text-xl font-semibold mb-4 text-light-text dark:text-dark-text">
             Identifications
           </h2>
@@ -766,7 +772,7 @@ onMounted(async () => {
         </div>
 
         <!-- Addresses -->
-        <div v-if="addresses && addresses.length > 0" class="glass-card p-8">
+        <div v-if="addresses && addresses.length > 0" class="record-section">
           <h2 class="text-xl font-semibold mb-4 text-light-text dark:text-dark-text">
             Addresses
           </h2>
@@ -796,7 +802,7 @@ onMounted(async () => {
           reader unable to tell which of the two they are reading, which is
           the whole reason for showing them apart.
         -->
-        <div v-if="remarks || entryRemarks.length > 0" class="glass-card p-8">
+        <div v-if="remarks || entryRemarks.length > 0" class="record-section">
           <h2 class="text-xl font-semibold mb-4 text-light-text dark:text-dark-text">
             Remarks
           </h2>
@@ -815,7 +821,7 @@ onMounted(async () => {
         </div>
 
         <!-- Raw Data (for debugging/transparency) -->
-        <details class="glass-card p-8">
+        <details class="record-section">
           <summary class="cursor-pointer text-sm text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text">
             View Raw Data
           </summary>

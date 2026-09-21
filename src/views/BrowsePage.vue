@@ -87,7 +87,7 @@ const dataObjects = [
           v-for="option in browseOptions"
           :key="option.link"
           :to="option.link"
-          class="glass-card p-6 hover:border-brand-primary/50 transition-all group"
+          class="surface-panel p-6 hover:border-brand-primary/50 transition-all group"
         >
           <div
             class="tone-pill w-12 h-12 rounded-lg flex items-center justify-center text-2xl mb-4"
@@ -114,7 +114,7 @@ const dataObjects = [
             v-for="obj in dataObjects"
             :key="obj.link"
             :to="obj.link"
-            class="glass-card p-6 hover:border-brand-primary/50 transition-all group"
+            class="surface-panel p-6 hover:border-brand-primary/50 transition-all group"
           >
             <div class="flex items-start justify-between mb-4">
               <div
@@ -147,7 +147,7 @@ const dataObjects = [
             v-for="source in sources"
             :key="source.code"
             :to="{ name: 'search', query: { source: source.code } }"
-            class="glass-card p-4 hover:border-brand-primary/50 transition-all group"
+            class="surface-panel p-4 hover:border-brand-primary/50 transition-all group"
           >
             <div
               class="tone-tile w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm mb-3"

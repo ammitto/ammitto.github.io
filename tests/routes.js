@@ -125,7 +125,13 @@ export const NARROW_VIEWPORTS = [
 
 /** The pages whose colours this remediation owns, for the rendered-DOM scan. */
 export const CONTRAST_SCAN_ROUTES = [
-  { path: '/', requires: '.tone-pill' },
+  // The front page no longer renders .tone-pill: the four decorative source
+  // badges that used to sit under the hero headline went with the masthead
+  // redesign. It still renders derived tones — the source index sets each
+  // country code with .tone-ink — so the guard points there instead. The
+  // intent is unchanged: never scan a page that failed to render its
+  // theme-derived colours, because an empty page trivially "passes".
+  { path: '/', requires: '.tone-ink' },
   { path: '/search', requires: '.tone-pill' },
   // Needs the per-source aggregate, which the committed snapshot does not
   // ship (see serveSourceGraphs in tests/e2e/helpers.js).

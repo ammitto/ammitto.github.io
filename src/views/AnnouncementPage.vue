@@ -365,19 +365,19 @@ const documents = computed(() => {
         Back to Browse
       </RouterLink>
 
-      <div v-if="loading" class="glass-card p-8 text-center">
+      <div v-if="loading" class="surface-panel p-8 text-center">
         <div class="w-8 h-8 border-2 border-brand-primary border-t-transparent rounded-full animate-spin mx-auto" />
         <p class="mt-4 text-light-muted dark:text-dark-muted">Loading announcement...</p>
       </div>
 
-      <div v-else-if="error" class="glass-card p-8 text-center">
+      <div v-else-if="error" class="surface-panel p-8 text-center">
         <h3 class="font-semibold text-lg mb-2">Error</h3>
         <p class="text-light-muted dark:text-dark-muted">{{ error }}</p>
       </div>
 
       <article v-else class="space-y-6">
         <!-- Header -->
-        <div class="glass-card p-8">
+        <div class="surface-panel p-8">
           <Badge variant="source" :source-code="sourceInfo?.code" class="mb-4">
             {{ sourceInfo?.name }}
           </Badge>
@@ -468,7 +468,7 @@ const documents = computed(() => {
         </div>
 
         <!-- Full Text -->
-        <div v-if="announcement?.announcement?.content" class="glass-card p-8">
+        <div v-if="announcement?.announcement?.content" class="surface-panel p-8">
           <h2 class="text-xl font-semibold mb-4 text-light-fg dark:text-dark-fg">
             Full Announcement Text
           </h2>
@@ -490,7 +490,7 @@ const documents = computed(() => {
         </div>
 
         <!-- Legal Citations -->
-        <div v-if="announcement?.legal_citations?.length" class="glass-card p-8">
+        <div v-if="announcement?.legal_citations?.length" class="surface-panel p-8">
           <h2 class="text-xl font-semibold mb-4 text-light-fg dark:text-dark-fg">
             Legal Citations
           </h2>
