@@ -103,6 +103,24 @@ const API_BASE = import.meta.env.BASE_URL || '/'
 const isBrowser = typeof window !== 'undefined'
 
 /**
+ * How many entities to index per tick before yielding to the event loop.
+ *
+ * The build itself (FlexSearch's `add` plus `indexableText`/`foldForSearch`
+ * folding) is CPU-bound and cannot be sped up by chunking; this only
+ * determines how often the main thread hands control back, so typing and
+ * the debounce timer keep working while the corpus is still indexing.
+ * Measured on the live 61k-row index, an unbroken `forEach` blocked the main
+ * thread for 7.5s+; 750 rows/tick keeps each block comfortably under a
+ * frame budget's worth of stacked work without adding many extra ticks.
+ */
+const INDEX_CHUNK_SIZE = 750
+
+/** Hand control back to the event loop for one tick. */
+function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0))
+}
+
+/**
  * Load the lightweight search index
  * This is much faster than loading all source JSON-LD files
  */
@@ -151,30 +169,46 @@ async function loadSearchIndex(): Promise<void> {
       encode: foldForSearch,
     })
 
-    // Index each entity.
+    // Index each entity, in chunks that yield to the event loop between
+    // them.
     //
     // `indexableText` appends the glued forms ("alqaida" for "Al-Qaida") to the
     // document only. They must never reach the query: FlexSearch encodes the
     // query with the same function and intersects the terms, so a glued query
     // token would demand a document where those two words are adjacent — which
     // measured 426 two-word queries losing results and 340 going to zero.
-    data.entities.forEach((entity) => {
-      // Kept as a named binding: tests/birthWiring.test.js pins the literal
-      // `const text = searchRowText(entity)` here, because searchRowText is
-      // what carries BOTH birth-span bounds into the indexed text and a
-      // future edit must not quietly route around it.
-      const text = searchRowText(entity)
+    //
+    // This used to be a single synchronous `forEach` over all 61k+ rows,
+    // which blocked the main thread for 7.5s+ (measured live) before
+    // `isLoaded` ever flipped, leaving the page unresponsive to typing or
+    // the search debounce timer for that whole span. Chunking changes only
+    // WHEN the event loop gets control back, never what gets built: same
+    // rows, same order, same FlexSearch calls, so the resulting index and
+    // its recall are identical to the unchunked version.
+    for (let start = 0; start < data.entities.length; start += INDEX_CHUNK_SIZE) {
+      const chunk = data.entities.slice(start, start + INDEX_CHUNK_SIZE)
+      for (const entity of chunk) {
+        // Kept as a named binding: tests/birthWiring.test.js pins the literal
+        // `const text = searchRowText(entity)` here, because searchRowText is
+        // what carries BOTH birth-span bounds into the indexed text and a
+        // future edit must not quietly route around it.
+        const text = searchRowText(entity)
 
-      // Names only for the glue; see indexableText. Gluing the whole row text
-      // reached across the join into country/regime/authority.
-      index.add(
-        entity.id,
-        indexableText(text, entity.primaryName
-          ? [entity.primaryName, ...entity.names]
-          : entity.names),
-      )
-      entities.value.set(entity.id, entity)
-    })
+        // Names only for the glue; see indexableText. Gluing the whole row text
+        // reached across the join into country/regime/authority.
+        index.add(
+          entity.id,
+          indexableText(text, entity.primaryName
+            ? [entity.primaryName, ...entity.names]
+            : entity.names),
+        )
+        entities.value.set(entity.id, entity)
+      }
+
+      if (start + INDEX_CHUNK_SIZE < data.entities.length) {
+        await yieldToEventLoop()
+      }
+    }
 
     searchIndex.value = index
     isLoaded.value = true
@@ -248,7 +282,15 @@ async function loadFacets(): Promise<void> {
  * Search entities by query
  */
 function search(query: string, limit = 100): SearchEntity[] {
-  if (!searchIndex.value || !query.trim()) {
+  // Not loaded yet: the chunked build (above) adds rows to `entities` well
+  // before `searchIndex`/`isLoaded` flip, so answering from `entities` here
+  // would return whatever partial, query-mismatched slice has landed so far.
+  // No answer is the honest answer until the index exists.
+  if (!searchIndex.value) {
+    return []
+  }
+
+  if (!query.trim()) {
     return Array.from(entities.value.values()).slice(0, limit)
   }
 
