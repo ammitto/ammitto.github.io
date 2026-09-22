@@ -243,6 +243,10 @@ const asOf = computed(() => {
 })
 
 const filteredEntities = computed(() => {
+  // Same gate as `nearMisses`/`resultAnnouncement` above: while the index is
+  // still building, `search()` cannot yet answer for the typed query, so the
+  // grid must show nothing rather than an arbitrary unfiltered slice.
+  if (!isLoaded.value || loading.value) return []
   // Get search results - use very high limit to include all entities for filtering
   let results = search(debouncedQuery.value, 100000) // Get all results for filtering
 
