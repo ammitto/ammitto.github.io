@@ -7,7 +7,10 @@ import { collectPageErrors } from './helpers.js'
  * The index request is held until the test releases it, so the placeholders
  * are observed while it is certainly still loading. Every DOM mutation is
  * checked from before the app starts, so a single frame showing placeholders
- * next to a result card or the "No match found" card is still caught.
+ * next to the "No match found" card, or next to a result card that is not
+ * under the "still checking" banner, is still caught. Partial matches shown
+ * above the placeholders while the index builds are the intended exception:
+ * tests/e2e/search-progressive.spec.js covers them.
  */
 
 /**
@@ -39,7 +42,8 @@ async function watchForOverlap(page) {
     const check = () => {
       const skeleton = document.querySelector('[data-testid="search-skeleton"]')
       if (!skeleton) return
-      const cards = document.querySelectorAll('main a[href^="/entity/"]').length
+      const partial = !!document.querySelector('[data-testid="search-progress"]')
+      const cards = partial ? 0 : document.querySelectorAll('main a[href^="/entity/"]').length
       const noMatch = document.body.innerText.includes('No match found')
       if (cards || noMatch) window.__overlap.push({ cards, noMatch })
     }
@@ -63,8 +67,13 @@ for (const { name, query, settled } of [
   {
     name: 'a matching query',
     query: 'Dedrone',
-    settled: (page) => expect(page.locator('main a[href^="/entity/"]').first())
-      .toBeVisible({ timeout: BUILD_TIMEOUT }),
+    // Settled means the result count, not the first card: partial matches
+    // appear while the index is still building (search-progressive.spec.js),
+    // so a card on screen no longer means the load has finished.
+    settled: async (page) => {
+      await expect(page.getByTestId('search-count')).toBeVisible({ timeout: BUILD_TIMEOUT })
+      await expect(page.locator('main a[href^="/entity/"]').first()).toBeVisible()
+    },
   },
   {
     name: 'a query with no match',
