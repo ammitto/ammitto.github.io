@@ -31,6 +31,11 @@ const filters = ref({
 const PAGE_SIZE = 50
 const loadedCount = ref(PAGE_SIZE)
 
+// Placeholder cards shown while the index loads. Enough to fill the first
+// screen of the two-column grid, not a page's worth: PAGE_SIZE grey cards
+// would only be scrolled past.
+const SKELETON_CARDS = 6
+
 // Load data from lightweight search index
 const {
   isLoading: loading,
@@ -540,6 +545,51 @@ const statuses = computed(() =>
                 (loading...)
               </span>
             </p>
+          </div>
+
+          <!--
+            Placeholder cards while the index loads, so the results area is not
+            blank while the index downloads and builds. They carry no text at
+            all: no name, no count, nothing a reader could file as a result,
+            because a premature negative is the one failure that matters here.
+            Gated on the same condition that withholds the results and the
+            empty state, so they give way to exactly one of those the moment
+            the load finishes. Inside the `v-else` of the error card, so a
+            failed load shows only the error. aria-hidden, and no live region
+            of their own: `resultAnnouncement` stays the page's one, and a
+            screen reader has nothing to hear in grey bars.
+
+            A plain opaque surface, deliberately not `glass-card` and not
+            animated: a backdrop blur under an animation is redrawn by the
+            compositor every frame, and that competes with the index build
+            for the CPU while the placeholders are on screen.
+          -->
+          <div
+            v-if="!isLoaded || loading"
+            class="grid sm:grid-cols-2 gap-4"
+            aria-hidden="true"
+            data-testid="search-skeleton"
+          >
+            <div
+              v-for="n in SKELETON_CARDS"
+              :key="n"
+              class="rounded-xl border bg-light-surface dark:bg-dark-surface border-light-border dark:border-dark-border min-w-0 p-4"
+            >
+              <div class="flex items-start justify-between gap-3 mb-2">
+                <div class="flex-1 min-w-0">
+                  <div class="h-5 w-3/4 my-1 rounded bg-light-border dark:bg-dark-border" />
+                  <div class="h-3.5 w-1/2 mt-2 rounded bg-light-border dark:bg-dark-border" />
+                </div>
+                <div class="flex flex-col items-end gap-1 w-1/5 min-w-0">
+                  <div class="h-5 w-full rounded-full bg-light-border dark:bg-dark-border" />
+                  <div class="h-5 w-full rounded-full bg-light-border dark:bg-dark-border" />
+                </div>
+              </div>
+              <div class="flex gap-2 mt-3">
+                <div class="h-5 w-1/6 rounded-full bg-light-border dark:bg-dark-border" />
+                <div class="h-5 w-1/5 rounded-full bg-light-border dark:bg-dark-border" />
+              </div>
+            </div>
           </div>
 
           <!-- Results Grid -->

@@ -57,6 +57,8 @@
     "src/utils/entityUrls.ts",
     "src/utils/nodeDocuments.ts",
     "src/utils/latestLoad.ts",
+    "src/utils/budgetedEach.ts",
+    "src/utils/yieldToEventLoop.ts",
     "src/config/palette.ts",
     "src/config/index.ts"
   ],

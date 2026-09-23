@@ -2,6 +2,8 @@ import { ref, computed } from 'vue'
 import FlexSearch from 'flexsearch'
 import { normalizeNode } from '@/utils/normalizeNode'
 import { searchRowText } from '@/utils/birthAdapters'
+import { forEachWithinBudget } from '@/utils/budgetedEach'
+import { yieldToEventLoop } from '@/utils/yieldToEventLoop'
 import { getEntityNodePath } from '@/utils/entityUrls'
 import {
   foldForSearch,
@@ -103,22 +105,34 @@ const API_BASE = import.meta.env.BASE_URL || '/'
 const isBrowser = typeof window !== 'undefined'
 
 /**
- * How many entities to index per tick before yielding to the event loop.
+ * How long one step of the index build may hold the main thread before it
+ * yields, in milliseconds.
  *
- * The build itself (FlexSearch's `add` plus `indexableText`/`foldForSearch`
- * folding) is CPU-bound and cannot be sped up by chunking; this only
- * determines how often the main thread hands control back, so typing and
- * the debounce timer keep working while the corpus is still indexing.
- * Measured on the live 61k-row index, an unbroken `forEach` blocked the main
- * thread for 7.5s+; 750 rows/tick keeps each block comfortably under a
- * frame budget's worth of stacked work without adding many extra ticks.
+ * The build (FlexSearch's `add` plus the `indexableText`/`foldForSearch`
+ * folding) is CPU-bound and yielding cannot make it cheaper; the budget only
+ * decides how often typing and the search debounce timer get a turn while
+ * the corpus is still indexing. It is a time budget rather than a row count
+ * because a row count cannot bound the block: adding a row costs more as the
+ * index fills, so a count that is quick early on is slow late in the build.
+ *
+ * Measured on 2026-09-23 through the real page load in headless Chromium,
+ * against the 61,348-row live index, five runs per setting: fixed 750-row
+ * and 2000-row steps blocked for up to ~180ms and ~340ms (~810ms and
+ * ~1,510ms at 4x CPU throttling), while this 40ms budget peaked at ~60ms
+ * (~160ms at 4x). The single ~125-160ms block that remains at 4x persisted
+ * even with a 16ms budget, so it does not come from step size; it has not
+ * been profiled (garbage collection or an internal resize are guesses).
+ *
+ * A budget yields more often than a large fixed step, so what one yield
+ * costs matters. With `setTimeout(0)` it cost about 5ms (browser timer
+ * clamping), which made the budgeted build ~5-7% slower than the 750-row
+ * steps at 4x in a later run the same day; `yieldToEventLoop` posts a message
+ * instead, see there.
  */
-const INDEX_CHUNK_SIZE = 750
+const INDEX_BUDGET_MS = 40
 
-/** Hand control back to the event loop for one tick. */
-function yieldToEventLoop(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0))
-}
+/** Rows indexed between clock reads, so reading the clock stays negligible. */
+const INDEX_BUDGET_CHECK_EVERY = 25
 
 /**
  * Load the lightweight search index
@@ -169,8 +183,8 @@ async function loadSearchIndex(): Promise<void> {
       encode: foldForSearch,
     })
 
-    // Index each entity, in chunks that yield to the event loop between
-    // them.
+    // Index each entity, yielding to the event loop whenever a step has used
+    // up INDEX_BUDGET_MS.
     //
     // `indexableText` appends the glued forms ("alqaida" for "Al-Qaida") to the
     // document only. They must never reach the query: FlexSearch encodes the
@@ -181,13 +195,14 @@ async function loadSearchIndex(): Promise<void> {
     // This used to be a single synchronous `forEach` over all 61k+ rows,
     // which blocked the main thread for 7.5s+ (measured live) before
     // `isLoaded` ever flipped, leaving the page unresponsive to typing or
-    // the search debounce timer for that whole span. Chunking changes only
+    // the search debounce timer for that whole span. Yielding changes only
     // WHEN the event loop gets control back, never what gets built: same
     // rows, same order, same FlexSearch calls, so the resulting index and
-    // its recall are identical to the unchunked version.
-    for (let start = 0; start < data.entities.length; start += INDEX_CHUNK_SIZE) {
-      const chunk = data.entities.slice(start, start + INDEX_CHUNK_SIZE)
-      for (const entity of chunk) {
+    // its recall are identical to the unbroken version. `searchIndex` and
+    // `isLoaded` are only set below, after every row is in.
+    await forEachWithinBudget(
+      data.entities,
+      (entity) => {
         // Kept as a named binding: tests/birthWiring.test.js pins the literal
         // `const text = searchRowText(entity)` here, because searchRowText is
         // what carries BOTH birth-span bounds into the indexed text and a
@@ -203,12 +218,14 @@ async function loadSearchIndex(): Promise<void> {
             : entity.names),
         )
         entities.value.set(entity.id, entity)
-      }
-
-      if (start + INDEX_CHUNK_SIZE < data.entities.length) {
-        await yieldToEventLoop()
-      }
-    }
+      },
+      {
+        budgetMs: INDEX_BUDGET_MS,
+        checkEvery: INDEX_BUDGET_CHECK_EVERY,
+        now: () => performance.now(),
+        yieldControl: yieldToEventLoop,
+      },
+    )
 
     searchIndex.value = index
     isLoaded.value = true
