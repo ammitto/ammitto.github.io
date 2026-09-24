@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import SearchInput from '@/components/atoms/SearchInput.vue'
 import Badge from '@/components/atoms/Badge.vue'
-import { siteConfig, sources } from '@/config'
+import { siteConfig, featuredSources } from '@/config'
 
 const router = useRouter()
 const searchQuery = ref('')
@@ -87,7 +87,7 @@ onMounted(async () => {
         </p>
 
         <div class="flex flex-wrap justify-center gap-4 mb-8">
-          <Badge v-for="source in sources.slice(0, 4)" :key="source.code" variant="source" :source-code="source.code">
+          <Badge v-for="source in featuredSources.slice(0, 4)" :key="source.code" variant="source" :source-code="source.code">
             {{ source.name }}
           </Badge>
         </div>
