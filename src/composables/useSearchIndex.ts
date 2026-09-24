@@ -1,9 +1,12 @@
-import { ref, computed } from 'vue'
+import { ref, computed, toRaw } from 'vue'
 import FlexSearch from 'flexsearch'
 import { normalizeNode } from '@/utils/normalizeNode'
 import { searchRowText } from '@/utils/birthAdapters'
+import { forEachWithinBudget } from '@/utils/budgetedEach'
+import { yieldToEventLoop } from '@/utils/yieldToEventLoop'
 import { getEntityNodePath } from '@/utils/entityUrls'
 import { checkMetadata, type CheckedMetadata } from '@/utils/indexMetadata'
+import { partialMatchIds } from '@/utils/progressiveResults'
 import {
   foldForSearch,
   indexableText,
@@ -97,6 +100,26 @@ const metadata = ref<CheckedMetadata | null>(null)
  */
 let reportedBadMetadata = false
 
+/**
+ * How many rows the index build has added so far.
+ *
+ * Updated once per build step, when the build yields, not per row: every
+ * write re-runs whatever watches it, and per row that would be 61k runs.
+ */
+const indexedCount = ref(0)
+
+/**
+ * The index while it is being built, for `searchPartial` only.
+ *
+ * Deliberately not `searchIndex`: that ref is what `search()` guards on, and
+ * `search()` must keep answering nothing until every row is in (see there).
+ * Cleared when the build ends, successfully or not.
+ */
+let partialIndex: FlexSearch.Index | null = null
+
+/** Ids that occur on more than one row; see progressiveResults.ts. */
+let repeatedIds: ReadonlySet<string> = new Set()
+
 // Facet caches
 const authorityFacets = ref<FacetItem[]>([])
 const regimeFacets = ref<FacetItem[]>([])
@@ -111,22 +134,34 @@ const API_BASE = import.meta.env.BASE_URL || '/'
 const isBrowser = typeof window !== 'undefined'
 
 /**
- * How many entities to index per tick before yielding to the event loop.
+ * How long one step of the index build may hold the main thread before it
+ * yields, in milliseconds.
  *
- * The build itself (FlexSearch's `add` plus `indexableText`/`foldForSearch`
- * folding) is CPU-bound and cannot be sped up by chunking; this only
- * determines how often the main thread hands control back, so typing and
- * the debounce timer keep working while the corpus is still indexing.
- * Measured on the live 61k-row index, an unbroken `forEach` blocked the main
- * thread for 7.5s+; 750 rows/tick keeps each block comfortably under a
- * frame budget's worth of stacked work without adding many extra ticks.
+ * The build (FlexSearch's `add` plus the `indexableText`/`foldForSearch`
+ * folding) is CPU-bound and yielding cannot make it cheaper; the budget only
+ * decides how often typing and the search debounce timer get a turn while
+ * the corpus is still indexing. It is a time budget rather than a row count
+ * because a row count cannot bound the block: adding a row costs more as the
+ * index fills, so a count that is quick early on is slow late in the build.
+ *
+ * Measured on 2026-09-23 through the real page load in headless Chromium,
+ * against the 61,348-row live index, five runs per setting: fixed 750-row
+ * and 2000-row steps blocked for up to ~180ms and ~340ms (~810ms and
+ * ~1,510ms at 4x CPU throttling), while this 40ms budget peaked at ~60ms
+ * (~160ms at 4x). The single ~125-160ms block that remains at 4x persisted
+ * even with a 16ms budget, so it does not come from step size; it has not
+ * been profiled (garbage collection or an internal resize are guesses).
+ *
+ * A budget yields more often than a large fixed step, so what one yield
+ * costs matters. With `setTimeout(0)` it cost about 5ms (browser timer
+ * clamping), which made the budgeted build ~5-7% slower than the 750-row
+ * steps at 4x in a later run the same day; `yieldToEventLoop` posts a message
+ * instead, see there.
  */
-const INDEX_CHUNK_SIZE = 750
+const INDEX_BUDGET_MS = 40
 
-/** Hand control back to the event loop for one tick. */
-function yieldToEventLoop(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0))
-}
+/** Rows indexed between clock reads, so reading the clock stays negligible. */
+const INDEX_BUDGET_CHECK_EVERY = 25
 
 /**
  * Load the lightweight search index
@@ -142,6 +177,7 @@ async function loadSearchIndex(): Promise<void> {
 
   isLoading.value = true
   error.value = null
+  indexedCount.value = 0
 
   try {
     const response = await fetch(`${API_BASE}api/v1/search-index.json`)
@@ -185,8 +221,32 @@ async function loadSearchIndex(): Promise<void> {
       encode: foldForSearch,
     })
 
-    // Index each entity, in chunks that yield to the event loop between
-    // them.
+    const budget = {
+      budgetMs: INDEX_BUDGET_MS,
+      checkEvery: INDEX_BUDGET_CHECK_EVERY,
+      now: () => performance.now(),
+      yieldControl: yieldToEventLoop,
+    }
+
+    // Which ids repeat, found before any row is indexed, so `searchPartial`
+    // can withhold them: a repeated id's later row replaces its earlier text,
+    // so a partial match on it could stop matching. Budgeted like the build.
+    const seen = new Set<string>()
+    const repeated = new Set<string>()
+    await forEachWithinBudget(
+      data.entities,
+      (entity) => {
+        if (seen.has(entity.id)) repeated.add(entity.id)
+        else seen.add(entity.id)
+      },
+      budget,
+    )
+    repeatedIds = repeated
+    partialIndex = index
+    let added = 0
+
+    // Index each entity, yielding to the event loop whenever a step has used
+    // up INDEX_BUDGET_MS.
     //
     // `indexableText` appends the glued forms ("alqaida" for "Al-Qaida") to the
     // document only. They must never reach the query: FlexSearch encodes the
@@ -197,13 +257,14 @@ async function loadSearchIndex(): Promise<void> {
     // This used to be a single synchronous `forEach` over all 61k+ rows,
     // which blocked the main thread for 7.5s+ (measured live) before
     // `isLoaded` ever flipped, leaving the page unresponsive to typing or
-    // the search debounce timer for that whole span. Chunking changes only
+    // the search debounce timer for that whole span. Yielding changes only
     // WHEN the event loop gets control back, never what gets built: same
     // rows, same order, same FlexSearch calls, so the resulting index and
-    // its recall are identical to the unchunked version.
-    for (let start = 0; start < data.entities.length; start += INDEX_CHUNK_SIZE) {
-      const chunk = data.entities.slice(start, start + INDEX_CHUNK_SIZE)
-      for (const entity of chunk) {
+    // its recall are identical to the unbroken version. `searchIndex` and
+    // `isLoaded` are only set below, after every row is in.
+    await forEachWithinBudget(
+      data.entities,
+      (entity) => {
         // Kept as a named binding: tests/birthWiring.test.js pins the literal
         // `const text = searchRowText(entity)` here, because searchRowText is
         // what carries BOTH birth-span bounds into the indexed text and a
@@ -219,19 +280,29 @@ async function loadSearchIndex(): Promise<void> {
             : entity.names),
         )
         entities.value.set(entity.id, entity)
-      }
+        added++
+      },
+      {
+        ...budget,
+        // Publish progress once per step, at the yield, never per row. A
+        // watcher of it still runs before this step's task ends (Vue flushes
+        // in a microtask), so SearchPage defers its partial search to a timer.
+        yieldControl: () => {
+          indexedCount.value = added
+          return yieldToEventLoop()
+        },
+      },
+    )
 
-      if (start + INDEX_CHUNK_SIZE < data.entities.length) {
-        await yieldToEventLoop()
-      }
-    }
-
+    indexedCount.value = added
     searchIndex.value = index
     isLoaded.value = true
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Failed to load search index'
     console.error('Failed to load search index:', e)
   } finally {
+    partialIndex = null
+    repeatedIds = new Set()
     isLoading.value = false
   }
 }
@@ -314,6 +385,31 @@ function search(query: string, limit = 100): SearchEntity[] {
 
   return results
     .map((id) => entities.value.get(String(id)))
+    .filter(Boolean) as SearchEntity[]
+}
+
+/**
+ * Matches among the rows indexed SO FAR, while the build is still running.
+ *
+ * Separate from `search()` on purpose, so that function's guard stays exactly
+ * as it is for every other caller. The answer here is incomplete by
+ * construction: a caller must present it as such, and must never read an
+ * empty answer as "no match" (see SearchPage.vue). Returns nothing once the
+ * build has finished, when `search()` is the one to ask, and for a blank
+ * query.
+ *
+ * Reads the rows from the raw Map. Through the reactive one, every `get` wraps
+ * its row in a new reactive proxy, and a short prefix typed mid-build matches
+ * tens of thousands of rows, so the wrapping would cost far more than the
+ * search. Nothing is lost: the caller runs this imperatively, not inside a
+ * computed, so there is no dependency to track, and a row is never mutated
+ * after the build's one `set` of it.
+ */
+function searchPartial(query: string, limit = 100): SearchEntity[] {
+  if (isLoaded.value || !partialIndex) return []
+  const rows = toRaw(entities.value)
+  return partialMatchIds(partialIndex, query, repeatedIds, limit)
+    .map((id) => rows.get(id))
     .filter(Boolean) as SearchEntity[]
 }
 
@@ -483,6 +579,7 @@ export function useSearchIndex() {
     // State
     isLoading,
     isLoaded,
+    indexedCount,
     error,
     totalEntities,
     sourceCount,
@@ -499,6 +596,7 @@ export function useSearchIndex() {
     loadSearchIndex,
     loadFacets,
     search,
+    searchPartial,
     suggestFor,
     filter,
     getEntity,

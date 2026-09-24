@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import HeroSection from '@/components/organisms/HeroSection.vue'
 import FeatureCard from '@/components/molecules/FeatureCard.vue'
-import { sources } from '@/config'
+import { featuredSources } from '@/config'
 import { tileToneVars } from '@/config/palette'
 import { useScrollAnimation } from '@/composables/useScrollAnimation'
 
@@ -111,12 +111,12 @@ const features = [
             sentence omits them rather than printing the prerender zeros.
           -->
           We aggregate sanctions data from<span v-if="sourceCount">&nbsp;{{ sourceCount }}</span>
-          official sources worldwide<span v-if="entityCount">, currently covering
+          official {{ sourceCount === 1 ? 'source' : 'sources' }} worldwide<span v-if="entityCount">, currently covering
           {{ entityCount.toLocaleString() }} entities</span>.
         </p>
         <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
           <RouterLink
-            v-for="source in sources.slice(0, 8)"
+            v-for="source in featuredSources"
             :key="source.code"
             :to="{ name: 'search', query: { source: source.code } }"
             class="glass-card p-4 hover:border-brand-primary/50 transition-all text-center group"
@@ -154,9 +154,7 @@ const features = [
           </h2>
           <p class="text-light-muted dark:text-dark-muted mb-8">
             Access our API or
-            <RouterLink to="/download" class="text-brand-link hover:underline">
-              download the data directly
-            </RouterLink>.
+            <RouterLink to="/download" class="text-brand-link hover:underline">download the data directly</RouterLink>.
             No API key required.
           </p>
           <div class="flex flex-wrap justify-center gap-4">

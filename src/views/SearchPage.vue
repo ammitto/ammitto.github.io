@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, shallowRef, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter, type LocationQueryValue } from 'vue-router'
 import SearchInput from '@/components/atoms/SearchInput.vue'
 import Badge from '@/components/atoms/Badge.vue'
@@ -11,6 +11,7 @@ import { boundedEditDistance, foldForSearch } from '@/utils/searchEncode'
 import { normalizeSourceCode, listTypes } from '@/config'
 import { searchRowToCard } from '@/utils/birthAdapters'
 import { countOf } from '@/utils/indexMetadata'
+import { appendNewMatches } from '@/utils/progressiveResults'
 
 // Initialize scroll animations
 useScrollAnimation()
@@ -32,10 +33,16 @@ const filters = ref({
 const PAGE_SIZE = 50
 const loadedCount = ref(PAGE_SIZE)
 
+// Placeholder cards shown while the index loads. Enough to fill the first
+// screen of the two-column grid, not a page's worth: PAGE_SIZE grey cards
+// would only be scrolled past.
+const SKELETON_CARDS = 6
+
 // Load data from lightweight search index
 const {
   isLoading: loading,
   isLoaded,
+  indexedCount,
   error,
   totalEntities: entityCount,
   sourceCount,
@@ -47,8 +54,10 @@ const {
   loadSearchIndex,
   loadFacets,
   search,
+  searchPartial,
   suggestFor,
   filter,
+  getEntity,
 } = useSearchIndex()
 
 // Query params arrive as string | null | (string | null)[] — or
@@ -213,10 +222,19 @@ const listsCovered = computed(() =>
  * one on the empty-state card — announce the same event twice; a live region on
  * the count alone says "0 results" and withholds the scope, the date and the
  * near misses, which are the whole reason the empty state is worth reading.
- * Empty while the index is loading, so nothing is asserted before it is known.
+ * While the index is loading it asserts nothing: it is empty, or, once a query
+ * is typed, `partialNotice`: one sentence naming the settled query and no
+ * count. It changes only when the debounced query does, so it is spoken once
+ * per search, including a second search during the same load, and not at
+ * every refresh of the partial results, which the banner shows unannounced.
  */
+const partialNotice = (query: string) =>
+  `Searching for \u201c${query}\u201d. Records are still loading, so results are not complete yet.`
+
 const resultAnnouncement = computed(() => {
-  if (!isLoaded.value || loading.value) return ''
+  if (!isLoaded.value || loading.value) {
+    return showPartial.value ? partialNotice(debouncedQuery.value.trim()) : ''
+  }
   const n = filteredEntities.value.length
   if (n > 0) return `${n.toLocaleString()} ${n === 1 ? 'result' : 'results'}`
   const scope = `No match. No entity on the ${listsCovered.value} Ammitto covers matches`
@@ -252,6 +270,14 @@ const asOf = computed(() => {
   })
 })
 
+/** The facet filters as `filter()` takes them; shared by the final and partial lists. */
+const filterSelection = computed(() => ({
+  authorities: filters.value.sources.length > 0 ? filters.value.sources : undefined,
+  types: filters.value.entityTypes.length > 0 ? filters.value.entityTypes : undefined,
+  listTypes: filters.value.listTypes.length > 0 ? filters.value.listTypes : undefined,
+  statuses: filters.value.statuses.length > 0 ? filters.value.statuses : undefined,
+}))
+
 const filteredEntities = computed(() => {
   // Same gate as `nearMisses`/`resultAnnouncement` above: while the index is
   // still building, `search()` cannot yet answer for the typed query, so the
@@ -261,18 +287,216 @@ const filteredEntities = computed(() => {
   let results = search(debouncedQuery.value, 100000) // Get all results for filtering
 
   // Apply filters
-  results = filter(results, {
-    authorities: filters.value.sources.length > 0 ? filters.value.sources : undefined,
-    types: filters.value.entityTypes.length > 0 ? filters.value.entityTypes : undefined,
-    listTypes: filters.value.listTypes.length > 0 ? filters.value.listTypes : undefined,
-    statuses: filters.value.statuses.length > 0 ? filters.value.statuses : undefined,
-  })
+  results = filter(results, filterSelection.value)
 
   return results.map(entityAdapter)
 })
 
+/**
+ * Matches found while the index is still building ("progressive results").
+ *
+ * Shown only when a query is typed and the build has not finished. The answer
+ * is incomplete by construction, so everything that would read as a verdict
+ * stays gated on the finished build exactly as before: the result count, the
+ * empty-state card, the near misses and the one live region
+ * (`resultAnnouncement`). What shows instead is the banner below the header,
+ * which always says the search is still running, including when nothing has
+ * matched yet.
+ *
+ * Cards already on screen never move while loading: new matches are appended
+ * in the order they were first found (`appendNewMatches`), and the single
+ * re-sort into relevance order is the switch to `filteredEntities` when the
+ * build completes. Only ids are held here; a card is built for the rows
+ * actually rendered.
+ */
+const showPartial = computed(() =>
+  (!isLoaded.value || loading.value) &&
+  !error.value &&
+  debouncedQuery.value.trim() !== '' &&
+  searchQuery.value.trim() !== '',
+)
+
+/**
+ * The input no longer says what the partial list answers: typed, but the
+ * 150ms debounce has not yet fired.
+ */
+const partialQueryPending = computed(() =>
+  searchQuery.value.trim() !== debouncedQuery.value.trim(),
+)
+
+const partialIds = shallowRef<readonly string[]>([])
+/** The ids of `partialIds`, kept alongside it for `appendNewMatches`. */
+let partialSeen = new Set<string>()
+/** How many rows had been indexed when `partialIds` was last refreshed. */
+const partialChecked = ref(0)
+
+/**
+ * Minimum gap between partial searches, in milliseconds.
+ *
+ * The build yields every ~40ms; searching the growing index at every yield
+ * would put a search of everything indexed so far into every gap the build
+ * leaves for typing. This bounds that work to a few searches a second while
+ * still showing new matches promptly.
+ */
+const PARTIAL_REFRESH_MS = 300
+
+let lastPartialRefresh = 0
+let partialTimer: ReturnType<typeof setTimeout> | null = null
+
+function clearPartialTimer() {
+  if (partialTimer) clearTimeout(partialTimer)
+  partialTimer = null
+}
+
+/**
+ * Partial cards are mounted at most this many per task.
+ *
+ * A card takes milliseconds to mount (each badge computes its colours), so a
+ * first page of PAGE_SIZE cards mounted in one go is a task of hundreds of
+ * milliseconds on a slow device, and while the index builds it comes at every
+ * settled keystroke, on a thread the build is already using. In steps of this
+ * size every task stays short, keystrokes are handled between steps, and an
+ * edit cancels the steps not yet run, so the cards of an abandoned query are
+ * mostly never built. The visible list is still a prefix of `partialIds` that
+ * only grows, so a card once shown still never moves.
+ */
+const PARTIAL_MOUNT_STEP = 6
+
+/** How many of `partialIds` may be mounted; raised by `mountNextPartialStep`. */
+const partialMounted = ref(0)
+let mountTimer: ReturnType<typeof setTimeout> | null = null
+
+/**
+ * Cards already built for `partialIds`, by id, so an append rebuilds none of
+ * the cards already shown: a new card object per refresh would re-render every
+ * mounted card. Partial mode only, and replaced by `resetPartial` whenever the
+ * list restarts or the build ends, so the final list never reads from it.
+ */
+let partialCards = new Map<string, ReturnType<typeof entityAdapter>>()
+
+function clearMountTimer() {
+  if (mountTimer) clearTimeout(mountTimer)
+  mountTimer = null
+}
+
+/** Mount the next step of partial cards in a later task, then the next, until caught up. */
+function schedulePartialMount() {
+  if (mountTimer) return
+  if (partialMounted.value >= Math.min(loadedCount.value, partialIds.value.length)) return
+  mountTimer = setTimeout(mountNextPartialStep, 0)
+}
+
+function mountNextPartialStep() {
+  mountTimer = null
+  const target = Math.min(loadedCount.value, partialIds.value.length)
+  partialMounted.value = Math.min(target, partialMounted.value + PARTIAL_MOUNT_STEP)
+  schedulePartialMount()
+}
+
+/** Start the partial list over: no ids, no cards, nothing pending to mount. */
+function resetPartial() {
+  clearMountTimer()
+  partialIds.value = []
+  partialSeen = new Set()
+  partialChecked.value = 0
+  partialMounted.value = 0
+  partialCards = new Map()
+}
+
+function refreshPartial() {
+  clearPartialTimer()
+  lastPartialRefresh = performance.now()
+  // Nothing to refresh until the debounce catches up: a search for the
+  // previous query would put back the cards just cleared for this one.
+  if (!showPartial.value || partialQueryPending.value) return
+  const checked = indexedCount.value
+  const found = filter(searchPartial(debouncedQuery.value, 100000), filterSelection.value)
+  partialIds.value = appendNewMatches(partialIds.value, found.map((e) => e.id), partialSeen)
+  partialChecked.value = checked
+  // The first step in this task, so the banner never counts matches while no
+  // card is on screen; the rest in later tasks.
+  if (partialMounted.value === 0) {
+    clearMountTimer()
+    mountNextPartialStep()
+  } else {
+    schedulePartialMount()
+  }
+}
+
+// An edit to the query clears the partial list at the keystroke, not after the
+// debounce: for those 150ms the cards and the banner would otherwise answer a
+// query the input no longer shows. Clearing is not "moving" a card; the cards
+// answered a question no longer asked.
+watch(searchQuery, () => {
+  if (!partialQueryPending.value) return
+  resetPartial()
+})
+
+// A settled query or a filter change starts a new partial list at once.
+watch([debouncedQuery, filters], () => {
+  resetPartial()
+  refreshPartial()
+}, { deep: true })
+
+// More rows indexed: refresh, at most once per PARTIAL_REFRESH_MS, with a
+// trailing refresh so the last rows before a pause are not left unsearched.
+watch(indexedCount, () => {
+  if (!showPartial.value) return
+  // Always through a timer, even when due now: this watcher runs in the same
+  // task as the build step that just yielded, and the search must not
+  // lengthen that step.
+  if (partialTimer) return
+  const wait = PARTIAL_REFRESH_MS - (performance.now() - lastPartialRefresh)
+  partialTimer = setTimeout(refreshPartial, Math.max(0, wait))
+})
+
+// The build finished (or failed): drop the partial list. From here the grid
+// is `filteredEntities`, in relevance order, as it always was.
+watch(showPartial, (partial) => {
+  if (partial) return
+  clearPartialTimer()
+  resetPartial()
+})
+
+onBeforeUnmount(() => {
+  clearPartialTimer()
+  clearMountTimer()
+  if (debounceTimer) clearTimeout(debounceTimer)
+})
+
+/**
+ * The banner's sentence. Names the query it answers, so a reader never takes
+ * the cards for an answer to something else.
+ */
+const progressMessage = computed(() => {
+  if (partialQueryPending.value) {
+    return `Searching for \u201c${searchQuery.value.trim()}\u201d. The records are still loading, so the search is not finished.`
+  }
+  const q = `\u201c${debouncedQuery.value.trim()}\u201d`
+  const total = entityCount.value
+  if (!total) return `No matches for ${q} yet, the records are still loading. The search is not finished.`
+  const checked = `${partialChecked.value.toLocaleString()} of ${total.toLocaleString()} records checked`
+  const n = partialIds.value.length
+  if (n === 0) return `No matches for ${q} yet, ${checked}. The search is not finished.`
+  return `${n.toLocaleString()} ${n === 1 ? 'match' : 'matches'} for ${q} so far, ${checked}. The list is not complete yet.`
+})
+
 // Paginated results
 const paginatedEntities = computed(() => {
+  if (showPartial.value) {
+    const cards: ReturnType<typeof entityAdapter>[] = []
+    for (const id of partialIds.value.slice(0, Math.min(loadedCount.value, partialMounted.value))) {
+      let card = partialCards.get(id)
+      if (!card) {
+        const entity = getEntity(id)
+        if (!entity) continue
+        card = entityAdapter(entity)
+        partialCards.set(id, card)
+      }
+      cards.push(card)
+    }
+    return cards
+  }
   return filteredEntities.value.slice(0, loadedCount.value)
 })
 
@@ -528,7 +752,11 @@ const statuses = computed(() =>
             The one live region on this page. Visually hidden because the same
             facts are already on screen; announced as a single sentence so a
             screen-reader user hears the outcome, its scope, its date and any
-            near misses together rather than a bare "0 results".
+            near misses together rather than a bare "0 results". While the
+            index is still loading and a query is typed it says only that the
+            search is running and incomplete (`partialNotice`), once per query, so a
+            screen-reader user knows why cards are appearing without hearing
+            a count or a negative.
           -->
           <p class="sr-only" role="status" aria-live="polite">
             {{ resultAnnouncement }}
@@ -551,7 +779,7 @@ const statuses = computed(() =>
               vite-ssg-prerendered /search HTML, which is a false negative in
               the bytes a crawler reads.
             -->
-            <p v-if="isLoaded" class="text-sm text-light-muted dark:text-dark-muted">
+            <p v-if="isLoaded" class="text-sm text-light-muted dark:text-dark-muted" data-testid="search-count">
               <span class="font-semibold text-light-text dark:text-dark-text">
                 {{ filteredEntities.length.toLocaleString() }}
               </span>
@@ -563,13 +791,78 @@ const statuses = computed(() =>
             </p>
           </div>
 
+          <!--
+            Progress while the index builds and a query is typed. It is the one
+            thing on screen that speaks for a partial answer, so it is shown
+            for as long as the answer is partial, zero matches included: then
+            it says "no matches yet", never a negative. Not a live region, and
+            no role="status": `resultAnnouncement` stays the page's only one,
+            so a screen reader hears one "still searching" notice and then the
+            finished result, not every refresh of an incomplete one.
+          -->
+          <p
+            v-if="showPartial"
+            class="mb-4 rounded-lg border border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface px-4 py-3 text-sm text-light-text dark:text-dark-text"
+            data-testid="search-progress"
+          >
+            {{ progressMessage }}
+          </p>
+
           <!-- Results Grid -->
-          <div v-if="paginatedEntities.length > 0" class="grid sm:grid-cols-2 gap-4">
+          <div v-if="paginatedEntities.length > 0" class="grid sm:grid-cols-2 gap-4" data-testid="search-results">
             <EntityCard
               v-for="entity in paginatedEntities"
               :key="entity.id"
               :entity="entity"
             />
+          </div>
+
+          <!--
+            Placeholder cards while the index loads, so the results area is not
+            blank while the index downloads and builds. They carry no text at
+            all: no name, no count, nothing a reader could file as a result,
+            because a premature negative is the one failure that matters here.
+            Gated on the same condition that withholds the final results and
+            the empty state, so they give way to exactly one of those the
+            moment the load finishes. Placed after the grid, so matches found
+            so far (`showPartial`) appear above them and the placeholders read
+            as "more may follow". Inside the `v-else` of the error card, so a
+            failed load shows only the error. aria-hidden, and no live region
+            of their own: `resultAnnouncement` stays the page's one, and a
+            screen reader has nothing to hear in grey bars.
+
+            A plain opaque surface, deliberately not `glass-card` and not
+            animated: a backdrop blur under an animation is redrawn by the
+            compositor every frame, and that competes with the index build
+            for the CPU while the placeholders are on screen.
+          -->
+          <div
+            v-if="!isLoaded || loading"
+            class="grid sm:grid-cols-2 gap-4"
+            :class="paginatedEntities.length ? 'mt-4' : ''"
+            aria-hidden="true"
+            data-testid="search-skeleton"
+          >
+            <div
+              v-for="n in SKELETON_CARDS"
+              :key="n"
+              class="rounded-xl border bg-light-surface dark:bg-dark-surface border-light-border dark:border-dark-border min-w-0 p-4"
+            >
+              <div class="flex items-start justify-between gap-3 mb-2">
+                <div class="flex-1 min-w-0">
+                  <div class="h-5 w-3/4 my-1 rounded bg-light-border dark:bg-dark-border" />
+                  <div class="h-3.5 w-1/2 mt-2 rounded bg-light-border dark:bg-dark-border" />
+                </div>
+                <div class="flex flex-col items-end gap-1 w-1/5 min-w-0">
+                  <div class="h-5 w-full rounded-full bg-light-border dark:bg-dark-border" />
+                  <div class="h-5 w-full rounded-full bg-light-border dark:bg-dark-border" />
+                </div>
+              </div>
+              <div class="flex gap-2 mt-3">
+                <div class="h-5 w-1/6 rounded-full bg-light-border dark:bg-dark-border" />
+                <div class="h-5 w-1/5 rounded-full bg-light-border dark:bg-dark-border" />
+              </div>
+            </div>
           </div>
 
           <!-- Load More -->

@@ -209,10 +209,13 @@ test('a zero result is not announced before the index has loaded', () => {
     source.indexOf('\n})', source.indexOf('const resultAnnouncement')),
   )
   assert.ok(block, 'expected a composed resultAnnouncement')
+  // Empty, or the fixed "still searching" notice once a query is typed (see
+  // searchProgressiveWiring.test.js, which pins that it carries no count and
+  // no negative): never a result, before the index has loaded.
   assert.match(
     block,
-    /if \(!isLoaded\.value \|\| loading\.value\) return ''/,
-    'the announcement must be empty until the index has loaded',
+    /if \(!isLoaded\.value \|\| loading\.value\) \{\s*return showPartial\.value \? partialNotice\(debouncedQuery\.value\.trim\(\)\) : ''\s*\}/,
+    'the announcement must assert nothing until the index has loaded',
   )
   // It must carry more than the count: the scope, the date and the near misses
   // are the whole reason the empty state is worth reading, and a live region on
