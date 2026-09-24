@@ -474,11 +474,18 @@ const progressMessage = computed(() => {
   }
   const q = `\u201c${debouncedQuery.value.trim()}\u201d`
   const total = entityCount.value
-  if (!total) return `No matches for ${q} yet, the records are still loading. The search is not finished.`
-  const checked = `${partialChecked.value.toLocaleString()} of ${total.toLocaleString()} records checked`
   const n = partialIds.value.length
+  const found = countOf(n, 'match', 'matches')
+  // Without a valid index total (see `checkMetadata`) there is no "of N" to
+  // state, but the cards already on screen still have to be counted: saying
+  // "no matches yet" above them would contradict the page.
+  if (!total) {
+    if (n === 0) return `No matches for ${q} yet, the records are still loading. The search is not finished.`
+    return `${found} for ${q} so far. The records are still loading, so the list is not complete yet.`
+  }
+  const checked = `${partialChecked.value.toLocaleString()} of ${countOf(total, 'record', 'records')} checked`
   if (n === 0) return `No matches for ${q} yet, ${checked}. The search is not finished.`
-  return `${n.toLocaleString()} ${n === 1 ? 'match' : 'matches'} for ${q} so far, ${checked}. The list is not complete yet.`
+  return `${found} for ${q} so far, ${checked}. The list is not complete yet.`
 })
 
 // Paginated results
