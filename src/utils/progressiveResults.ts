@@ -54,12 +54,16 @@ export function partialMatchIds(
  *
  * Returns `shown` itself when nothing is new, so a caller holding it in a
  * shallow ref does not trigger a re-render for an unchanged list.
+ *
+ * `seen` must hold exactly the ids of `shown`, and gains the ids appended. A
+ * caller that refreshes the same list repeatedly passes its own, so a
+ * refresh costs the length of `found`, not of everything already shown.
  */
 export function appendNewMatches(
   shown: readonly string[],
   found: readonly string[],
+  seen: Set<string> = new Set(shown),
 ): readonly string[] {
-  const seen = new Set(shown)
   let next: string[] | null = null
   for (const id of found) {
     if (seen.has(id)) continue

@@ -174,6 +174,25 @@ test('appendNewMatches keeps order, skips duplicates and returns the same list w
   assert.deepEqual(shown, ['a', 'b'], 'the input list is not mutated')
 })
 
+test('appendNewMatches with a caller-held seen set gives the same list and keeps the set in step', () => {
+  const rows = corpus()
+  const { steps } = buildRecording(rows, QUERIES, 5, repeatedIdsOf(rows))
+  for (const q of QUERIES) {
+    let plain = []
+    let held = []
+    const seen = new Set()
+    for (const snap of steps) {
+      plain = appendNewMatches(plain, snap[q])
+      held = appendNewMatches(held, snap[q], seen)
+      assert.deepEqual(held, plain, `"${q}": a held seen set changed the list`)
+      assert.deepEqual([...seen].sort(), [...held].sort(), `"${q}": seen drifted from the list`)
+    }
+  }
+  const shown = ['a']
+  const seen = new Set(shown)
+  assert.equal(appendNewMatches(shown, ['a'], seen), shown, 'nothing new: the same list')
+})
+
 test('partialMatchIds answers nothing for a blank query and returns string ids', () => {
   const index = newIndex()
   addRow(index, row('e1', 'Zebulon'))

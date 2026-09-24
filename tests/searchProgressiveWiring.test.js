@@ -46,7 +46,7 @@ test('partial results show only while building and only for a typed query', () =
 test('a query edit clears the partial list at the keystroke, and no stale refresh restores it', () => {
   assert.match(
     page,
-    /watch\(searchQuery, \(\) => \{\s*if \(!partialQueryPending\.value\) return\s*partialIds\.value = \[\]\s*partialChecked\.value = 0/,
+    /watch\(searchQuery, \(\) => \{\s*if \(!partialQueryPending\.value\) return\s*resetPartial\(\)/,
   )
   const refresh = page.slice(page.indexOf('function refreshPartial('), page.indexOf('// An edit to the query'))
   assert.match(refresh, /if \(!showPartial\.value \|\| partialQueryPending\.value\) return/)
@@ -113,6 +113,9 @@ test('verdicts stay gated on the finished build', () => {
 
 test('partial cards come from appendNewMatches, so they never move while loading', () => {
   assert.match(page, /partialIds\.value = appendNewMatches\(partialIds\.value,/)
+  // With the list's own seen set: rebuilding one from every shown id at each
+  // refresh is the cost this avoids.
+  assert.match(page, /appendNewMatches\(partialIds\.value, [^;\n]*, partialSeen\)/)
   assert.ok(
     !/partialIds\.value = [^;\n]*\.sort\(/.test(page),
     'partial ids must not be re-sorted mid-load',
@@ -147,4 +150,43 @@ test('progress is published at a yield, not per row', () => {
   )
   assert.ok(!/indexedCount\.value =/.test(visit))
   assert.match(composable, /yieldControl: \(\) => \{\s*indexedCount\.value = added/)
+})
+
+test('the partial search reads rows from the raw Map, not through reactive proxies', () => {
+  // Through the reactive Map every get wraps its row in a new proxy, per match
+  // per refresh; a short prefix mid-build matches tens of thousands of rows.
+  const partial = composable.slice(composable.indexOf('function searchPartial('))
+  const body = partial.slice(0, partial.indexOf('\n}\n'))
+  assert.match(body, /const rows = toRaw\(entities\.value\)/)
+  assert.match(body, /\.map\(\(id\) => rows\.get\(id\)\)/)
+  assert.ok(!/entities\.value\.get/.test(body))
+})
+
+test('partial cards mount in steps, and every restart of the list drops what was pending', () => {
+  const reset = page.slice(page.indexOf('function resetPartial()'))
+  const body = reset.slice(0, reset.indexOf('\n}\n'))
+  for (const line of [
+    'clearMountTimer()',
+    'partialIds.value = []',
+    'partialSeen = new Set()',
+    'partialMounted.value = 0',
+    'partialCards = new Map()',
+  ]) {
+    assert.ok(body.includes(line), `resetPartial must run ${line}`)
+  }
+  // The keystroke, the settled query or filter, and the end of the build.
+  assert.match(page, /watch\(\[debouncedQuery, filters\], \(\) => \{\s*resetPartial\(\)\s*refreshPartial\(\)/)
+  assert.match(page, /watch\(showPartial, \(partial\) => \{\s*if \(partial\) return\s*clearPartialTimer\(\)\s*resetPartial\(\)/)
+  assert.match(page, /onBeforeUnmount\(\(\) => \{[^}]*clearMountTimer\(\)/)
+})
+
+test('the card cache serves the partial list only', () => {
+  const body = computedBody('paginatedEntities')
+  const partialBranch = body.slice(0, body.indexOf('return filteredEntities.value'))
+  assert.match(partialBranch, /if \(showPartial\.value\)/)
+  assert.match(partialBranch, /partialCards\.get\(id\)/)
+  assert.match(partialBranch, /Math\.min\(loadedCount\.value, partialMounted\.value\)/)
+  const finalBranch = body.slice(body.indexOf('return filteredEntities.value'))
+  assert.ok(!/partialCards/.test(finalBranch), 'the final list must not read the partial card cache')
+  assert.equal(page.match(/partialCards = new Map\(\)/g).length, 1, 'only resetPartial replaces the cache')
 })

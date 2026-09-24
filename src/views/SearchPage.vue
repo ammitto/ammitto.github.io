@@ -315,6 +315,8 @@ const partialQueryPending = computed(() =>
 )
 
 const partialIds = shallowRef<readonly string[]>([])
+/** The ids of `partialIds`, kept alongside it for `appendNewMatches`. */
+let partialSeen = new Set<string>()
 /** How many rows had been indexed when `partialIds` was last refreshed. */
 const partialChecked = ref(0)
 
@@ -336,6 +338,61 @@ function clearPartialTimer() {
   partialTimer = null
 }
 
+/**
+ * Partial cards are mounted at most this many per task.
+ *
+ * A card takes milliseconds to mount (each badge computes its colours), so a
+ * first page of PAGE_SIZE cards mounted in one go is a task of hundreds of
+ * milliseconds on a slow device, and while the index builds it comes at every
+ * settled keystroke, on a thread the build is already using. In steps of this
+ * size every task stays short, keystrokes are handled between steps, and an
+ * edit cancels the steps not yet run, so the cards of an abandoned query are
+ * mostly never built. The visible list is still a prefix of `partialIds` that
+ * only grows, so a card once shown still never moves.
+ */
+const PARTIAL_MOUNT_STEP = 6
+
+/** How many of `partialIds` may be mounted; raised by `mountNextPartialStep`. */
+const partialMounted = ref(0)
+let mountTimer: ReturnType<typeof setTimeout> | null = null
+
+/**
+ * Cards already built for `partialIds`, by id, so an append rebuilds none of
+ * the cards already shown: a new card object per refresh would re-render every
+ * mounted card. Partial mode only, and replaced by `resetPartial` whenever the
+ * list restarts or the build ends, so the final list never reads from it.
+ */
+let partialCards = new Map<string, ReturnType<typeof entityAdapter>>()
+
+function clearMountTimer() {
+  if (mountTimer) clearTimeout(mountTimer)
+  mountTimer = null
+}
+
+/** Mount the next step of partial cards in a later task, then the next, until caught up. */
+function schedulePartialMount() {
+  if (mountTimer) return
+  if (partialMounted.value >= Math.min(loadedCount.value, partialIds.value.length)) return
+  mountTimer = setTimeout(mountNextPartialStep, 0)
+}
+
+function mountNextPartialStep() {
+  mountTimer = null
+  const target = Math.min(loadedCount.value, partialIds.value.length)
+  partialMounted.value = Math.min(target, partialMounted.value + PARTIAL_MOUNT_STEP)
+  schedulePartialMount()
+}
+
+/** Start the partial list over: no ids, no cards, nothing pending to mount. */
+function resetPartial() {
+  clearMountTimer()
+  partialIds.value = []
+  partialSeen = new Set()
+  partialChecked.value = 0
+  partialMounted.value = 0
+  partialCards = new Map()
+}
+
 function refreshPartial() {
   clearPartialTimer()
   lastPartialRefresh = performance.now()
@@ -344,8 +401,16 @@ function refreshPartial() {
   if (!showPartial.value || partialQueryPending.value) return
   const checked = indexedCount.value
   const found = filter(searchPartial(debouncedQuery.value, 100000), filterSelection.value)
-  partialIds.value = appendNewMatches(partialIds.value, found.map((e) => e.id))
+  partialIds.value = appendNewMatches(partialIds.value, found.map((e) => e.id), partialSeen)
   partialChecked.value = checked
+  // The first step in this task, so the banner never counts matches while no
+  // card is on screen; the rest in later tasks.
+  if (partialMounted.value === 0) {
+    clearMountTimer()
+    mountNextPartialStep()
+  } else {
+    schedulePartialMount()
+  }
 }
 
 // An edit to the query clears the partial list at the keystroke, not after the
@@ -354,14 +419,12 @@ function refreshPartial() {
 // answered a question no longer asked.
 watch(searchQuery, () => {
   if (!partialQueryPending.value) return
-  partialIds.value = []
-  partialChecked.value = 0
+  resetPartial()
 })
 
 // A settled query or a filter change starts a new partial list at once.
 watch([debouncedQuery, filters], () => {
-  partialIds.value = []
-  partialChecked.value = 0
+  resetPartial()
   refreshPartial()
 }, { deep: true })
 
@@ -382,12 +445,12 @@ watch(indexedCount, () => {
 watch(showPartial, (partial) => {
   if (partial) return
   clearPartialTimer()
-  partialIds.value = []
-  partialChecked.value = 0
+  resetPartial()
 })
 
 onBeforeUnmount(() => {
   clearPartialTimer()
+  clearMountTimer()
   if (debounceTimer) clearTimeout(debounceTimer)
 })
 
@@ -411,11 +474,18 @@ const progressMessage = computed(() => {
 // Paginated results
 const paginatedEntities = computed(() => {
   if (showPartial.value) {
-    return partialIds.value
-      .slice(0, loadedCount.value)
-      .map((id) => getEntity(id))
-      .filter((e): e is SearchEntity => e !== undefined)
-      .map(entityAdapter)
+    const cards: ReturnType<typeof entityAdapter>[] = []
+    for (const id of partialIds.value.slice(0, Math.min(loadedCount.value, partialMounted.value))) {
+      let card = partialCards.get(id)
+      if (!card) {
+        const entity = getEntity(id)
+        if (!entity) continue
+        card = entityAdapter(entity)
+        partialCards.set(id, card)
+      }
+      cards.push(card)
+    }
+    return cards
   }
   return filteredEntities.value.slice(0, loadedCount.value)
 })

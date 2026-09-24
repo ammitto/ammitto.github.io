@@ -255,6 +255,60 @@ async function settledList(browser, query) {
   return hrefs
 }
 
+/**
+ * Hold every timer while `window.__gate` is set, to be run one at a time by
+ * `window.__step`. That makes "between two mounting steps" a state a test can
+ * stop in, whatever the machine's speed.
+ */
+async function gateTimers(page) {
+  await page.addInitScript(() => {
+    const outerSet = window.setTimeout
+    const outerClear = window.clearTimeout
+    window.__gate = false
+    window.__gated = []
+    let fake = 1e9
+    window.setTimeout = (fn, ms, ...args) => {
+      if (!window.__gate) return outerSet(fn, ms, ...args)
+      const id = ++fake
+      window.__gated.push({ id, run: () => fn(...args) })
+      return id
+    }
+    window.clearTimeout = (id) => {
+      const i = window.__gated.findIndex((t) => t.id === id)
+      if (i !== -1) window.__gated.splice(i, 1)
+      else outerClear(id)
+    }
+    window.__step = () => window.__gated.shift()?.run()
+  })
+}
+
+const partialCardCount = (page) => page.locator('[data-testid="search-results"] > a').count()
+
+/** Park the build with 4,000 rows indexed, every one but p900 a "filler" match. */
+async function parkWithFillerRows(page) {
+  for (let i = 0; i < 26; i++) {
+    await settle(page)
+    await page.evaluate(() => window.__release())
+  }
+  await settle(page)
+}
+
+/** Run held timers until cards are on screen: the debounce, then the first mounting step. */
+async function stepUntilCards(page) {
+  for (let i = 0; i < 20 && (await partialCardCount(page)) === 0; i++) {
+    await page.evaluate(() => window.__step())
+  }
+  return partialCardCount(page)
+}
+
+/** Run every held timer, then stop holding them. */
+async function drainGated(page) {
+  for (let i = 0; i < 200 && (await page.evaluate(() => window.__gated.length)) > 0; i++) {
+    await page.evaluate(() => window.__step())
+  }
+  await page.evaluate(() => { window.__gate = false })
+}
+
 test.describe('search partial results while the index builds', () => {
   test.setTimeout(180000)
 
@@ -393,6 +447,132 @@ test.describe('search partial results while the index builds', () => {
     expect(filtered.every((s) => !s.cards.includes(EARLY))).toBe(true)
     const final = states[states.length - 1]
     expect(final.cards).toEqual([href(12000)])
+    expect(errors).toEqual([])
+  })
+
+  test('partial cards mount a few per task, and an edit cancels the ones still pending', async ({ page }) => {
+    const errors = collectPageErrors(page)
+    await controlBuild(page)
+    await gateTimers(page)
+    await serveSynthetic(page)
+    await page.goto('/search', { waitUntil: 'domcontentloaded' })
+    const input = page.getByPlaceholder(/Search by name/)
+
+    await parkWithFillerRows(page)
+    await page.evaluate(() => { window.__gate = true })
+    await input.fill('filler')
+    const firstStep = await stepUntilCards(page)
+    expect(firstStep, 'one mounting step, not the whole first page').toBeGreaterThan(0)
+    expect(firstStep).toBeLessThanOrEqual(6)
+    await expect(page.getByTestId('search-progress')).toContainText(/^[\d,]+ matches for “filler” so far/)
+    expect(await page.evaluate(() => window.__gated.length), 'more cards are waiting to mount').toBeGreaterThan(0)
+
+    // The edit lands between two steps: nothing for "filler" may mount after it.
+    await input.fill('zebulon')
+    const afterEdit = await page.evaluate(() => window.__states.length)
+    await drainGated(page)
+    await driveBuild(page)
+    await expect(page.getByTestId('search-count')).toContainText('3 results')
+
+    const states = await page.evaluate(() => window.__states)
+    const zebulon = allowed('zebulon', null)
+    for (const s of states.slice(afterEdit)) {
+      for (const h of s.cards) expect(zebulon.has(h), `${h} mounted after the edit to "${s.input}"`).toBe(true)
+    }
+    // While loading, no single render adds more than one step of cards, and
+    // cards only append while the query stands.
+    const loading = states.filter((s) => s.skeleton)
+    for (let i = 1; i < loading.length; i++) {
+      const [a, b] = [loading[i - 1], loading[i]]
+      if (a.input !== b.input || a.type !== b.type) continue
+      expect(b.cards.slice(0, a.cards.length), 'a shown card moved or vanished').toEqual(a.cards)
+      expect(b.cards.length - a.cards.length, 'cards mounted in one render').toBeLessThanOrEqual(6)
+    }
+    expect(loading.some((s) => s.input === 'filler' && s.cards.length > 0)).toBe(true)
+    expect(errors).toEqual([])
+  })
+
+  test('a filter change mid-build cancels the mounting steps still pending', async ({ page }) => {
+    const errors = collectPageErrors(page)
+    await controlBuild(page)
+    await gateTimers(page)
+    await serveSynthetic(page)
+    await page.goto('/search', { waitUntil: 'domcontentloaded' })
+    await parkWithFillerRows(page)
+
+    await page.evaluate(() => { window.__gate = true })
+    await page.getByPlaceholder(/Search by name/).fill('filler')
+    const firstStep = await stepUntilCards(page)
+    expect(firstStep).toBeGreaterThan(0)
+    expect(await page.evaluate(() => window.__gated.length), 'more cards are waiting to mount').toBeGreaterThan(0)
+
+    // No filler row is an organization: nothing may mount once the filter is on.
+    await page.locator('aside').getByRole('button', { name: /Organization/ }).first().click()
+    const afterFilter = await page.evaluate(() => window.__states.length)
+    await drainGated(page)
+    await driveBuild(page)
+    await expect(page.getByText('No match found')).toBeVisible()
+
+    const states = await page.evaluate(() => window.__states)
+    const after = states.slice(afterFilter).filter((s) => s.type === 'organization')
+    expect(after.length).toBeGreaterThan(0)
+    for (const s of after) expect(s.cards, 'a card for the old filter mounted after the change').toEqual([])
+    expect(errors).toEqual([])
+  })
+
+  test('an append re-renders none of the cards already shown', async ({ page }) => {
+    const errors = collectPageErrors(page)
+    await controlBuild(page)
+    await serveSynthetic(page)
+    await page.goto('/search?q=filler', { waitUntil: 'domcontentloaded' })
+    await parkWithFillerRows(page)
+    await expect(page.locator('[data-testid="search-results"] > a')).toHaveCount(50)
+
+    // Tag the first card's element, and hold the entity object its component
+    // was given: an unchanged card keeps both across an append.
+    // Found through the root vnode (`#app._vnode`), which a production build
+    // keeps; the per-element component handles are development-only.
+    const cardProps = () => {
+      const walk = (vnode) => {
+        if (!vnode || typeof vnode !== 'object') return undefined
+        const c = vnode.component
+        if (c) return c.props && 'entity' in c.props ? c.props.entity : walk(c.subTree)
+        if (Array.isArray(vnode.children)) {
+          for (const child of vnode.children) {
+            const found = walk(child)
+            if (found) return found
+          }
+        }
+        return undefined
+      }
+      return walk(document.querySelector('#app')._vnode)
+    }
+    await page.evaluate((fn) => {
+      const a = document.querySelector('[data-testid="search-results"] > a')
+      a.dataset.tagged = '1'
+      window.__heldEntity = new Function(`return (${fn})()`)()
+    }, cardProps.toString())
+    expect(
+      await page.evaluate(() => window.__heldEntity?.names?.[0] ?? null),
+      'the probe found the first card',
+    ).toMatch(/^Filler Person /)
+    const banner = page.getByTestId('search-progress')
+    const before = await banner.textContent()
+
+    // One more build step: 1,000 more matches, appended past the first page.
+    await page.evaluate(() => window.__release())
+    await settle(page)
+    await expect(banner).not.toHaveText(before)
+
+    const same = await page.evaluate((fn) => {
+      const a = document.querySelector('[data-testid="search-results"] > a')
+      return {
+        node: a.dataset.tagged === '1',
+        entity: new Function(`return (${fn})()`)() === window.__heldEntity,
+      }
+    }, cardProps.toString())
+    expect(same.node, 'the first card element was replaced').toBe(true)
+    expect(same.entity, 'the first card was handed a new entity object, so it re-rendered').toBe(true)
     expect(errors).toEqual([])
   })
 })

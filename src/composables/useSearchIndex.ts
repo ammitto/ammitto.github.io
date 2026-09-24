@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue'
+import { ref, computed, toRaw } from 'vue'
 import FlexSearch from 'flexsearch'
 import { normalizeNode } from '@/utils/normalizeNode'
 import { searchRowText } from '@/utils/birthAdapters'
@@ -381,11 +381,19 @@ function search(query: string, limit = 100): SearchEntity[] {
  * empty answer as "no match" (see SearchPage.vue). Returns nothing once the
  * build has finished, when `search()` is the one to ask, and for a blank
  * query.
+ *
+ * Reads the rows from the raw Map. Through the reactive one, every `get` wraps
+ * its row in a new reactive proxy, and a short prefix typed mid-build matches
+ * tens of thousands of rows, so the wrapping would cost far more than the
+ * search. Nothing is lost: the caller runs this imperatively, not inside a
+ * computed, so there is no dependency to track, and a row is never mutated
+ * after the build's one `set` of it.
  */
 function searchPartial(query: string, limit = 100): SearchEntity[] {
   if (isLoaded.value || !partialIndex) return []
+  const rows = toRaw(entities.value)
   return partialMatchIds(partialIndex, query, repeatedIds, limit)
-    .map((id) => entities.value.get(id))
+    .map((id) => rows.get(id))
     .filter(Boolean) as SearchEntity[]
 }
 
