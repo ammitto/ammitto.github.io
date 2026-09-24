@@ -3,6 +3,7 @@ import FlexSearch from 'flexsearch'
 import { normalizeNode } from '@/utils/normalizeNode'
 import { searchRowText } from '@/utils/birthAdapters'
 import { getEntityNodePath } from '@/utils/entityUrls'
+import { checkMetadata, type CheckedMetadata } from '@/utils/indexMetadata'
 import {
   foldForSearch,
   indexableText,
@@ -87,7 +88,14 @@ const entities = ref<Map<string, SearchEntity>>(new Map())
 const isLoading = ref(false)
 const isLoaded = ref(false)
 const error = ref<string | null>(null)
-const metadata = ref<SearchIndexResponse['metadata'] | null>(null)
+const metadata = ref<CheckedMetadata | null>(null)
+
+/**
+ * Whether a malformed metadata block has already been reported. The page
+ * words around a bad field silently, so without one warning a producer
+ * regression would be invisible; one is enough.
+ */
+let reportedBadMetadata = false
 
 // Facet caches
 const authorityFacets = ref<FacetItem[]>([])
@@ -143,7 +151,15 @@ async function loadSearchIndex(): Promise<void> {
     }
 
     const data: SearchIndexResponse = await response.json()
-    metadata.value = data.metadata
+    metadata.value = checkMetadata(data.metadata)
+    if (metadata.value.invalid.length && !reportedBadMetadata) {
+      reportedBadMetadata = true
+      console.warn(
+        `search-index.json metadata: absent or invalid ${metadata.value.invalid.join(', ')}; ` +
+          'the page omits them rather than state them',
+        data.metadata,
+      )
+    }
 
     // Build FlexSearch index.
     //
@@ -451,10 +467,12 @@ export function useSearchIndex() {
   // mount, so the page that needs the index still gets it, while every
   // other page stops paying for it.
 
-  const totalEntities = computed(() => metadata.value?.totalEntities || 0)
-  const sourceCount = computed(() => metadata.value?.sources || 0)
+  // Each is valid or 0, never a raw metadata value: see `checkMetadata`.
+  const totalEntities = computed(() => metadata.value?.totalEntities ?? 0)
+  const sourceCount = computed(() => metadata.value?.sources ?? 0)
   /**
-   * When the published data was generated, as an ISO string, or ''.
+   * When the published data was generated, as an ISO string, or '' when the
+   * index did not carry a plausible one.
    *
    * The empty state needs it: "no entity matches X" is only true as of a
    * date, and a screening result without one cannot be filed.

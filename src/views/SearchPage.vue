@@ -10,6 +10,7 @@ import { useSearchIndex, type SearchEntity } from '@/composables/useSearchIndex'
 import { boundedEditDistance, foldForSearch } from '@/utils/searchEncode'
 import { normalizeSourceCode, listTypes } from '@/config'
 import { searchRowToCard } from '@/utils/birthAdapters'
+import { countOf } from '@/utils/indexMetadata'
 
 // Initialize scroll animations
 useScrollAnimation()
@@ -197,6 +198,15 @@ function applySuggestion(token: string): void {
 }
 
 /**
+ * "the 14 lists", or "the lists" when the index carried no usable source
+ * count. The no-match copy states its scope, and a scope of "0 lists" would
+ * read as nothing having been searched.
+ */
+const listsCovered = computed(() =>
+  sourceCount.value > 0 ? countOf(sourceCount.value, 'list', 'lists') : 'lists',
+)
+
+/**
  * The single sentence a screen reader is told when a search settles.
  *
  * Composed rather than scattered. Two separate live regions — one on the count,
@@ -209,7 +219,7 @@ const resultAnnouncement = computed(() => {
   if (!isLoaded.value || loading.value) return ''
   const n = filteredEntities.value.length
   if (n > 0) return `${n.toLocaleString()} ${n === 1 ? 'result' : 'results'}`
-  const scope = `No match. No entity on the ${sourceCount.value} lists Ammitto covers matches`
+  const scope = `No match. No entity on the ${listsCovered.value} Ammitto covers matches`
   const subject = debouncedQuery.value.trim()
     ? `"${debouncedQuery.value.trim()}"`
     : 'the current filters'
@@ -390,8 +400,19 @@ const statuses = computed(() =>
           <h1 class="text-3xl font-bold mb-2 text-center">
             Search Sanctions Database
           </h1>
+          <!--
+            Both figures come from the index's metadata, which only exists once
+            the whole index has downloaded. Until then they are 0, and "0
+            sanctioned entities" is a false answer: in the prerendered HTML it
+            was permanent. The counts are withheld until they are known and valid.
+          -->
           <p class="text-light-muted dark:text-dark-muted text-center mb-8">
-            Search across {{ sourceCount }} data sources covering {{ entityCount.toLocaleString() }} sanctioned entities.
+            <template v-if="sourceCount > 0 && entityCount > 0">
+              Search across {{ countOf(sourceCount, 'data source', 'data sources') }} covering {{ countOf(entityCount, 'sanctioned entity', 'sanctioned entities') }}.
+            </template>
+            <template v-else>
+              Search the sanctions lists Ammitto collects.
+            </template>
           </p>
 
           <!-- Search Input -->
@@ -597,11 +618,11 @@ const statuses = computed(() =>
             -->
             <p class="text-light-muted dark:text-dark-muted mb-4 max-w-lg mx-auto">
               <template v-if="debouncedQuery.trim()">
-                No entity on the {{ sourceCount }} lists Ammitto covers matches
+                No entity on the {{ listsCovered }} Ammitto covers matches
                 <span class="font-semibold text-light-text dark:text-dark-text">&ldquo;{{ debouncedQuery.trim() }}&rdquo;</span><span v-if="hasFacetFilters"> with the current filters</span>.
               </template>
               <template v-else>
-                No entity on the {{ sourceCount }} lists Ammitto covers matches the current filters.
+                No entity on the {{ listsCovered }} Ammitto covers matches the current filters.
               </template>
               <span v-if="asOf" class="block mt-1 text-sm">Data as of {{ asOf }}.</span>
             </p>

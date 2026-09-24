@@ -57,6 +57,7 @@
     "src/utils/entityUrls.ts",
     "src/utils/nodeDocuments.ts",
     "src/utils/latestLoad.ts",
+    "src/utils/indexMetadata.ts",
     "src/config/palette.ts",
     "src/config/index.ts"
   ],
