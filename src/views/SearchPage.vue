@@ -1,14 +1,21 @@
 <script setup lang="ts">
-import { ref, shallowRef, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, shallowRef, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRoute, useRouter, type LocationQueryValue } from 'vue-router'
 import SearchInput from '@/components/atoms/SearchInput.vue'
-import Badge from '@/components/atoms/Badge.vue'
 import EntityCard from '@/components/molecules/EntityCard.vue'
 import SearchFilters from '@/components/organisms/SearchFilters.vue'
+import SideDrawer from '@/components/molecules/SideDrawer.vue'
+import AppliedFiltersBar, { type AppliedChip } from '@/components/molecules/AppliedFiltersBar.vue'
 import { useScrollAnimation } from '@/composables/useScrollAnimation'
 import { useSearchIndex, type SearchEntity } from '@/composables/useSearchIndex'
 import { boundedEditDistance, foldForSearch } from '@/utils/searchEncode'
-import { normalizeSourceCode, listTypes } from '@/config'
+import {
+  normalizeSourceCode,
+  sources as sourceCatalog,
+  entityTypes as entityTypeCatalog,
+  listTypes,
+  statuses as statusCatalog,
+} from '@/config'
 import { searchRowToCard } from '@/utils/birthAdapters'
 import { appendNewMatches } from '@/utils/progressiveResults'
 
@@ -114,7 +121,10 @@ watch(searchQuery, (newQuery) => {
 watch([searchQuery, filters], () => {
   loadedCount.value = PAGE_SIZE // Reset pagination when filters change
   const query: Record<string, string | string[]> = {}
-  if (searchQuery.value) query.q = searchQuery.value
+  // Trimmed as on load, so a blank query (which shows no clear button) leaves
+  // no `q` in the URL either, and the address matches what a reload restores.
+  const q = searchQuery.value.trim()
+  if (q) query.q = q
   if (filters.value.sources.length > 0) query.source = filters.value.sources
   if (filters.value.entityTypes.length > 0) query.type = filters.value.entityTypes
   if (filters.value.listTypes.length > 0) query.list = filters.value.listTypes
@@ -575,33 +585,106 @@ const hasFacetFilters = computed(() =>
   filters.value.statuses.length > 0
 )
 
-const activeFilterCount = computed(() =>
-  (searchQuery.value ? 1 : 0) +
+// Facet selections only, for the Filters button's label: the query is not
+// inside the drawer, so counting it would announce a filter the drawer does
+// not show.
+const facetFilterCount = computed(() =>
   filters.value.sources.length +
   filters.value.entityTypes.length +
   filters.value.listTypes.length +
   filters.value.statuses.length
 )
 
-// Source names for display
-const sources = computed(() =>
-  authorityFacets.value.map(f => ({ code: f.code, name: f.name || f.code }))
-)
+// The filter drawer, below `lg` only; on `lg` the panel is the sidebar.
+const filtersOpen = ref(false)
 
-const entityTypes = computed(() =>
-  typeFacets.value.map(f => ({ code: f.code, name: f.name || f.code }))
-)
+// The drawer's close button. No number until the index has finished loading:
+// "Show 0 results" over a half-built index is a premature negative.
+const showResultsLabel = computed(() => {
+  if (!isLoaded.value || loading.value) return 'Show results'
+  const n = filteredEntities.value.length
+  return `Show ${n.toLocaleString()} ${n === 1 ? 'result' : 'results'}`
+})
 
-const statuses = computed(() =>
-  statusFacets.value.map(f => ({ code: f.code, name: f.name || f.code }))
-)
+const filtersButton = ref<HTMLButtonElement | null>(null)
+const sidebar = ref<HTMLElement | null>(null)
 
-// List types have no computed here: their labels come from `@/config`,
-// imported above and used directly by the template. The three families
-// above can take the facet's own `name` because it matches what the
-// sidebar renders; for list types it does not — the producer title-cases
-// the code, so the facet would label `sdn-list` "Sdn List" in the chip
-// while the sidebar pill reads "SDN List". One source of names avoids that.
+// The drawer returns focus to what opened it. When that was the bar's "+N"
+// pill and the filters changed inside the drawer, the pill may be gone (every
+// chip now fits, or none is left). Focus then stays on the panel while it
+// plays its closing transition and falls to <body> when it is removed, so it
+// goes to the Filters button beside the pill instead.
+watch(filtersOpen, async (open) => {
+  if (open) return
+  await nextTick()
+  const a = document.activeElement
+  if (!a || a === document.body || !a.isConnected || a.closest('[role="dialog"]')) {
+    filtersButton.value?.focus()
+  }
+})
+
+// Widening past `lg` brings the sidebar back; a drawer left open there would
+// hold a second copy of the filters and keep the page locked behind it.
+let lgQuery: MediaQueryList | null = null
+const closeAtLg = (e: MediaQueryListEvent) => { if (e.matches) filtersOpen.value = false }
+onMounted(() => {
+  lgQuery = window.matchMedia('(min-width: 1024px)')
+  lgQuery.addEventListener('change', closeAtLg)
+})
+onBeforeUnmount(() => lgQuery?.removeEventListener('change', closeAtLg))
+
+// The applied facet filters as removable chips, in the sidebar's own order and
+// under the sidebar's own labels (`@/config`), so a chip reads exactly like the
+// pill that set it and is labelled before the facet files have loaded. The
+// facet files' own names would not do for list types: the producer title-cases
+// the code, so `sdn-list` would read "Sdn List" beside a "SDN List" pill. The
+// query is not a chip: it is already on screen, in the search box.
+const labelFor = (catalog: readonly { code: string; name: string }[], code: string) =>
+  catalog.find((c) => c.code === code)?.name ?? code
+
+const appliedChips = computed<AppliedChip[]>(() => [
+  ...filters.value.sources.map((code) => ({
+    id: `sources:${code}`, label: labelFor(sourceCatalog, code), variant: 'source', sourceCode: code,
+  })),
+  ...filters.value.entityTypes.map((code) => ({
+    id: `entityTypes:${code}`, label: labelFor(entityTypeCatalog, code), variant: code,
+  })),
+  ...filters.value.listTypes.map((code) => ({
+    id: `listTypes:${code}`, label: labelFor(listTypes, code), variant: 'default',
+  })),
+  ...filters.value.statuses.map((code) => ({
+    id: `statuses:${code}`, label: labelFor(statusCatalog, code), variant: code,
+  })),
+])
+
+type FacetFamily = 'sources' | 'entityTypes' | 'listTypes' | 'statuses'
+
+function removeChip(id: string) {
+  const sep = id.indexOf(':')
+  const family = id.slice(0, sep) as FacetFamily
+  const code = id.slice(sep + 1)
+  filters.value = { ...filters.value, [family]: filters.value[family].filter((c) => c !== code) }
+}
+
+// Every "Clear all" (the bar, the drawer, the sidebar) empties the facet
+// filters and keeps the typed query. Someone screening a name wants to widen
+// the net around that name, not lose it; the query has its own clear button,
+// in the search box.
+function clearFacetFilters() {
+  filters.value = { sources: [], entityTypes: [], listTypes: [], statuses: [] }
+}
+
+// The last chip is gone. Below `lg` the Filters button is beside it in the bar;
+// from `lg` up that button is hidden, so focus goes to the first filter pill in
+// the sidebar, where filters are set, passing over the panel's "Clear all",
+// which has nothing left to clear.
+function focusAfterBarEmptied() {
+  if (filtersButton.value && filtersButton.value.offsetParent !== null) {
+    filtersButton.value.focus()
+    return
+  }
+  sidebar.value?.querySelector<HTMLElement>('button[aria-pressed]')?.focus()
+}
 </script>
 
 <template>
@@ -620,87 +703,35 @@ const statuses = computed(() =>
 
           <!-- Search Input -->
           <div>
+            <!--
+              Placeholder kept to 191px of text: the input's text box is 206px
+              at a 320px viewport, and "Search by name, alias, country, or
+              identifier..." (359px) was cut to "Search by name, alias, co".
+              One string at every width, so the prerendered HTML and the
+              hydrated page agree; the heading above already says "Search".
+            -->
             <SearchInput
               ref="searchInputRef"
               v-model="searchQuery"
-              placeholder="Search by name, alias, country, or identifier..."
+              placeholder="Name, alias, country, ID"
               size="lg"
               :loading="loading"
             />
-          </div>
-
-          <!-- Active Filters Summary -->
-          <div v-if="hasActiveFilters" class="mt-4 flex items-center justify-center gap-2 flex-wrap">
-            <span class="text-sm text-light-muted dark:text-dark-muted">
-              {{ activeFilterCount }} filter{{ activeFilterCount !== 1 ? 's' : '' }} active:
-            </span>
-            <div class="flex flex-wrap gap-2">
-              <Badge
-                v-for="code in filters.sources"
-                :key="'source-' + code"
-                variant="source"
-                class="cursor-pointer"
-                @click="filters.sources = filters.sources.filter(s => s !== code)"
-              >
-                {{ sources.find(s => s.code === code)?.name || code }}
-                <svg class="w-3 h-3 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </Badge>
-              <Badge
-                v-for="code in filters.entityTypes"
-                :key="'type-' + code"
-                :variant="code as any"
-                class="cursor-pointer"
-                @click="filters.entityTypes = filters.entityTypes.filter(t => t !== code)"
-              >
-                {{ entityTypes.find(t => t.code === code)?.name || code }}
-                <svg class="w-3 h-3 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </Badge>
-              <Badge
-                v-for="code in filters.listTypes"
-                :key="'list-' + code"
-                variant="default"
-                class="cursor-pointer"
-                @click="filters.listTypes = filters.listTypes.filter(l => l !== code)"
-              >
-                {{ listTypes.find(l => l.code === code)?.name || code }}
-                <svg class="w-3 h-3 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </Badge>
-              <Badge
-                v-for="code in filters.statuses"
-                :key="'status-' + code"
-                :variant="code as any"
-                class="cursor-pointer"
-                @click="filters.statuses = filters.statuses.filter(s => s !== code)"
-              >
-                {{ statuses.find(s => s.code === code)?.name || code }}
-                <svg class="w-3 h-3 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </Badge>
-            </div>
-            <button
-              @click="clearFilters"
-              class="text-sm text-status-active hover:underline"
-            >
-              Clear all
-            </button>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Main Content -->
-    <div class="container-wide py-8">
+    <!--
+      Main Content. No top padding below `lg` unless the error card shows: the
+      applied-filters bar is the first thing here and sits directly under the
+      search section's border, with its own height for spacing.
+    -->
+    <div class="container-wide pb-8" :class="error ? 'pt-8' : 'lg:pt-8'">
       <!-- Error State -->
       <div v-if="error" class="glass-card p-8 text-center mb-8">
         <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-status-delisted/20 flex items-center justify-center">
-          <svg class="w-8 h-8 text-status-delisted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-8 h-8 text-status-delisted" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
         </div>
@@ -714,13 +745,14 @@ const statuses = computed(() =>
       <!-- Main Content - Filters always visible -->
       <div v-else class="flex flex-col lg:flex-row gap-8">
         <!-- Filters Sidebar -->
-        <aside class="lg:w-72 flex-shrink-0">
+        <!-- Below `lg` the same panel opens in the drawer instead (see the end). -->
+        <aside ref="sidebar" class="hidden lg:block lg:w-72 flex-shrink-0">
           <div class="sticky top-24">
             <SearchFilters
               :filters="filters"
               :counts="counts"
               @update:filters="filters = $event"
-              @clear="clearFilters"
+              @clear="clearFacetFilters"
             />
           </div>
         </aside>
@@ -741,8 +773,48 @@ const statuses = computed(() =>
             {{ resultAnnouncement }}
           </p>
 
-          <!-- Results Header -->
-          <div class="flex items-center justify-between mb-6">
+          <!--
+            Applied filters. Pinned under the site header below `lg`, carrying
+            the button that opens the drawer; a plain row above the results
+            from `lg` up. The only place the applied filters are listed.
+          -->
+          <AppliedFiltersBar
+            :chips="appliedChips"
+            :panel-open="filtersOpen"
+            @open-panel="filtersOpen = true"
+            @remove="removeChip"
+            @clear="clearFacetFilters"
+            @emptied="focusAfterBarEmptied"
+          >
+            <template #trailing>
+              <button
+                ref="filtersButton"
+                type="button"
+                class="btn-secondary text-sm shrink-0 gap-1.5 min-h-[44px] min-w-[44px] !px-3 motion-reduce:transition-none lg:hidden"
+                aria-haspopup="dialog"
+                :aria-expanded="filtersOpen"
+                :aria-label="facetFilterCount ? `Filters (${facetFilterCount})` : 'Filters'"
+                @click="filtersOpen = true"
+              >
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h18l-7 8v6l-4 2v-8L3 4z" />
+                </svg>
+                <!--
+                  Under 360px the word is dropped visually, leaving the chips
+                  room to be read; `aria-label` keeps the name "Filters (2)".
+                -->
+                <span class="max-[359px]:hidden">Filters</span><span v-if="facetFilterCount">({{ facetFilterCount }})</span>
+              </button>
+            </template>
+          </AppliedFiltersBar>
+
+          <!--
+            Results Header. Always rendered so the desktop layout keeps its
+            spacing while loading; below `lg` the row collapses while it is
+            empty, so the placeholders sit directly under the applied-filters
+            bar.
+          -->
+          <div class="flex items-center justify-between mb-6 max-lg:mb-4 max-lg:empty:hidden">
             <!--
               The count is the result of the search, so it is what a screen
               reader needs told. Previously only the zero-results card carried
@@ -827,14 +899,15 @@ const statuses = computed(() =>
               :key="n"
               class="rounded-xl border bg-light-surface dark:bg-dark-surface border-light-border dark:border-dark-border min-w-0 p-4"
             >
-              <div class="flex items-start justify-between gap-3 mb-2">
-                <div class="flex-1 min-w-0">
+              <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3 mb-2">
+                <div class="sm:flex-1 min-w-0">
                   <div class="h-5 w-3/4 my-1 rounded bg-light-border dark:bg-dark-border" />
                   <div class="h-3.5 w-1/2 mt-2 rounded bg-light-border dark:bg-dark-border" />
                 </div>
-                <div class="flex flex-col items-end gap-1 w-1/5 min-w-0">
-                  <div class="h-5 w-full rounded-full bg-light-border dark:bg-dark-border" />
-                  <div class="h-5 w-full rounded-full bg-light-border dark:bg-dark-border" />
+                <!-- Mirrors the result card: badges under the name below `sm`. -->
+                <div class="flex gap-1 min-w-0 sm:flex-col sm:items-end sm:w-1/5">
+                  <div class="h-5 w-16 sm:w-full rounded-full bg-light-border dark:bg-dark-border" />
+                  <div class="h-5 w-24 sm:w-full rounded-full bg-light-border dark:bg-dark-border" />
                 </div>
               </div>
               <div class="flex gap-2 mt-3">
@@ -933,5 +1006,39 @@ const statuses = computed(() =>
         </main>
       </div>
     </div>
+
+    <!--
+      The filter drawer. Filters apply live, exactly as in the sidebar; the
+      footer button only closes the drawer, and says how many results are
+      waiting once that number is known.
+    -->
+    <SideDrawer :open="filtersOpen" title="Filters" @close="filtersOpen = false">
+      <template #actions>
+        <button
+          type="button"
+          class="min-h-[44px] px-2 text-sm text-brand-link hover:underline"
+          @click="clearFacetFilters"
+        >
+          Clear all
+        </button>
+      </template>
+      <SearchFilters
+        embedded
+        :filters="filters"
+        :counts="counts"
+        @update:filters="filters = $event"
+        @clear="clearFacetFilters"
+      />
+      <template #footer>
+        <button
+          type="button"
+          class="btn-primary w-full"
+          data-testid="drawer-show-results"
+          @click="filtersOpen = false"
+        >
+          {{ showResultsLabel }}
+        </button>
+      </template>
+    </SideDrawer>
   </div>
 </template>
