@@ -36,6 +36,6 @@ test('the homepage links the existing download claim itself', () => {
 
   assert.match(
     home,
-    /<RouterLink to="\/download"[^>]*> download the data directly <\/RouterLink>/i,
+    /<RouterLink to="\/download"[^>]*>download the data directly<\/RouterLink>\./i,
   )
 })
