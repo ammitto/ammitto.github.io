@@ -160,6 +160,26 @@ export const sources = [
 ] as const
 
 /**
+ * The sources the home page and footer have room for, in the order they are
+ * shown. `sources` above is the catalogue, and its order says nothing about
+ * prominence, so a slice of it can lead with two lists from one authority and
+ * omit the major ones. The first three follow `siteConfig.description`, which
+ * names them in the sentence right above the hero badges; the UK completes the
+ * major regimes, and other national lists follow. One entry per authority: a
+ * vessel list repeats its parent's authority, so it would spend a slot without
+ * adding a regime.
+ *
+ * A fixed list rather than an order computed from stats.json because vite-ssg
+ * prerenders these pages without the data, and an order that changed on
+ * hydration would reshuffle the tiles in front of the reader.
+ */
+export const featuredSourceCodes = ['eu', 'un', 'us', 'uk', 'ch', 'ca', 'jp', 'au'] as const
+
+export const featuredSources = featuredSourceCodes.flatMap(code =>
+  sources.filter(source => source.code === code),
+)
+
+/**
  * Legacy hyphenated source codes that older URLs and bookmarks may still
  * carry (the site previously linked /search?source=eu-vessels while the
  * data plane uses underscore codes). Maps legacy form -> canonical code.

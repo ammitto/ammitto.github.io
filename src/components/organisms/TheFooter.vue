@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import Logo from '@/components/atoms/Logo.vue'
-import { siteConfig, sources } from '@/config'
+import { siteConfig, featuredSources } from '@/config'
 import { safeExternalUrl } from '@/utils/externalUrl'
 
 const currentYear = new Date().getFullYear()
@@ -30,7 +30,7 @@ const currentYear = new Date().getFullYear()
               source whose address could not be trusted.
             -->
             <li
-              v-for="source in sources.slice(0, 5)"
+              v-for="source in featuredSources.slice(0, 5)"
               :key="source.code"
               v-show="safeExternalUrl(source.url)"
             >
