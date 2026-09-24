@@ -61,8 +61,14 @@ const typeInfo = computed(() => entityTypes.find(t => t.code === props.entity.en
     :to="`/entity/${entity.ref}`"
     class="glass-card block min-w-0 p-4 hover:border-brand-primary/50 transition-all group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
   >
-    <div class="flex items-start justify-between gap-3 mb-2">
-      <div class="flex-1 min-w-0">
+    <!--
+      Below `sm` the type and source badges go under the name instead of
+      beside it. At 320px a right-hand badge column took about a third of
+      the card, and the truncated alias line was left with a few letters
+      ("Also known as: ERI…"). From `sm` up they stack on the right.
+    -->
+    <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3 mb-2">
+      <div class="sm:flex-1 min-w-0">
         <h3 class="font-semibold text-lg truncate text-light-text dark:text-dark-text">
           {{ primaryName }}
         </h3>
@@ -70,7 +76,7 @@ const typeInfo = computed(() => entityTypes.find(t => t.code === props.entity.en
           Also known as: {{ aliases.join(', ') }}
         </div>
       </div>
-      <div class="flex flex-col items-end gap-1 min-w-0">
+      <div class="flex flex-wrap gap-1 min-w-0 sm:flex-col sm:flex-nowrap sm:items-end">
         <Badge :variant="entity.entityType as any">
           <!--
             Now that the whole card is one link, everything in it is read
