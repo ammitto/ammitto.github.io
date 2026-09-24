@@ -1,10 +1,11 @@
-import { ref, computed } from 'vue'
+import { ref, computed, toRaw } from 'vue'
 import FlexSearch from 'flexsearch'
 import { normalizeNode } from '@/utils/normalizeNode'
 import { searchRowText } from '@/utils/birthAdapters'
 import { forEachWithinBudget } from '@/utils/budgetedEach'
 import { yieldToEventLoop } from '@/utils/yieldToEventLoop'
 import { getEntityNodePath } from '@/utils/entityUrls'
+import { partialMatchIds } from '@/utils/progressiveResults'
 import {
   foldForSearch,
   indexableText,
@@ -91,6 +92,26 @@ const isLoaded = ref(false)
 const error = ref<string | null>(null)
 const metadata = ref<SearchIndexResponse['metadata'] | null>(null)
 
+/**
+ * How many rows the index build has added so far.
+ *
+ * Updated once per build step, when the build yields, not per row: every
+ * write re-runs whatever watches it, and per row that would be 61k runs.
+ */
+const indexedCount = ref(0)
+
+/**
+ * The index while it is being built, for `searchPartial` only.
+ *
+ * Deliberately not `searchIndex`: that ref is what `search()` guards on, and
+ * `search()` must keep answering nothing until every row is in (see there).
+ * Cleared when the build ends, successfully or not.
+ */
+let partialIndex: FlexSearch.Index | null = null
+
+/** Ids that occur on more than one row; see progressiveResults.ts. */
+let repeatedIds: ReadonlySet<string> = new Set()
+
 // Facet caches
 const authorityFacets = ref<FacetItem[]>([])
 const regimeFacets = ref<FacetItem[]>([])
@@ -148,6 +169,7 @@ async function loadSearchIndex(): Promise<void> {
 
   isLoading.value = true
   error.value = null
+  indexedCount.value = 0
 
   try {
     const response = await fetch(`${API_BASE}api/v1/search-index.json`)
@@ -182,6 +204,30 @@ async function loadSearchIndex(): Promise<void> {
       cache: true,
       encode: foldForSearch,
     })
+
+    const budget = {
+      budgetMs: INDEX_BUDGET_MS,
+      checkEvery: INDEX_BUDGET_CHECK_EVERY,
+      now: () => performance.now(),
+      yieldControl: yieldToEventLoop,
+    }
+
+    // Which ids repeat, found before any row is indexed, so `searchPartial`
+    // can withhold them: a repeated id's later row replaces its earlier text,
+    // so a partial match on it could stop matching. Budgeted like the build.
+    const seen = new Set<string>()
+    const repeated = new Set<string>()
+    await forEachWithinBudget(
+      data.entities,
+      (entity) => {
+        if (seen.has(entity.id)) repeated.add(entity.id)
+        else seen.add(entity.id)
+      },
+      budget,
+    )
+    repeatedIds = repeated
+    partialIndex = index
+    let added = 0
 
     // Index each entity, yielding to the event loop whenever a step has used
     // up INDEX_BUDGET_MS.
@@ -218,21 +264,29 @@ async function loadSearchIndex(): Promise<void> {
             : entity.names),
         )
         entities.value.set(entity.id, entity)
+        added++
       },
       {
-        budgetMs: INDEX_BUDGET_MS,
-        checkEvery: INDEX_BUDGET_CHECK_EVERY,
-        now: () => performance.now(),
-        yieldControl: yieldToEventLoop,
+        ...budget,
+        // Publish progress once per step, at the yield, never per row. A
+        // watcher of it still runs before this step's task ends (Vue flushes
+        // in a microtask), so SearchPage defers its partial search to a timer.
+        yieldControl: () => {
+          indexedCount.value = added
+          return yieldToEventLoop()
+        },
       },
     )
 
+    indexedCount.value = added
     searchIndex.value = index
     isLoaded.value = true
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Failed to load search index'
     console.error('Failed to load search index:', e)
   } finally {
+    partialIndex = null
+    repeatedIds = new Set()
     isLoading.value = false
   }
 }
@@ -315,6 +369,31 @@ function search(query: string, limit = 100): SearchEntity[] {
 
   return results
     .map((id) => entities.value.get(String(id)))
+    .filter(Boolean) as SearchEntity[]
+}
+
+/**
+ * Matches among the rows indexed SO FAR, while the build is still running.
+ *
+ * Separate from `search()` on purpose, so that function's guard stays exactly
+ * as it is for every other caller. The answer here is incomplete by
+ * construction: a caller must present it as such, and must never read an
+ * empty answer as "no match" (see SearchPage.vue). Returns nothing once the
+ * build has finished, when `search()` is the one to ask, and for a blank
+ * query.
+ *
+ * Reads the rows from the raw Map. Through the reactive one, every `get` wraps
+ * its row in a new reactive proxy, and a short prefix typed mid-build matches
+ * tens of thousands of rows, so the wrapping would cost far more than the
+ * search. Nothing is lost: the caller runs this imperatively, not inside a
+ * computed, so there is no dependency to track, and a row is never mutated
+ * after the build's one `set` of it.
+ */
+function searchPartial(query: string, limit = 100): SearchEntity[] {
+  if (isLoaded.value || !partialIndex) return []
+  const rows = toRaw(entities.value)
+  return partialMatchIds(partialIndex, query, repeatedIds, limit)
+    .map((id) => rows.get(id))
     .filter(Boolean) as SearchEntity[]
 }
 
@@ -482,6 +561,7 @@ export function useSearchIndex() {
     // State
     isLoading,
     isLoaded,
+    indexedCount,
     error,
     totalEntities,
     sourceCount,
@@ -498,6 +578,7 @@ export function useSearchIndex() {
     loadSearchIndex,
     loadFacets,
     search,
+    searchPartial,
     suggestFor,
     filter,
     getEntity,
