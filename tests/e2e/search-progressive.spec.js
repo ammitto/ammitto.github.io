@@ -504,10 +504,18 @@ test.describe('search partial results while the index builds', () => {
     await page.getByPlaceholder(/Search by name/).fill('filler')
     const firstStep = await stepUntilCards(page)
     expect(firstStep).toBeGreaterThan(0)
-    expect(await page.evaluate(() => window.__gated.length), 'more cards are waiting to mount').toBeGreaterThan(0)
+    // The one held timer is the next mounting step.
+    const held = await page.evaluate(() => window.__gated.map((t) => t.id))
+    expect(held, 'more cards are waiting to mount').toHaveLength(1)
 
     // No filler row is an organization: nothing may mount once the filter is on.
     await page.locator('aside').getByRole('button', { name: /Organization/ }).first().click()
+    // Checked on the timer itself: the change also empties the list, so a
+    // step left pending would run harmlessly and no card check could see it.
+    expect(
+      await page.evaluate((ids) => window.__gated.filter((t) => ids.includes(t.id)).length, held),
+      'the pending mounting step was not cancelled',
+    ).toBe(0)
     const afterFilter = await page.evaluate(() => window.__states.length)
     await drainGated(page)
     await driveBuild(page)
@@ -531,7 +539,9 @@ test.describe('search partial results while the index builds', () => {
     // Tag the first card's element, and hold the entity object its component
     // was given: an unchanged card keeps both across an append.
     // Found through the root vnode (`#app._vnode`), which a production build
-    // keeps; the per-element component handles are development-only.
+    // keeps; the per-element component handles are development-only. `_vnode`
+    // is a Vue internal: if a Vue release changes it the probe finds nothing
+    // and the "probe found the first card" check below fails, never passes empty.
     const cardProps = () => {
       const walk = (vnode) => {
         if (!vnode || typeof vnode !== 'object') return undefined
@@ -557,12 +567,15 @@ test.describe('search partial results while the index builds', () => {
       'the probe found the first card',
     ).toMatch(/^Filler Person /)
     const banner = page.getByTestId('search-progress')
-    const before = await banner.textContent()
+    const matches = async () => Number((await banner.textContent()).match(/^([\d,]+) matches/)[1].replace(/,/g, ''))
+    const before = await matches()
 
-    // One more build step: 1,000 more matches, appended past the first page.
+    // One more build step: 1,000 more matches, appended past the first page,
+    // so the 50 cards on screen stay and the list they come from grows.
     await page.evaluate(() => window.__release())
     await settle(page)
-    await expect(banner).not.toHaveText(before)
+    expect(await matches(), 'the step appended matches').toBe(before + 1000)
+    await expect(page.locator('[data-testid="search-results"] > a')).toHaveCount(50)
 
     const same = await page.evaluate((fn) => {
       const a = document.querySelector('[data-testid="search-results"] > a')
