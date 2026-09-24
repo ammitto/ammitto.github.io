@@ -112,9 +112,16 @@ test('the empty state names its scope and its date', () => {
   // Without both, a negative result cannot be filed as a screening outcome.
   assert.match(
     source,
-    /No entity on the \{\{ sourceCount \}\} lists Ammitto covers matches/,
+    /No entity on the \{\{ listsCovered \}\} Ammitto covers matches/,
     'the empty state must say how many lists were consulted, from the index ' +
       'metadata rather than a hand-written number',
+  )
+  // ...and name no number at all when the metadata carried no usable count,
+  // since "the 0 lists" would read as nothing having been searched.
+  assert.match(
+    source,
+    /const listsCovered = computed\(\(\) =>\s*sourceCount\.value > 0 \? countOf\(sourceCount\.value, 'list', 'lists'\) : 'lists',?\s*\)/,
+    'listsCovered must state the source count only when it is positive',
   )
   assert.match(
     source,
@@ -213,7 +220,7 @@ test('a zero result is not announced before the index has loaded', () => {
   // It must carry more than the count: the scope, the date and the near misses
   // are the whole reason the empty state is worth reading, and a live region on
   // the bare count withholds all three.
-  assert.match(block, /sourceCount\.value/, 'announcement must name the scope')
+  assert.match(block, /listsCovered\.value/, 'announcement must name the scope')
   assert.match(block, /asOf\.value/, 'announcement must carry the date')
   assert.match(block, /nearMisses\.value/, 'announcement must offer near misses')
   // And exactly one live region, or the same fact is announced twice.
