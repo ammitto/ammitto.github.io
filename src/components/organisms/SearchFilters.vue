@@ -18,6 +18,9 @@ const props = defineProps<{
     listTypes: Record<string, number>
     statuses: Record<string, number>
   }
+  // Inside the phone drawer, which supplies its own title and "Clear all":
+  // drop this panel's header row and card frame so neither shows twice.
+  embedded?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -103,8 +106,8 @@ const filterableSourceCount = computed(() =>
 </script>
 
 <template>
-  <div class="glass-card p-6">
-    <div class="flex items-center justify-between mb-4">
+  <div :class="embedded ? 'p-4' : 'glass-card p-6'">
+    <div v-if="!embedded" class="flex items-center justify-between mb-4">
       <h3 class="font-semibold text-light-text dark:text-dark-text">Filters</h3>
       <button
         @click="emit('clear')"
