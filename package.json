@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "npm run build:api && vite",
+    "dev": "npm run build:api && node scripts/dev.js",
     "build": "npm run build:api && vue-tsc -b && vite-ssg build",
     "build:api": "node scripts/build-api-data.js",
     "preview": "vite preview",

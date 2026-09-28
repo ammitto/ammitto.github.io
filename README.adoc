@@ -40,6 +40,37 @@ npm run build
 npm run preview
 ----
 
+=== API data in development
+
+`npm run dev` serves `/api/v1/` from `public/api/v1`. That directory holds
+whatever `build:api` copied from a data-cn checkout (found beside or inside
+this repository, or named by `AMMITTO_DATA_CN_DIR`). Without one it holds
+only the small sample committed for CI, and pages that need a file the sample
+lacks will not load. The full data is generated at deploy time and published
+at https://www.ammitto.org/api/v1/.
+
+Before starting, `npm run dev` checks that `public/api/v1` holds every file
+the site requests at a fixed path (the search index, `stats.json`, the
+facets, the browse pages' `node/*/index.jsonld` files and so on; the list is
+`REQUIRED_STATIC` in `scripts/dev-data-mode.js`) plus each published
+`sources/*.jsonld`. The sample lacks most of them,
+and so does a data-cn checkout, which covers CN only. When any is missing it
+warns and, at a terminal, asks which mode to use:
+
+Live (default):: files missing from `public/api/v1` are fetched from
+`www.ammitto.org`. Files present locally are still served locally, so a
+local edit overrides the published copy.
+Sample:: only `public/api/v1` is served; a missing file answers 404.
+Quit:: stop without starting the server.
+
+Set `AMMITTO_DEV_DATA=live` or `AMMITTO_DEV_DATA=sample` to skip the prompt.
+In live mode a request the published site leaves unanswered for 15 seconds
+gets a 504.
+When stdin is not a terminal and the variable is unset, only `public/api/v1` is served,
+so scripts never wait for input or reach the network unasked. Live mode
+applies to the dev server only; `npm run build` and `npm run preview` never
+fetch from the published site.
+
 === Project Structure
 
 [source]

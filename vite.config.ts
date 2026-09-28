@@ -1,8 +1,9 @@
-import type { UserConfig } from 'vite'
+import type { Plugin, UserConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import type { ViteSSGOptions } from 'vite-ssg'
 import { copyFileSync, existsSync, readdirSync, statSync, writeFileSync } from 'fs'
 import { resolve, join, relative, sep } from 'path'
+import { LIVE_ORIGIN_ENV, createApiHandler, resolveLiveOrigin } from './scripts/dev-api-proxy.js'
 
 /** The origin the published IRIs are rooted at; also what a crawler is told. */
 const SITE_ORIGIN = 'https://www.ammitto.org'
@@ -36,11 +37,35 @@ function prerenderedRoutes(dist: string): string[] {
   return out.sort()
 }
 
+/**
+ * Dev server only: serve /api/v1/ through scripts/dev-api-proxy.js, which
+ * explains the per-request fallback. `configureServer` runs for `vite` alone:
+ * `vite build` and `vite preview` never see this.
+ *
+ * The mode arrives in AMMITTO_DEV_DATA from scripts/dev.js; a bare `vite`
+ * without it behaves as sample, so nothing reaches the network unasked.
+ */
+function devApiData(): Plugin {
+  return {
+    name: 'ammitto-dev-api-data',
+    apply: 'serve',
+    configureServer(server) {
+      const live = process.env.AMMITTO_DEV_DATA === 'live'
+      server.middlewares.use('/api/v1', createApiHandler({
+        apiRoot: resolve(__dirname, 'public/api/v1'),
+        live,
+        // Validated here as well as in dev.js, for a bare `vite` run.
+        origin: live ? resolveLiveOrigin(process.env[LIVE_ORIGIN_ENV]) : undefined,
+      }))
+    },
+  }
+}
+
 // vite-ssg reads its options off the same config object but does not
 // augment vite's `UserConfig`, so the key has to be declared here rather
 // than reached through `defineConfig`.
 const config: UserConfig & { ssgOptions: Partial<ViteSSGOptions> } = {
-  plugins: [vue()],
+  plugins: [vue(), devApiData()],
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
