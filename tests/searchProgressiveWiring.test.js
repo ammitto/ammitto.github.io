@@ -98,6 +98,17 @@ test('the banner never states a negative', () => {
   assert.match(body, /not finished|not complete/)
 })
 
+test('without an index total the banner still counts the partial matches', () => {
+  const body = computedBody('progressMessage')
+  const noTotal = body.slice(body.indexOf('if (!total) {'), body.indexOf('const checked'))
+  assert.notEqual(body.indexOf('if (!total) {'), -1, 'expected a branch for a missing total')
+  assert.match(noTotal, /if \(n === 0\) return `No matches for/)
+  assert.match(noTotal, /return `\$\{found\} for \$\{q\} so far\./)
+  assert.ok(!/total\.toLocaleString|of \$\{/.test(noTotal), 'no "of N" without a total')
+  assert.match(body, /const found = countOf\(n, 'match', 'matches'\)/)
+  assert.match(body, /of \$\{countOf\(total, 'record', 'records'\)\} checked/)
+})
+
 test('verdicts stay gated on the finished build', () => {
   for (const name of ['filteredEntities', 'nearMisses', 'resultAnnouncement']) {
     assert.match(

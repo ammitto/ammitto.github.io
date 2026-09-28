@@ -86,14 +86,21 @@ const BODY = JSON.stringify(syntheticIndex())
  */
 const CPU_RATE = Number(process.env.E2E_CPU_RATE || 1)
 
-async function serveSynthetic(page) {
+async function serveSynthetic(page, body = BODY) {
   if (CPU_RATE > 1) {
     const cdp = await page.context().newCDPSession(page)
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: CPU_RATE })
   }
   await page.route('**/api/v1/search-index.json', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: BODY }),
+    route.fulfill({ status: 200, contentType: 'application/json', body }),
   )
+}
+
+/** The synthetic index with `totalEntities` replaced, or removed when `undefined`. */
+function bodyWithTotal(totalEntities) {
+  const index = syntheticIndex()
+  index.metadata.totalEntities = totalEntities
+  return JSON.stringify(index)
 }
 
 /** Install the clock, the yield gate, the timer count and the state recorder. */
@@ -527,6 +534,40 @@ test.describe('search partial results while the index builds', () => {
     for (const s of after) expect(s.cards, 'a card for the old filter mounted after the change').toEqual([])
     expect(errors).toEqual([])
   })
+
+  for (const [label, total] of [['missing', undefined], ['"0"', '0']]) {
+    test(`with totalEntities ${label}, the banner still counts the cards on screen`, async ({ page }) => {
+      const errors = collectPageErrors(page)
+      await controlBuild(page)
+      await serveSynthetic(page, bodyWithTotal(total))
+      await page.goto('/search?q=zebulon', { waitUntil: 'domcontentloaded' })
+      await driveBuild(page)
+      await expect(page.getByTestId('search-count')).toContainText('3 results')
+
+      const states = await page.evaluate(() => window.__states)
+      const loading = assertLoadingStates(states)
+      const shown = loading.filter((s) => s.banner && s.cards.length > 0)
+      // Not vacuous: one, two and three cards were each on screen mid-load.
+      expect(new Set(shown.map((s) => s.cards.length))).toEqual(new Set([1, 2, 3]))
+      // The banner counts matches found; cards mount after it, a few per task,
+      // so within one mutation the count may lead the cards but never trail them.
+      const SO_FAR = /^([\d,]+) (match|matches) for “zebulon” so far\. The records are still loading, so the list is not complete yet\.$/
+      for (const s of shown) {
+        const m = s.banner.match(SO_FAR)
+        expect(m, `the banner counts the cards it sits above: ${s.banner}`).not.toBeNull()
+        const n = Number(m[1].replace(/,/g, ''))
+        expect(n).toBeGreaterThanOrEqual(s.cards.length)
+        expect(m[2], 'the noun agrees with the count').toBe(n === 1 ? 'match' : 'matches')
+      }
+      expect(shown.some((s) => s.banner.startsWith('1 match for “zebulon” so far.'))).toBe(true)
+      expect(shown.some((s) => s.banner.startsWith('3 matches for “zebulon” so far.'))).toBe(true)
+      for (const s of loading.filter((x) => x.banner)) {
+        expect(s.banner, 'no zero count').not.toMatch(/(^|\D)0(\D|$)/)
+        expect(s.banner).not.toMatch(/NaN|of 0|undefined|null/)
+      }
+      expect(errors).toEqual([])
+    })
+  }
 
   test('an append re-renders none of the cards already shown', async ({ page }) => {
     const errors = collectPageErrors(page)
