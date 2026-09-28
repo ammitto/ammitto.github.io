@@ -285,8 +285,10 @@ async function loadSourceEntities(source: string): Promise<SanctionEntity[]> {
 
     sourceDataCache.value.set(cacheKey, entities)
 
-    // Index entities for fast search
-    indexEntities(entities)
+    // Indexed on the first non-empty search, not here: the browse pages show a page of
+    // rows and never search, so indexing every loaded entity on each visit
+    // was work nothing read.
+    unindexedEntities.push(...entities)
 
     return entities
   } catch (e) {
@@ -360,6 +362,9 @@ function buildSearchText(entity: SanctionEntity): string {
  * Index entities for fast search
  */
 let entityIdCounter = 0
+/** Loaded but not yet in `searchIndex`; drained by the first non-empty `searchEntities` query. */
+let unindexedEntities: SanctionEntity[] = []
+
 function indexEntities(entities: SanctionEntity[]): void {
   for (const entity of entities) {
     const idx = entityIdCounter++
@@ -375,6 +380,11 @@ function searchEntities(entities: SanctionEntity[], query: string): SanctionEnti
   const searchTerm = query.trim()
 
   if (!searchTerm) return entities
+
+  if (unindexedEntities.length > 0) {
+    indexEntities(unindexedEntities)
+    unindexedEntities = []
+  }
 
   const results = searchIndex.search(searchTerm, 1000) as number[]
 
