@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, shallowRef, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
+import { ref, shallowRef, computed, onMounted, onBeforeUnmount, watch, nextTick, toRaw } from 'vue'
 import { useRoute, useRouter, type LocationQueryValue } from 'vue-router'
 import SearchInput from '@/components/atoms/SearchInput.vue'
 import EntityCard from '@/components/molecules/EntityCard.vue'
@@ -294,12 +294,13 @@ const filteredEntities = computed(() => {
   // grid must show nothing rather than an arbitrary unfiltered slice.
   if (!isLoaded.value || loading.value) return []
   // Get search results - use very high limit to include all entities for filtering
-  let results = search(debouncedQuery.value, 100000) // Get all results for filtering
+  const results = search(debouncedQuery.value, 100000) // Get all results for filtering
 
   // Apply filters
-  results = filter(results, filterSelection.value)
-
-  return results.map(entityAdapter)
+  // Rows, not cards: everything but the grid reads only the length, and
+  // building a card for every match froze the page for seconds on a broad
+  // query. Cards are built for the shown slice in `paginatedEntities`.
+  return filter(results, filterSelection.value)
 })
 
 /**
@@ -498,6 +499,13 @@ const progressMessage = computed(() => {
   return `${found} for ${q} so far, ${checked}. The list is not complete yet.`
 })
 
+/**
+ * Cards already built for the finished list, by row. Without it every "Load
+ * More" rebuilt the cards already on screen. A row object lives as long as the
+ * loaded index, so a WeakMap needs no clearing.
+ */
+const finalCards = new WeakMap<SearchEntity, ReturnType<typeof entityAdapter>>()
+
 // Paginated results
 const paginatedEntities = computed(() => {
   if (showPartial.value) {
@@ -514,7 +522,15 @@ const paginatedEntities = computed(() => {
     }
     return cards
   }
-  return filteredEntities.value.slice(0, loadedCount.value)
+  return filteredEntities.value.slice(0, loadedCount.value).map((entity) => {
+    const row = toRaw(entity)
+    let card = finalCards.get(row)
+    if (!card) {
+      card = entityAdapter(entity)
+      finalCards.set(row, card)
+    }
+    return card
+  })
 })
 
 const hasMoreResults = computed(() => {

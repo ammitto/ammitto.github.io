@@ -130,6 +130,21 @@ Or manually via GitHub Actions workflow dispatch.
 └─────────────────────────────────────────────────────────────────┘
 ....
 
+=== Rendering large lists
+
+A search can match tens of thousands of entities while the page shows 50 at a
+time. Keep the full match list as plain index rows, and build display objects
+(cards, formatted fields) only for the rows on screen, in the computed that
+slices the page. Cache what was built, so "Load More" builds only the new
+rows. The result count, filters and sorting read the rows, never the cards.
+
+The same applies to pure helpers called once per rendered item with a small
+set of inputs, such as a badge colour per source: compute each distinct input
+once and reuse the result (`pillToneVars` in `src/config/palette.ts`).
+
+`SearchPage.vue` (`filteredEntities` holds rows, `paginatedEntities` builds
+cards) is the reference implementation.
+
 == Data Sources
 
 The 14 sources named in `publishing_sources` in

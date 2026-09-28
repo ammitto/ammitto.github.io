@@ -353,8 +353,23 @@ export function inkTone(seed: string): Record<Theme, string> {
 
 export type ToneVars = Record<string, string>
 
+// Every Badge on a results page asks for the same few seeds, and each miss
+// converts the seed through LCH three times per theme. Frozen because the
+// one object is shared by every caller.
+const pillToneCache = new Map<string, ToneVars>()
+
 export function pillToneVars(seed: string | undefined | null): ToneVars {
-  const tone = pillTone(seed || NEUTRAL_SEED)
+  const key = seed || NEUTRAL_SEED
+  let vars = pillToneCache.get(key)
+  if (!vars) {
+    vars = Object.freeze(buildPillToneVars(key)) as ToneVars
+    pillToneCache.set(key, vars)
+  }
+  return vars
+}
+
+function buildPillToneVars(seed: string): ToneVars {
+  const tone = pillTone(seed)
   return {
     '--tone-fg': tone.light.fg,
     '--tone-bg': tone.light.bg,
