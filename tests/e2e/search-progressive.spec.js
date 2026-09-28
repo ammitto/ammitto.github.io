@@ -86,14 +86,21 @@ const BODY = JSON.stringify(syntheticIndex())
  */
 const CPU_RATE = Number(process.env.E2E_CPU_RATE || 1)
 
-async function serveSynthetic(page) {
+async function serveSynthetic(page, body = BODY) {
   if (CPU_RATE > 1) {
     const cdp = await page.context().newCDPSession(page)
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: CPU_RATE })
   }
   await page.route('**/api/v1/search-index.json', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: BODY }),
+    route.fulfill({ status: 200, contentType: 'application/json', body }),
   )
+}
+
+/** The synthetic index with `totalEntities` replaced, or removed when `undefined`. */
+function bodyWithTotal(totalEntities) {
+  const index = syntheticIndex()
+  index.metadata.totalEntities = totalEntities
+  return JSON.stringify(index)
 }
 
 /** Install the clock, the yield gate, the timer count and the state recorder. */
@@ -246,7 +253,7 @@ async function settledList(browser, query) {
   await serveSynthetic(page)
   await page.goto('/search', { waitUntil: 'domcontentloaded' })
   await expect(page.getByTestId('search-count')).toBeVisible({ timeout: 60000 })
-  await page.getByPlaceholder(/Search by name/).fill(query)
+  await page.getByPlaceholder(/Name, alias/).fill(query)
   await expect(page.getByTestId('search-count')).toContainText(/^3 results/)
   const hrefs = await page
     .locator('[data-testid="search-results"] > a')
@@ -383,7 +390,7 @@ test.describe('search partial results while the index builds', () => {
     await controlBuild(page)
     await serveSynthetic(page)
     await page.goto('/search?q=zebulon', { waitUntil: 'domcontentloaded' })
-    const input = page.getByPlaceholder(/Search by name/)
+    const input = page.getByPlaceholder(/Name, alias/)
 
     // The id pre-pass parks 23 times, then each build step adds 1,000 rows:
     // before step i the index holds (i - 22) * 1,000 rows.
@@ -456,7 +463,7 @@ test.describe('search partial results while the index builds', () => {
     await gateTimers(page)
     await serveSynthetic(page)
     await page.goto('/search', { waitUntil: 'domcontentloaded' })
-    const input = page.getByPlaceholder(/Search by name/)
+    const input = page.getByPlaceholder(/Name, alias/)
 
     await parkWithFillerRows(page)
     await page.evaluate(() => { window.__gate = true })
@@ -501,7 +508,7 @@ test.describe('search partial results while the index builds', () => {
     await parkWithFillerRows(page)
 
     await page.evaluate(() => { window.__gate = true })
-    await page.getByPlaceholder(/Search by name/).fill('filler')
+    await page.getByPlaceholder(/Name, alias/).fill('filler')
     const firstStep = await stepUntilCards(page)
     expect(firstStep).toBeGreaterThan(0)
     // The one held timer is the next mounting step.
@@ -527,6 +534,40 @@ test.describe('search partial results while the index builds', () => {
     for (const s of after) expect(s.cards, 'a card for the old filter mounted after the change').toEqual([])
     expect(errors).toEqual([])
   })
+
+  for (const [label, total] of [['missing', undefined], ['"0"', '0']]) {
+    test(`with totalEntities ${label}, the banner still counts the cards on screen`, async ({ page }) => {
+      const errors = collectPageErrors(page)
+      await controlBuild(page)
+      await serveSynthetic(page, bodyWithTotal(total))
+      await page.goto('/search?q=zebulon', { waitUntil: 'domcontentloaded' })
+      await driveBuild(page)
+      await expect(page.getByTestId('search-count')).toContainText('3 results')
+
+      const states = await page.evaluate(() => window.__states)
+      const loading = assertLoadingStates(states)
+      const shown = loading.filter((s) => s.banner && s.cards.length > 0)
+      // Not vacuous: one, two and three cards were each on screen mid-load.
+      expect(new Set(shown.map((s) => s.cards.length))).toEqual(new Set([1, 2, 3]))
+      // The banner counts matches found; cards mount after it, a few per task,
+      // so within one mutation the count may lead the cards but never trail them.
+      const SO_FAR = /^([\d,]+) (match|matches) for “zebulon” so far\. The records are still loading, so the list is not complete yet\.$/
+      for (const s of shown) {
+        const m = s.banner.match(SO_FAR)
+        expect(m, `the banner counts the cards it sits above: ${s.banner}`).not.toBeNull()
+        const n = Number(m[1].replace(/,/g, ''))
+        expect(n).toBeGreaterThanOrEqual(s.cards.length)
+        expect(m[2], 'the noun agrees with the count').toBe(n === 1 ? 'match' : 'matches')
+      }
+      expect(shown.some((s) => s.banner.startsWith('1 match for “zebulon” so far.'))).toBe(true)
+      expect(shown.some((s) => s.banner.startsWith('3 matches for “zebulon” so far.'))).toBe(true)
+      for (const s of loading.filter((x) => x.banner)) {
+        expect(s.banner, 'no zero count').not.toMatch(/(^|\D)0(\D|$)/)
+        expect(s.banner).not.toMatch(/NaN|of 0|undefined|null/)
+      }
+      expect(errors).toEqual([])
+    })
+  }
 
   test('an append re-renders none of the cards already shown', async ({ page }) => {
     const errors = collectPageErrors(page)
@@ -588,4 +629,101 @@ test.describe('search partial results while the index builds', () => {
     expect(same.entity, 'the first card was handed a new entity object, so it re-rendered').toBe(true)
     expect(errors).toEqual([])
   })
+})
+
+/**
+ * The same corpus with every odd filler row an organization, so "Person" and
+ * no filter give different lists for "filler" from the very first cards.
+ */
+const MIXED_BODY = (() => {
+  const index = syntheticIndex()
+  index.entities.forEach((e, i) => {
+    if (!TARGETS.has(i) && i % 2) e.type = 'organization'
+  })
+  return JSON.stringify(index)
+})()
+
+const isOrganizationRow = (h) => {
+  const i = Number(h.split('/p').pop())
+  return !TARGETS.has(i) && i % 2 === 1
+}
+
+/** The unfiltered "filler" rows in index order: the partial list restarted from scratch. */
+const FILLERS_IN_ORDER = Array.from({ length: ROWS }, (_, i) => i)
+  .filter((i) => !TARGETS.has(i))
+  .map(href)
+
+test.describe('clearing phone filters while partial cards mount', () => {
+  test.setTimeout(180000)
+  // "Clear all" in the bar shows from 400px.
+  const WIDE_PHONE = { width: 412, height: 915 }
+
+  // `open` runs before the recording starts; `clear` is the change under test.
+  const ways = {
+    'the bar "Clear all"': {
+      clear: (page) =>
+        page.getByTestId('applied-filters-bar').getByRole('button', { name: 'Clear all' }).click(),
+    },
+    'the drawer "Clear all"': {
+      open: async (page) => {
+        await page.getByRole('button', { name: 'Filters (2)', exact: true }).click()
+        await expect(page.getByRole('dialog', { name: 'Filters' })).toBeVisible()
+      },
+      clear: (page) =>
+        page.getByRole('dialog', { name: 'Filters' }).getByRole('button', { name: 'Clear all' }).click(),
+    },
+    'the chip ×': {
+      clear: (page) =>
+        page.getByTestId('applied-filters-bar').getByRole('button', { name: 'Remove filter: Person' }).click(),
+    },
+  }
+
+  for (const [way, { open, clear }] of Object.entries(ways)) {
+    test(`${way} restarts the partial list under the new filters and keeps the query`, async ({ page }) => {
+      const errors = collectPageErrors(page)
+      await page.setViewportSize(WIDE_PHONE)
+      await controlBuild(page)
+      await gateTimers(page)
+      await serveSynthetic(page, MIXED_BODY)
+      // Two filters, so the bar offers "Clear all"; every row is active, so the
+      // pair shows the same rows as "Person" alone.
+      await page.goto('/search?type=person&status=active', { waitUntil: 'domcontentloaded' })
+      const input = page.getByPlaceholder(/Name, alias/)
+      await parkWithFillerRows(page)
+
+      await page.evaluate(() => { window.__gate = true })
+      await input.fill('filler')
+      expect(await stepUntilCards(page)).toBeGreaterThan(0)
+      expect(await page.evaluate(() => window.__gated.length), 'more cards are waiting to mount').toBeGreaterThan(0)
+      const shown = await page
+        .locator('[data-testid="search-results"] > a')
+        .evaluateAll((as) => as.map((a) => a.getAttribute('href')))
+      expect(shown.some(isOrganizationRow), 'the Person filter is applied').toBe(false)
+
+      if (open) await open(page)
+      const beforeClear = await page.evaluate(() => window.__states.length)
+      await clear(page)
+      await drainGated(page)
+      await driveBuild(page)
+      await expect(page.getByTestId('search-count')).toBeVisible()
+
+      const after = (await page.evaluate(() => window.__states)).slice(beforeClear)
+      const loading = after.filter((s) => s.skeleton)
+      expect(loading.length).toBeGreaterThan(0)
+      for (const s of after) expect(s.input, 'the query stays').toBe('filler')
+      // Every state after the clear shows the unfiltered list from its start:
+      // no card mounted for the Person list once the filter is gone.
+      for (const s of loading) {
+        expect(s.cards, 'the partial list restarted for the new filters').toEqual(
+          FILLERS_IN_ORDER.slice(0, s.cards.length),
+        )
+      }
+      expect(loading.some((s) => s.cards.some(isOrganizationRow)), 'organizations came in').toBe(true)
+      await expect(input).toHaveValue('filler')
+      const url = new URL(page.url())
+      expect(url.searchParams.get('q')).toBe('filler')
+      expect(url.searchParams.getAll('type')).toEqual([])
+      expect(errors).toEqual([])
+    })
+  }
 })
