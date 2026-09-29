@@ -116,7 +116,7 @@ test('the search-index build uses the time budget, not a fixed row count', () =>
     source,
     /^\s*import\s+\{\s*forEachWithinBudget\s*\}\s+from\s+'@\/utils\/budgetedEach'/m,
   )
-  assert.match(source, /await forEachWithinBudget\(\s*data\.entities,/)
+  assert.match(source, /await forEachWithinBudget\(\s*rows,/)
   // A fixed-size slice is what the budget replaced; it cannot bound a step
   // because a row costs more to add as the index fills.
   assert.equal(/INDEX_CHUNK_SIZE|\.slice\(start/.test(source), false)

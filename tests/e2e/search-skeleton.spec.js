@@ -28,7 +28,8 @@ async function holdSearchIndex(page) {
   const gate = new Promise((resolve) => { release = resolve })
   let markSeen = () => {}
   const seen = new Promise((resolve) => { markSeen = resolve })
-  await page.route('**/api/v1/search-index.json', async (route) => {
+  // The manifest is fetched before any shard, so holding it holds the load.
+  await page.route('**/api/v1/search-index/manifest.json', async (route) => {
     markSeen()
     await gate
     await route.fallback()

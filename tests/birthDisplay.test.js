@@ -24,6 +24,7 @@ import {
   formatBirthRecords,
   formatBirthTemporal,
   formatSearchBirth,
+  searchBirthTokens,
   selectBirthCountry,
   selectBirthScalar,
 } from '../.test-build/utils/birthDisplay.js'
@@ -305,32 +306,65 @@ test('handles an absent, empty or malformed list rather than throwing', () => {
   assert.equal(formatBirthTemporal(undefined), null)
 })
 
-test('reads the search row, which is flat and carries no list', () => {
-  assert.equal(formatSearchBirth({ birthYear: '1964' }), '1964')
+test('reads a search row\'s single year', () => {
+  assert.equal(formatSearchBirth({ birthYears: [{ type: 'year', value: '1964', circa: false }] }), '1964')
 })
 
-test('reads a date span from a search row as the year bounds the index carries', () => {
-  // The search index has NO date columns: `search_index_exporter.rb` builds
-  // a row from birthYear, birthYearFrom and birthYearTo alone, and a date
-  // span arrives there as the year bounds derived from its endpoints. That
-  // derivation is what keeps such a person findable in a year-only index,
-  // and it is why this path needs nothing for date spans.
-  assert.equal(formatSearchBirth({ birthYearFrom: '1961', birthYearTo: '1962' }), '1961-1962')
-  // A same-year date span also fills the row's birthYear, because the gem
-  // retains the year the whole interval lies in.
+test('shows every year a search row lists, in the producer\'s order', () => {
+  // The gem lists every distinct year the person's records state, sorted,
+  // each with its own circa. All of them are claims; none may be dropped.
   assert.equal(
-    formatSearchBirth({ birthYear: '1962', birthYearFrom: '1962', birthYearTo: '1962' }),
-    '1962',
+    formatSearchBirth({
+      birthYears: [
+        { type: 'year', value: '1942', circa: false },
+        { type: 'year', value: '1957', circa: true },
+      ],
+    }),
+    '1942, c. 1957',
   )
 })
 
-test('gives a search row its span when the producer left birthYear out', () => {
-  // A span-only person has NO birthYear: the producer excludes the span
-  // keys from the lookup that fills it. Without this the card shows no
-  // birth information and the row is unfindable by year.
-  assert.equal(formatSearchBirth({ birthYearFrom: '1959', birthYearTo: '1965' }), '1959-1965')
-  assert.equal(formatSearchBirth({ birthYearTo: '1980' }), 'no later than 1980')
-  assert.equal(formatSearchBirth({ birthYearFrom: '1953' }), '1953 or later')
+test('reads a search row\'s span with the entity page\'s wording', () => {
+  // The same wording formatBirthTemporal gives the record on the entity
+  // page, so a card and its page never spell one claim two ways.
+  const span = (from, to, circa = false) =>
+    formatSearchBirth({ birthYears: [{ type: 'date_range', from, to, circa }] })
+  assert.equal(span('1959', '1965'), '1959-1965')
+  assert.equal(span('1977', '1978', true), 'c. 1977-1978')
+  assert.equal(span(null, '1980'), 'no later than 1980')
+  assert.equal(span('1953', null), '1953 or later')
+  assert.equal(span('1959', '1965'), formatBirthTemporal({ year_range_from: 1959, year_range_to: 1965 }))
+  assert.equal(
+    formatSearchBirth({ birthYears: [{ type: 'year', value: '1958', circa: true }] }),
+    formatBirthTemporal({ year: 1958, circa: true }),
+  )
+})
+
+test('gives a search row with no usable birth value no birth line', () => {
   assert.equal(formatSearchBirth({}), null)
+  assert.equal(formatSearchBirth({ birthYears: [] }), null)
+  assert.equal(formatSearchBirth({ birthYears: [{ type: 'date_range', circa: true }] }), null)
+  assert.equal(formatSearchBirth({ birthYears: 'not a list' }), null)
   assert.equal(formatSearchBirth(undefined), null)
+})
+
+test('indexes every listed year and both bounds of a span, once each', () => {
+  assert.deepEqual(
+    searchBirthTokens({
+      birthYears: [
+        { type: 'year', value: '1957', circa: false },
+        { type: 'year', value: '1958', circa: true },
+      ],
+    }),
+    ['1957', '1958'],
+  )
+  assert.deepEqual(
+    searchBirthTokens({ birthYears: [{ type: 'date_range', from: '1959', to: '1965' }] }),
+    ['1959', '1965'],
+  )
+  assert.deepEqual(
+    searchBirthTokens({ birthYears: [{ type: 'date_range', from: null, to: '1980' }] }),
+    ['1980'],
+  )
+  assert.deepEqual(searchBirthTokens({}), [])
 })

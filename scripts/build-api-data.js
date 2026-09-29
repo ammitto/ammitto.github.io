@@ -145,8 +145,10 @@ function build() {
 
   // Validate the source before deleting the destination: an empty or
   // partial data-cn tree must not replace existing content.
-  if (!fs.existsSync(path.join(dataCnApiDir, 'search-index.json'))) {
-    console.error(`ERROR: ${dataCnApiDir} has no search-index.json; refusing to replace ${PUBLIC_API_DIR} with a partial API tree.`);
+  // The manifest, not a shard: it is what the site fetches first, and a
+  // tree without it has no usable search index whatever else it holds.
+  if (!fs.existsSync(path.join(dataCnApiDir, 'search-index', 'manifest.json'))) {
+    console.error(`ERROR: ${dataCnApiDir} has no search-index/manifest.json; refusing to replace ${PUBLIC_API_DIR} with a partial API tree.`);
     process.exit(1);
   }
 
@@ -166,12 +168,12 @@ function build() {
   // Report stats
   const fileCount = countFiles(PUBLIC_API_DIR);
 
-  // Read search index to get entity count
-  const searchIndexPath = path.join(PUBLIC_API_DIR, 'search-index.json');
+  // Read the search-index manifest to get the entity count
+  const manifestPath = path.join(PUBLIC_API_DIR, 'search-index', 'manifest.json');
   let entityCount = 0;
-  if (fs.existsSync(searchIndexPath)) {
-    const searchIndex = JSON.parse(fs.readFileSync(searchIndexPath, 'utf8'));
-    entityCount = searchIndex.metadata?.totalEntities || searchIndex.entities?.length || 0;
+  if (fs.existsSync(manifestPath)) {
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    entityCount = manifest.metadata?.totalEntities || 0;
   }
 
   console.log(`Copied ${fileCount} files`);

@@ -90,56 +90,74 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ammitto/ammitto
-          # Pinned to ammitto/ammitto main, moved twenty commits from
-          # 1cdc8702, on 2026-09-11. Like the last move, this one was
-          # checked for published-output drift before being made, and
-          # unlike the last move it found none.
+          # Pinned past c7084d0e9 to a main that includes the search-row
+          # birth fix and the EU vessels designation fix. Unlike the last
+          # two moves, this one changes the published output, and the site
+          # changes with it.
           #
           # Both pins were harmonized over the same fifteen shallow clones
-          # of the data-* repositories, using this step's real --combine
-          # invocation. Both runs exited 0 with 61,303 entities. Both
-          # output trees hold 124,065 files, and the file lists are
-          # identical: no file exists in only one tree. 8,151 files differ
-          # byte-for-byte, and every one of those differs ONLY in a build
-          # timestamp (retrievedAt on the per-source aggregates, generated
-          # on the two combined ones) — confirmed by re-diffing the same
-          # 8,151 files with those keys normalized out, which left zero
-          # differences. Net: zero content differences, not the one
-          # behavioural difference the last move found.
+          # of the data-* repositories with this step's real --combine
+          # invocation, both exit 0, and the entity total moves by exactly
+          # eu_vessels' change (61,471 to 61,615). The new tree adds
+          # sources/<source>.ttl, one Turtle rendering per aggregate (#121),
+          # which nothing here reads.
           #
-          # Because the harmonized output is byte-identical apart from
-          # timestamps, every count .github/harmonize-thresholds.json's
-          # floors were checked against at the last move is unchanged by
-          # this one, so it is again deliberately NOT regenerated for this
-          # reason (see the DEBT paragraph below for the separate, larger
-          # reason it is stale).
+          # eu_vessels: the old pin exits 1 on the fetch shape DMA's
+          # current workbook produces and publishes a wrong graph. This pin
+          # reads both that shape (741 entities from a fresh fetch) and the
+          # committed older one (597, unchanged). An entry now carries the
+          # regime and effects of its own designation; a record in the older
+          # shape states neither, so it carries none rather than a guessed
+          # pair. harmonize-thresholds.json's eu_vessels floor moves to 518
+          # with this pin (its derivation note says why only that floor).
           #
-          # This is a delta over the harmonized OUTPUT only. This
-          # repository's own gates — typecheck, unit tests, the production
-          # build, the dist/404.html SPA-fallback check, and the Playwright
-          # suite — do not touch the gem at all (ci.yml never checks it
-          # out; SKIP_API_DATA=1 keeps the committed public/api/v1
-          # snapshot), so they were run separately against this change and
-          # are unaffected by which gem SHA deploy.yml pins. See the PR
-          # this commit ships in for their exit codes.
+          # Three changes reach the site, and it moves with this pin:
           #
-          # Of the twenty, exactly one (#101) is the kind of change that
-          # would move output: it deletes the UK and EU processed-entity
-          # source files outright, and the byte-identical harmonize above
-          # is the direct evidence that nothing in this site's committed
-          # data-* YAML reached that code. 70c8565 (the cn
-          # ministry-of-commerce matching fix, the last move's one
-          # behavioural difference) already landed via the PRIOR pin and
-          # is not among these twenty, so it contributes no new delta
-          # here. The rest (per-file model splits, RuboCop housekeeping, a
-          # CLI doc fix, the data-ru acknowledgement handling, the
-          # circa-marker constant) touch parsing paths this site's
-          # already-harvested, already-committed data-* YAML does not
-          # re-exercise.
+          # 1. #119 replaces search-index.json with search-index/manifest.json
+          #    and one shard per authority in the old {metadata, entities}
+          #    shape. The search page loads the manifest, fetches the shards
+          #    in parallel and merges them in this step's harmonize argument
+          #    order (src/utils/searchShards.ts), which is the old file's row
+          #    order, so FlexSearch breaks ties exactly as before. Checked by
+          #    running the same 1,557 queries over both trees: the merged
+          #    rows are the old file's rows in the old order, and once the
+          #    rows whose indexed birth text changed are set aside, every
+          #    query returns the same ids in the same order.
+          #
+          # 2. #117 replaces a row's birthYear, birthYearFrom and birthYearTo
+          #    with birthYears, a list of {type: year, value, circa} and
+          #    {type: date_range, from, to, circa}. The card now shows every
+          #    listed value with its circa marker, in the entity page's
+          #    wording, and every year and span bound is indexed. Single
+          #    years and spans map one to one; rows whose records state
+          #    several years now list and index all of them; circa now shows.
+          #    A row with both a span and a separate year lists both, so
+          #    every year the old fields held still finds its row.
+          #
+          # 3. The EU vessels regime and effects change above.
+          #
+          # The same main also brings changes that leave the output alone:
+          # over the same clones, it harmonizes to the same files, byte for
+          # byte apart from timestamps, as #138 and #143 merged without them.
+          # Harmonize now ends with a "Parse failures by source" summary
+          # (#120): a source date it cannot read is reported rather than
+          # dropped silently, and the run still exits 0 (tr reports 10,
+          # every other source 0). Configuration now reads the documented
+          # AMMITTO_* variables (#145); this workflow sets none, so nothing
+          # it does changes. The rest (#137, #140, #141, #144, #146) is
+          # error handling, cache writes and cloning, none of it on this
+          # path.
+          #
+          # The verify step below checks the manifest and every shard it
+          # names. This repository's own gates (typecheck, unit tests, the
+          # SKIP_API_DATA=1 build over the committed sample, which was
+          # re-laid out into shards mechanically, and the Playwright suite)
+          # were run against this change and against a build over the full
+          # output of this pin; see the pull request for their exit codes.
           #
           # DEBT, not introduced here but made larger by it: the manifest's
-          # gem_commit still reads 5e8b95c, which was twenty-five commits
-          # behind the pin this replaces and is now forty-five behind. Its
+          # gem_commit still reads 5e8b95c, which was forty-five commits
+          # behind the pin before last and is further behind this one. Its
           # own derivation note says to regenerate the ENTIRE file from the
           # next reviewed full 15-source harvest rather than hand-tune
           # floors, and that is still owed, for the same reason it was owed
@@ -150,7 +168,7 @@ jobs:
           # and total_entities_floor, none of the provenance fields, so the
           # staleness costs accuracy in the record and nothing in the gate.
           # Pin-to-SHA stays the policy.
-          ref: c7084d0e9c7d4289c7cd0d1e74404c37ddde683d
+          ref: 586adf509a27adedf89152b14bf64e6af450471f  # main after #143
           path: ammitto-gem
 
       - name: Checkout data repositories
@@ -290,9 +308,34 @@ jobs:
               "$f" > /dev/null \
               || { echo "duplicate JSON keys in ${f}"; exit 1; }
           done
-          jq -es 'length == 1 and (.[0] | (.entities | type == "array") and (.entities | length > 0))' \
-            public/api/v1/search-index.json > /dev/null \
-            || { echo "search-index.json is not a single JSON object with a non-empty entities array"; exit 1; }
+          # The search index is a manifest naming one shard per authority,
+          # and the site fetches every shard it names: a named shard that is
+          # missing, empty or short fails the whole search page, so each is
+          # checked here rather than the manifest alone. File names are held
+          # to the gem's own shard_code alphabet so the loop cannot be walked
+          # outside the directory. The shard counts must add up to the
+          # manifest total, and that total to stats.json's, so a shard the
+          # manifest forgot to name cannot pass either.
+          index_dir=public/api/v1/search-index
+          jq -es 'length == 1 and (.[0] | type == "object"
+                    and (.metadata.totalEntities | type == "number" and . > 0)
+                    and (.shards | type == "array" and length > 0
+                         and all(type == "object"
+                                 and (.file | type == "string" and test("^[a-z0-9_-]+\\.json$"))
+                                 and (.count | type == "number" and . == floor and . > 0)))
+                    and ([.shards[].file] | length == (unique | length))
+                    and ([.shards[].count] | add) == .metadata.totalEntities)' \
+            "${index_dir}/manifest.json" > /dev/null \
+            || { echo "search-index/manifest.json is not a single object whose shards are named, unique and sum to metadata.totalEntities"; exit 1; }
+          jq -en --slurpfile m "${index_dir}/manifest.json" --slurpfile s public/api/v1/stats.json \
+            '$m[0].metadata.totalEntities == $s[0].total_entities' > /dev/null \
+            || { echo "search-index manifest totalEntities does not equal stats.json total_entities"; exit 1; }
+          while read -r file count; do
+            jq -es --argjson n "$count" \
+              'length == 1 and (.[0] | type == "object" and (.entities | type == "array" and length > 0 and length == $n))' \
+              "${index_dir}/${file}" > /dev/null \
+              || { echo "search-index shard ${file} is missing, invalid, or does not hold the ${count} rows the manifest names"; exit 1; }
+          done < <(jq -r '.shards[] | "\(.file) \(.count)"' "${index_dir}/manifest.json")
           # all.jsonld is an advertised API endpoint, so require exactly
           # one JSON object with a non-empty @graph: existence or size
           # alone would accept malformed or empty output. This proves

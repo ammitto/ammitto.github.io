@@ -6,7 +6,7 @@ import { collectPageErrors } from './helpers.js'
  * The /search header must not state a count it does not have.
  *
  * Both figures in "Search across N data sources covering M sanctioned
- * entities" come from `metadata` inside search-index.json, which arrives only
+ * entities" come from `metadata` inside the search-index manifest, which arrives only
  * after the whole index has downloaded and parsed. Rendered unconditionally,
  * the sentence read "0 data sources covering 0 sanctioned entities" for the
  * length of that download, and permanently in the vite-ssg prerendered HTML
@@ -54,13 +54,23 @@ function syntheticIndex(metadata) {
   }
 }
 
-/** Serve `index` for search-index.json, after `gate` resolves if one is given. */
+/**
+ * Serve `index` as the sharded search index (its metadata in the manifest,
+ * its rows in one shard), after `gate` resolves if one is given.
+ */
 async function serveIndex(page, index, gate) {
-  const body = JSON.stringify(index)
-  await page.route('**/api/v1/search-index.json', async (route) => {
-    if (gate) await gate
-    await route.fulfill({ status: 200, contentType: 'application/json', body })
+  const manifest = JSON.stringify({
+    metadata: index.metadata,
+    shards: [{ code: 'un', file: 'un.json', count: index.entities.length }],
   })
+  const body = JSON.stringify({ entities: index.entities })
+  await page.route('**/api/v1/search-index/manifest.json', async (route) => {
+    if (gate) await gate
+    await route.fulfill({ status: 200, contentType: 'application/json', body: manifest })
+  })
+  await page.route('**/api/v1/search-index/un.json', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body }),
+  )
 }
 
 /** The sentence under the page title. */
@@ -99,7 +109,7 @@ test('the /search header withholds its counts until the index arrives', async ({
   })
   await serveIndex(page, syntheticIndex({ totalEntities: 1234, sources: 14 }), held)
 
-  const indexRequested = page.waitForRequest('**/api/v1/search-index.json')
+  const indexRequested = page.waitForRequest('**/api/v1/search-index/manifest.json')
   await page.goto('/search', { waitUntil: 'domcontentloaded' })
   const header = headerOf(page)
   await expect(header).toBeVisible()
@@ -156,7 +166,7 @@ for (const [label, override, field] of MALFORMED) {
     const errors = collectPageErrors(page)
     const warnings = []
     page.on('console', (msg) => {
-      if (msg.type() === 'warning' && msg.text().includes('search-index.json metadata')) {
+      if (msg.type() === 'warning' && msg.text().includes('search-index manifest metadata')) {
         warnings.push(msg.text())
       }
     })

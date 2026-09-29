@@ -8,20 +8,19 @@
  * `1964-09-18`. (Corpus populations move with the data and are recorded in
  * the pull request, not here.)
  *
- * Two rules govern everything here, and both are the producer's, not ours.
+ * Two rules govern which record answers where only one value fits
+ * (`selectBirthScalar`).
  *
- * 1. EARLIEST QUALIFYING, never "most precise". The gem's search index scans
- *    for the first record stating a value and stops
- *    (`search_index_exporter.rb`, `extract_birth_year`). Its spec pins this:
- *    `'still prefers the earliest record that states one'` feeds
- *    `[{year: 1984}, {date: '1990-01-08'}]` and expects `1984`. Ranking by
- *    precision would contradict a passing producer spec.
+ * 1. EARLIEST QUALIFYING, never "most precise": the first record stating a
+ *    value answers, in the order the source stated them.
  *
  * 2. TWO INDEPENDENT SCANS. The exact scan (date or year) and the span scan
  *    (either bound) run separately over the whole list and may land on
- *    different records; the exporter publishes both results side by side.
- *    A span's two bounds always come from ONE record — never assembled from
- *    two — which its spec also pins.
+ *    different records. A span's two bounds always come from ONE record,
+ *    never assembled from two.
+ *
+ * A search-index row needs neither rule: the gem already reduced its records
+ * to a list of years and spans (`birthYears`), and every one is shown.
  *
  * The wording mirrors `Ammitto::BirthInfo#formatted_date` exactly, because
  * the gem renders this same field in its own output. Two spellings of one
@@ -58,23 +57,26 @@ export interface BirthRecord {
 }
 
 /**
- * The search index's birth fields, which are flat and camelCase rather than
- * a list: the gem emits `birthYear`, `birthYearFrom` and `birthYearTo` as
- * three row scalars, already stringified, and rows are read unnormalized.
+ * One birth value as a search-index row carries it.
  *
- * `birthYear` is absent for a span-only person by the producer's deliberate
- * choice — the span keys are excluded from its exact-value lookup — so the
- * bounds are the only birth signal such a person has.
+ * The gem publishes a row's birth years as `birthYears`, a list of typed
+ * values (`Ammitto::Serialization::BirthYear::Year` and `::DateRange`): a
+ * stated span becomes one `date_range`, otherwise every distinct year the
+ * person's records state becomes one `year`, sorted, each with its own
+ * `circa`. Values are four-digit strings; a range may leave either bound
+ * out. Rows are read unnormalized, so this is the producer's spelling.
  *
- * There are no date-bound columns to add here. `search_index_exporter.rb`
- * builds a row from three birth keys only, and a date span reaches it as the
- * year bounds the transformer derives from the endpoints — which is what
- * keeps such a person findable in a year-only index at all.
+ * There are no date bounds here. A date span reaches the index as the year
+ * bounds the transformer derives from its endpoints, which is what keeps
+ * such a person findable in a year-only index at all.
  */
+export type SearchBirthYear =
+  | { type: 'year'; value: string; circa?: boolean }
+  | { type: 'date_range'; from?: string | null; to?: string | null; circa?: boolean }
+
+/** The search-index row fields the birth helpers read. */
 export interface SearchBirthFields {
-  birthYear?: string
-  birthYearFrom?: string
-  birthYearTo?: string
+  birthYears?: ReadonlyArray<SearchBirthYear>
 }
 
 /** Trim a value that may arrive as a number, and drop blanks. */
@@ -243,9 +245,9 @@ export function formatBirthRecords(
  * Note that the browse page's adapter does not currently expose it, so no
  * card renders this today; that omission is deliberate and pending a
  * product decision. Search cards take the separate `formatSearchBirth`
- * path, because a search row is flat rather than a list of records.
+ * path, because a search row carries years rather than records.
  *
- * Two independent scans, mirroring the producer: the earliest record
+ * Two independent scans: the earliest record
  * stating an exact date or year answers if one exists, otherwise the
  * earliest record stating a span. Bounds are read from that one record, so
  * a span is never assembled out of two different sources' claims.
@@ -254,8 +256,8 @@ export function formatBirthRecords(
  * `formatBirthTemporal` decides how it reads, so a date span reaches this
  * line at full precision without a rule of its own. Treating date bounds as
  * an exact value here would be the harmful change: it would rank a span
- * above an earlier record's stated year and contradict the producer's
- * earliest-qualifying rule. A same-year date span needs no such rank either
+ * above an earlier record's stated year and break the earliest-qualifying
+ * rule. A same-year date span needs no such rank either
  * — the producer keeps its `year`, so the exact scan already stops on that
  * record, and it renders as the span rather than as the bare year.
  *
@@ -295,19 +297,67 @@ export function selectBirthCountry(
   return null
 }
 
+/** The bounds of one search-row value, or its year; blanks dropped. */
+function searchValueParts(value: SearchBirthYear): {
+  year: string | null
+  from: string | null
+  to: string | null
+} {
+  if (value.type === 'date_range') {
+    return { year: null, from: text(value.from), to: text(value.to) }
+  }
+  return { year: text(value.value), from: null, to: null }
+}
+
+/** The row's birth values, tolerating an absent or malformed list. */
+function searchValues(fields: SearchBirthFields | null | undefined): SearchBirthYear[] {
+  const values = fields?.birthYears
+  if (!Array.isArray(values)) return []
+  return values.filter((value) => value && typeof value === 'object')
+}
+
 /**
- * The birth value for a search-index row.
+ * The birth value for a search-index row: every value the row lists, in the
+ * producer's order, joined into the one line the card has room for.
  *
- * The row is flat and already stringified, so it cannot go through the
- * record path. `birthYear` answers when the producer found an exact value;
- * otherwise the bounds do, which is the only birth signal a span-only
- * person's row carries. The index states no `circa`, so none is rendered.
+ * Each value reads the way `formatBirthTemporal` renders the same claim on
+ * the entity page, circa marker and open-bound wording included, so a card
+ * and its detail page never spell one fact two ways. They can differ in
+ * precision only: the index carries years, the page the stated date.
+ *
+ * Several years are all shown. They are separate claims from separate
+ * records, and a screening reader shown only one is being told the others
+ * do not exist.
  */
 export function formatSearchBirth(fields: SearchBirthFields | null | undefined): string | null {
-  if (!fields) return null
+  const labels: string[] = []
 
-  const year = text(fields.birthYear)
-  if (year) return year
+  for (const value of searchValues(fields)) {
+    const { year, from, to } = searchValueParts(value)
+    const label = year ?? formatRange(from, to)
+    if (label) labels.push(withCirca(label, value.circa))
+  }
 
-  return formatRange(text(fields.birthYearFrom), text(fields.birthYearTo))
+  return labels.length === 0 ? null : labels.join(', ')
+}
+
+/**
+ * Every year a search-index row states, once each, for the indexed text.
+ *
+ * Both bounds of a span are their own tokens rather than the rendered span,
+ * so a reader searching "1959" finds a person stated as born between 1959
+ * and 1965. `circa` adds nothing: an approximate year is still the year a
+ * reader would type.
+ */
+export function searchBirthTokens(fields: SearchBirthFields | null | undefined): string[] {
+  const tokens: string[] = []
+
+  for (const value of searchValues(fields)) {
+    const { year, from, to } = searchValueParts(value)
+    for (const token of [year, from, to]) {
+      if (token && !tokens.includes(token)) tokens.push(token)
+    }
+  }
+
+  return tokens
 }

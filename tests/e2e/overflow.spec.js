@@ -81,8 +81,12 @@ for (const viewport of NARROW_VIEWPORTS) {
     // theme is enough; the per-route sweep above covers both.
     await useTheme(page, 'light')
 
-    const response = await request.get('/api/v1/search-index.json')
-    expect(response.ok(), 'the committed search index must be servable').toBeTruthy()
+    const manifestResponse = await request.get('/api/v1/search-index/manifest.json')
+    expect(manifestResponse.ok(), 'the committed search index must be servable').toBeTruthy()
+    const manifest = await manifestResponse.json()
+    const shard = manifest.shards[0]
+    const response = await request.get(`/api/v1/search-index/${shard.file}`)
+    expect(response.ok(), 'the committed search index shard must be servable').toBeTruthy()
     const real = await response.json()
     expect(Array.isArray(real.entities) && real.entities.length > 0).toBeTruthy()
 
@@ -100,7 +104,19 @@ for (const viewport of NARROW_VIEWPORTS) {
       })),
     }
 
-    await page.route('**/api/v1/search-index.json', (route) =>
+    // One shard holding only the poisoned rows, so no real row competes
+    // with them for the first cards.
+    await page.route('**/api/v1/search-index/manifest.json', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          metadata: manifest.metadata,
+          shards: [{ ...shard, count: poisoned.entities.length }],
+        }),
+      }),
+    )
+    await page.route(`**/api/v1/search-index/${shard.file}`, (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',

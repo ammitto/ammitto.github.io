@@ -61,6 +61,7 @@
     "src/utils/budgetedEach.ts",
     "src/utils/yieldToEventLoop.ts",
     "src/utils/progressiveResults.ts",
+    "src/utils/searchShards.ts",
     "src/config/palette.ts",
     "src/config/index.ts"
   ],

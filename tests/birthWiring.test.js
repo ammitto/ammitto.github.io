@@ -72,17 +72,18 @@ const CONSUMERS = [
   },
   {
     file: 'src/views/SearchPage.vue',
-    why: 'the search result card, including a span-only row',
+    why: 'the search result card, including a span or several years',
     requires: ['=> searchRowToCard(entity)'],
-    // The row's birthYear is absent whenever the producer states a span,
-    // so any direct read of it drops those people. Spreading the adapter
+    // The row's birthYears is a list of years and spans, so a direct read
+    // of it shows the first claim, or a raw object, instead of every one.
+    // The token also catches the older birthYear field. Spreading the adapter
     // and then overriding the field would pass a call-name check, so the
     // token is banned outright.
     forbidsTokens: ['birthYear'],
   },
   {
     file: 'src/composables/useSearchIndex.ts',
-    why: 'the indexed text, which must carry both span bounds',
+    why: 'the indexed text, which must carry every year and both span bounds',
     requires: ['const text = searchRowText(entity)'],
     forbidsTokens: [],
   },
