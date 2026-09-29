@@ -78,7 +78,8 @@ function syntheticIndex() {
   }
 }
 
-const BODY = JSON.stringify(syntheticIndex())
+const SYNTHETIC = syntheticIndex()
+const BODY = JSON.stringify(SYNTHETIC)
 
 /**
  * Optional CPU slowdown (E2E_CPU_RATE=4) to show the result does not depend on
@@ -91,7 +92,17 @@ async function serveSynthetic(page, body = BODY) {
     const cdp = await page.context().newCDPSession(page)
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: CPU_RATE })
   }
-  await page.route('**/api/v1/search-index.json', (route) =>
+  // The page reads metadata from the manifest and rows from the shards, so a
+  // body with its own metadata (bodyWithTotal) carries it into the manifest.
+  const parsed = JSON.parse(body)
+  const manifest = JSON.stringify({
+    metadata: parsed.metadata,
+    shards: [{ code: 'cn', file: 'cn.json', count: parsed.entities.length }],
+  })
+  await page.route('**/api/v1/search-index/manifest.json', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: manifest }),
+  )
+  await page.route('**/api/v1/search-index/cn.json', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body }),
   )
 }

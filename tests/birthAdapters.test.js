@@ -145,20 +145,19 @@ test('the sanctions view model keeps a same-year date span at day precision', ()
   assert.equal(resolveEntityBirthFields(normalized).birthDate, '1962-02-28-1962-12-28')
 })
 
-test('the search card renders a span for a row the producer gave no birthYear', () => {
+test('the search card renders a span row', () => {
   const card = searchRowToCard({
     id: 'https://www.ammitto.org/entity/eu/spanned',
     ref: 'eu/spanned',
     names: ['Test Person'],
     type: 'person',
     authority: 'eu',
-    birthYearFrom: '1959',
-    birthYearTo: '1965',
+    birthYears: [{ type: 'date_range', from: '1959', to: '1965', circa: false }],
   })
   assert.equal(card.birthDate, '1959-1965')
 })
 
-test('the search card prefers an exact birthYear when the row carries both', () => {
+test('the search card shows every year the row lists', () => {
   const card = searchRowToCard({
     id: 'https://www.ammitto.org/entity/us/11018',
     ref: 'us/11018',
@@ -167,11 +166,12 @@ test('the search card prefers an exact birthYear when the row carries both', () 
     authority: 'us',
     status: 'active',
     country: 'Uganda',
-    birthYear: '1964',
-    birthYearFrom: '1960',
-    birthYearTo: '1970',
+    birthYears: [
+      { type: 'year', value: '1964', circa: false },
+      { type: 'year', value: '1965', circa: true },
+    ],
   })
-  assert.equal(card.birthDate, '1964')
+  assert.equal(card.birthDate, '1964, c. 1965')
   // The rest of the card is unchanged by this work, and is asserted
   // because this adapter's whole job is field mapping: `ref` drives
   // navigation (EntityCard routes to '/entity/' + ref), `names` is the
@@ -200,15 +200,14 @@ test('the search card leaves birthDate undefined when the row states no birth', 
 
 test('the indexed text carries both span bounds as their own tokens', () => {
   // A reader searching "1959" must find a person born between 1959 and
-  // 1965, who has no birthYear to match on.
+  // 1965.
   const text = searchRowText({
     id: 'https://www.ammitto.org/entity/eu/spanned',
     ref: 'eu/spanned',
     names: ['Test Person'],
     type: 'person',
     authority: 'eu',
-    birthYearFrom: '1959',
-    birthYearTo: '1965',
+    birthYears: [{ type: 'date_range', from: '1959', to: '1965', circa: true }],
   })
   assert.ok(text.split(' ').includes('1959'), `expected a 1959 token in: ${text}`)
   assert.ok(text.split(' ').includes('1965'), `expected a 1965 token in: ${text}`)
@@ -224,9 +223,12 @@ test('the indexed text still carries the fields it always did', () => {
     regime: 'ICC',
     authority: 'us',
     imo: '1234567',
-    birthYear: '1964',
+    birthYears: [
+      { type: 'year', value: '1964', circa: false },
+      { type: 'year', value: '1966', circa: false },
+    ],
   })
-  for (const token of ['Joseph', 'Kony', 'Uganda', 'ICC', 'us', '1234567', '1964']) {
+  for (const token of ['Joseph', 'Kony', 'Uganda', 'ICC', 'us', '1234567', '1964', '1966']) {
     assert.ok(text.includes(token), `expected ${token} in: ${text}`)
   }
 })

@@ -2,6 +2,7 @@ import { ref, computed, toRaw } from 'vue'
 import FlexSearch from 'flexsearch'
 import { normalizeNode } from '@/utils/normalizeNode'
 import { searchRowText } from '@/utils/birthAdapters'
+import type { SearchBirthYear } from '@/utils/birthDisplay'
 import { forEachWithinBudget } from '@/utils/budgetedEach'
 import { yieldToEventLoop } from '@/utils/yieldToEventLoop'
 import { getEntityNodePath } from '@/utils/entityUrls'
@@ -14,12 +15,16 @@ import {
   type NearMiss,
 } from '@/utils/searchEncode'
 import {
+  isSearchIndexManifest,
+  orderShards,
+} from '@/utils/searchShards'
+import {
   filterSearchEntities,
   type SearchFilterSelection,
 } from '@/utils/searchFilters'
 
 /**
- * Lightweight search entity from search-index.json.
+ * Lightweight search entity from a search-index shard.
  *
  * Only `id`, `ref`, `type`, `names` and `status` are guaranteed: the
  * producer (the gem's SearchIndexExporter) compacts every other field
@@ -49,24 +54,13 @@ export interface SearchEntity {
   // 'unknown' are different states and must not be conflated.
   listType?: string
   status?: string
-  birthYear?: string
-  // Bounds of a stated span of birth years. The producer excludes the span
-  // keys from the lookup that fills `birthYear`, so a span-only person has
-  // NO `birthYear` at all and these are the row's only birth signal.
-  birthYearFrom?: string
-  birthYearTo?: string
+  // Every year and span the person's records state; see SearchBirthYear.
+  birthYears?: SearchBirthYear[]
   imo?: string
 }
 
-/**
- * Search index response from API
- */
-interface SearchIndexResponse {
-  metadata: {
-    generated: string
-    totalEntities: number
-    sources: number
-  }
+/** One search-index shard: the rows of a single authority. */
+interface SearchShardResponse {
   entities: SearchEntity[]
 }
 
@@ -180,20 +174,43 @@ async function loadSearchIndex(): Promise<void> {
   indexedCount.value = 0
 
   try {
-    const response = await fetch(`${API_BASE}api/v1/search-index.json`)
+    const indexBase = `${API_BASE}api/v1/search-index/`
+    const manifestResponse = await fetch(`${API_BASE}api/v1/search-index/manifest.json`)
 
-    if (!response.ok) {
-      throw new Error(`Failed to load search index: ${response.status}`)
+    if (!manifestResponse.ok) {
+      throw new Error(`Failed to load search index: ${manifestResponse.status}`)
     }
 
-    const data: SearchIndexResponse = await response.json()
-    metadata.value = checkMetadata(data.metadata)
+    const manifest: unknown = await manifestResponse.json()
+    if (!isSearchIndexManifest(manifest)) {
+      throw new Error('Failed to load search index: malformed manifest')
+    }
+
+    // Fetched in parallel, merged in orderShards' order whatever order they
+    // arrive in: the merged row order decides FlexSearch's tie order, so it
+    // must not depend on the network. Any failed shard fails the whole load;
+    // a partial index would answer "no match" for rows it never received.
+    const shards = await Promise.all(
+      orderShards(manifest.shards).map(async (shard) => {
+        const response = await fetch(`${indexBase}${shard.file}`)
+        if (!response.ok) {
+          throw new Error(`Failed to load search index shard ${shard.file}: ${response.status}`)
+        }
+        const data: SearchShardResponse = await response.json()
+        if (!Array.isArray(data?.entities)) {
+          throw new Error(`Failed to load search index shard ${shard.file}: no entities`)
+        }
+        return data.entities
+      }),
+    )
+    const rows = shards.flat()
+    metadata.value = checkMetadata(manifest.metadata)
     if (metadata.value.invalid.length && !reportedBadMetadata) {
       reportedBadMetadata = true
       console.warn(
-        `search-index.json metadata: absent or invalid ${metadata.value.invalid.join(', ')}; ` +
+        `search-index manifest metadata: absent or invalid ${metadata.value.invalid.join(', ')}; ` +
           'the page omits them rather than state them',
-        data.metadata,
+        manifest.metadata,
       )
     }
 
@@ -234,7 +251,7 @@ async function loadSearchIndex(): Promise<void> {
     const seen = new Set<string>()
     const repeated = new Set<string>()
     await forEachWithinBudget(
-      data.entities,
+      rows,
       (entity) => {
         if (seen.has(entity.id)) repeated.add(entity.id)
         else seen.add(entity.id)
@@ -263,7 +280,7 @@ async function loadSearchIndex(): Promise<void> {
     // its recall are identical to the unbroken version. `searchIndex` and
     // `isLoaded` are only set below, after every row is in.
     await forEachWithinBudget(
-      data.entities,
+      rows,
       (entity) => {
         // Kept as a named binding: tests/birthWiring.test.js pins the literal
         // `const text = searchRowText(entity)` here, because searchRowText is

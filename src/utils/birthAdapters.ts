@@ -14,6 +14,7 @@
 import {
   formatBirthRecords,
   formatSearchBirth,
+  searchBirthTokens,
   selectBirthCountry,
   selectBirthScalar,
   type BirthRecord,
@@ -88,10 +89,8 @@ export function entityBirthClaims(
 /**
  * A search-index row as the entity card consumes it.
  *
- * `birthDate` comes through `formatSearchBirth` rather than straight from
- * `birthYear`, because the producer omits `birthYear` entirely for a
- * person whose birth is stated as a span — the bounds are then the row's
- * only birth signal, and reading the field alone shows them nothing.
+ * `birthDate` comes through `formatSearchBirth` so every year and span the
+ * row lists reaches the card, not just the first.
  */
 export function searchRowToCard(row: SearchRow): {
   id: string
@@ -120,9 +119,9 @@ export function searchRowToCard(row: SearchRow): {
 /**
  * The text a search-index row is indexed under.
  *
- * Both span bounds are indexed as their own tokens rather than as the
- * rendered span, so a reader searching "1959" finds a person stated as
- * born between 1959 and 1965 — who carries no `birthYear` to match on.
+ * Every listed year and both bounds of a span are their own tokens, so a
+ * reader searching "1959" finds a person stated as born between 1959 and
+ * 1965, and one whose records disagree is found by each year they state.
  */
 export function searchRowText(row: SearchRow): string {
   return [
@@ -131,8 +130,6 @@ export function searchRowText(row: SearchRow): string {
     row.regime,
     row.authority,
     row.imo,
-    row.birthYear,
-    row.birthYearFrom,
-    row.birthYearTo,
+    ...searchBirthTokens(row),
   ].filter(Boolean).join(' ')
 }

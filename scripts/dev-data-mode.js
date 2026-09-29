@@ -42,7 +42,7 @@ export const REQUIRED_STATIC = [
   'ontology/classes.jsonld',
   'ontology/hierarchy.json',
   'ontology/properties.jsonld',
-  'search-index.json',
+  'search-index/manifest.json',
   'stats.json',
 ]
 
@@ -67,6 +67,7 @@ export const TEMPLATED_PATHS = {
   'context.jsonld': 'named only in the ApiDocsPage and SchemaPage examples; nothing fetches it',
   '': 'the bare api/v1/ prefix, used to recognise API links',
   'node/': 'prefix that an IRI is rewritten onto; .jsonld is appended later',
+  'search-index/': 'prefix the manifest-named shard files are fetched under; the manifest is required, so a tree without shards is judged by it',
 }
 
 /**

@@ -24,7 +24,7 @@ const NONE = []
 test('the index files the browse pages load are required', () => {
   const files = requiredApiFiles(['eu', 'cn'])
   for (const f of [
-    'search-index.json', 'stats.json', 'facets/types.json',
+    'search-index/manifest.json', 'stats.json', 'facets/types.json',
     'node/legal-instrument/index.jsonld', 'node/group/index.jsonld',
     'node/organization/index.jsonld', 'node/document-type/index.jsonld',
     'sources/eu.jsonld', 'sources/cn.jsonld',
@@ -95,7 +95,7 @@ test('a source the site does not fetch is not required', () => {
 })
 
 test('a CN-only tree (search index and stats alone) is incomplete', () => {
-  const present = new Set(['search-index.json', 'stats.json', 'sources/cn.jsonld'])
+  const present = new Set(['search-index/manifest.json', 'search-index/cn.json', 'stats.json', 'sources/cn.jsonld'])
   const missing = requiredApiFiles(fetchableSources()).filter((f) => !present.has(f))
   assert.ok(missing.length > 0)
   assert.deepEqual(decideDevData({ isTTY: true, envValue: undefined, missing }), { action: 'prompt' })
