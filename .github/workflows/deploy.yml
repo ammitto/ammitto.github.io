@@ -90,85 +90,34 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ammitto/ammitto
-          # Pinned past c7084d0e9 to a main that includes the search-row
-          # birth fix and the EU vessels designation fix. Unlike the last
-          # two moves, this one changes the published output, and the site
-          # changes with it.
+          # Pinned to a00428d, the gem's main after #162.
           #
-          # Both pins were harmonized over the same fifteen shallow clones
-          # of the data-* repositories with this step's real --combine
-          # invocation, both exit 0, and the entity total moves by exactly
-          # eu_vessels' change (61,471 to 61,615). The new tree adds
-          # sources/<source>.ttl, one Turtle rendering per aggregate (#121),
-          # which nothing here reads.
+          # Both pins were harmonized over the same snapshot of the fifteen
+          # data-* repositories with this step's own harmonize command. Both
+          # exit 0 and write 124,982 files each, none on one side only.
           #
-          # eu_vessels: the old pin exits 1 on the fetch shape DMA's
-          # current workbook produces and publishes a wrong graph. This pin
-          # reads both that shape (741 entities from a fresh fetch) and the
-          # committed older one (597, unchanged). An entry now carries the
-          # regime and effects of its own designation; a record in the older
-          # shape states neither, so it carries none rather than a guessed
-          # pair. harmonize-thresholds.json's eu_vessels floor moves to 518
-          # with this pin (its derivation note says why only that floor).
+          # The only content change is period.listedDate on 4,021 of 4,021
+          # AU entries (#152), which the entity page already shows as its
+          # Listed Date row (src/utils/entryAdapters.ts:75). Every other
+          # difference is run time: retrievedAt and the generation stamps.
+          # Entity and entry IRI sets, record counts, facets and search
+          # index rows are identical.
           #
-          # Three changes reach the site, and it moves with this pin:
+          # That comparison ran on Ruby 4.0.1 while this job uses 3.3, so
+          # this pull request's own deploy build is the final check.
           #
-          # 1. #119 replaces search-index.json with search-index/manifest.json
-          #    and one shard per authority in the old {metadata, entities}
-          #    shape. The search page loads the manifest, fetches the shards
-          #    in parallel and merges them in this step's harmonize argument
-          #    order (src/utils/searchShards.ts), which is the old file's row
-          #    order, so FlexSearch breaks ties exactly as before. Checked by
-          #    running the same 1,557 queries over both trees: the merged
-          #    rows are the old file's rows in the old order, and once the
-          #    rows whose indexed birth text changed are set aside, every
-          #    query returns the same ids in the same order.
-          #
-          # 2. #117 replaces a row's birthYear, birthYearFrom and birthYearTo
-          #    with birthYears, a list of {type: year, value, circa} and
-          #    {type: date_range, from, to, circa}. The card now shows every
-          #    listed value with its circa marker, in the entity page's
-          #    wording, and every year and span bound is indexed. Single
-          #    years and spans map one to one; rows whose records state
-          #    several years now list and index all of them; circa now shows.
-          #    A row with both a span and a separate year lists both, so
-          #    every year the old fields held still finds its row.
-          #
-          # 3. The EU vessels regime and effects change above.
-          #
-          # The same main also brings changes that leave the output alone:
-          # over the same clones, it harmonizes to the same files, byte for
-          # byte apart from timestamps, as #138 and #143 merged without them.
-          # Harmonize now ends with a "Parse failures by source" summary
-          # (#120): a source date it cannot read is reported rather than
-          # dropped silently, and the run still exits 0 (tr reports 10,
-          # every other source 0). Configuration now reads the documented
-          # AMMITTO_* variables (#145); this workflow sets none, so nothing
-          # it does changes. The rest (#137, #140, #141, #144, #146) is
-          # error handling, cache writes and cloning, none of it on this
-          # path.
-          #
-          # The verify step below checks the manifest and every shard it
-          # names. This repository's own gates (typecheck, unit tests, the
-          # SKIP_API_DATA=1 build over the committed sample, which was
-          # re-laid out into shards mechanically, and the Playwright suite)
-          # were run against this change and against a build over the full
-          # output of this pin; see the pull request for their exit codes.
-          #
-          # DEBT, not introduced here but made larger by it: the manifest's
-          # gem_commit still reads 5e8b95c, which was forty-five commits
-          # behind the pin before last and is further behind this one. Its
-          # own derivation note says to regenerate the ENTIRE file from the
-          # next reviewed full 15-source harvest rather than hand-tune
-          # floors, and that is still owed, for the same reason it was owed
-          # last time: regeneration needs the fifteen solo runs that note
+          # DEBT, not introduced here: the manifest's gem_commit still reads
+          # 5e8b95c, further behind each pin. Its own derivation note says
+          # to regenerate the ENTIRE file from the next reviewed full
+          # 15-source harvest rather than hand-tune floors, and that is
+          # still owed: regeneration needs the fifteen solo runs that note
           # describes, so no source's failure can be masked by another, and
-          # that is a recalibration rather than a pin move. The workflow
-          # reads only publishing_sources, pending_sources, source_floors
-          # and total_entities_floor, none of the provenance fields, so the
+          # that is a recalibration rather than a pin move. The gate decides
+          # on publishing_sources, pending_sources, source_floors and
+          # total_entities_floor only, none of the provenance fields, so the
           # staleness costs accuracy in the record and nothing in the gate.
           # Pin-to-SHA stays the policy.
-          ref: 586adf509a27adedf89152b14bf64e6af450471f  # main after #143
+          ref: a00428d6eac07973cc9ae6269373cc340781e3ab  # main after #162
           path: ammitto-gem
 
       - name: Checkout data repositories
