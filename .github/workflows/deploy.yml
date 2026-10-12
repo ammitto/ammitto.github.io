@@ -90,21 +90,24 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ammitto/ammitto
-          # Pinned to a00428d, the gem's main after #162.
+          # Pinned to f173a39, the gem's main after #193.
           #
-          # Both pins were harmonized over the same snapshot of the fifteen
-          # data-* repositories with this step's own harmonize command. Both
-          # exit 0 and write 124,982 files each, none on one side only.
+          # Both pins were harmonized over the same fresh clones of the
+          # fifteen data-* repositories with this step's own harmonize
+          # command and verified with the step below, on Ruby 3.3: both
+          # exit 0 and pass. f173a39 adds only CHANGELOG.adoc and a gemspec
+          # line to the b5d6c95 tree that was measured.
           #
-          # The only content change is period.listedDate on 4,021 of 4,021
-          # AU entries (#152), which the entity page already shows as its
-          # Listed Date row (src/utils/entryAdapters.ts:75). Every other
-          # difference is run time: retrievedAt and the generation stamps.
-          # Entity and entry IRI sets, record counts, facets and search
-          # index rows are identical.
-          #
-          # That comparison ran on Ruby 4.0.1 while this job uses 3.3, so
-          # this pull request's own deploy build is the final check.
+          # What changed for the site: ca rises from 5,599 to 5,707
+          # entities and cn from 322 to 323, because entities whose ids
+          # collided now get a digest suffixed IRI (#163, #165) instead of
+          # overwriting each other. The 101 cn entries on list "unknown" and
+          # regime "unknown" become 102 on import-export-control-list and
+          # cn_export_control (#178), and cn group IRIs gain that list as a
+          # prefix. 28 cn entries carry a new modifications field (#180)
+          # that the site does not read. No unknown search shard appears.
+          # Every path the site builds comes from the IRIs themselves, so
+          # all of these render as before.
           #
           # DEBT, not introduced here: the manifest's gem_commit still reads
           # 5e8b95c, further behind each pin. Its own derivation note says
@@ -117,7 +120,7 @@ jobs:
           # total_entities_floor only, none of the provenance fields, so the
           # staleness costs accuracy in the record and nothing in the gate.
           # Pin-to-SHA stays the policy.
-          ref: a00428d6eac07973cc9ae6269373cc340781e3ab  # main after #162
+          ref: f173a39413f36d08fd645642aee961b9629faaec  # main after #193
           path: ammitto-gem
 
       - name: Checkout data repositories
