@@ -54,7 +54,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    # Measured on 2026-08-13 (run 31681782113): 7m16s end to end. Sixteen
+    # Measured on 2026-08-13 (run 31681782113): 7m16s end to end. Fifteen
     # shallow clones took 5s, Ruby setup 8s, npm ci 2s, unit tests 2s,
     # harmonize 3m05s, the output verification 15s, the Vite build 37s,
     # Playwright chromium 28s, the browser suite 2m13s, artifact upload 10s.
