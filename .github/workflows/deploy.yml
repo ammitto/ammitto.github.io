@@ -90,11 +90,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ammitto/ammitto
-          # Pinned to 4acd53c, gem main after #202 and #203.
-          # Includes Swiss vessel identity preservation and usable Japan
-          # validation schemas, alongside the earlier source-field fixes.
-          # This PR's build validates the combined gem against all fifteen
-          # data repositories, output thresholds and the browser suite.
+          # Pinned to b500db6, gem main after #204, #205 and #206.
+          # Includes preserved Swiss vessels, Japan source validation,
+          # Turkish listing dates and the output-schema publication gate.
+          # This build verifies all fifteen source repositories, output
+          # thresholds and browser behavior; Russia remains unpublished.
           #
           # DEBT, not introduced here: the manifest's gem_commit still reads
           # 5e8b95c, further behind each pin. Its own derivation note says
@@ -107,7 +107,7 @@ jobs:
           # total_entities_floor only, none of the provenance fields, so the
           # staleness costs accuracy in the record and nothing in the gate.
           # Pin-to-SHA stays the policy.
-          ref: 4acd53c3c4cc87ef03b14de30f5342afbad50450  # main after #202 and #203
+          ref: b500db6f480d23c4ffd3a1a188d3b25403f2a74f  # main after #204, #205 and #206
           path: ammitto-gem
 
       - name: Checkout data repositories
@@ -194,7 +194,16 @@ jobs:
             --verbose --combine \
             --allow-empty ru \
             --sources-dir .. \
-            --output-dir ../public/api/v1
+            --output-dir ../public/api/v1 \
+            --report ../harmonization-report.json
+
+      - name: Upload harmonization validation report
+        if: always() && hashFiles('harmonization-report.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: harmonization-validation-report
+          path: harmonization-report.json
+          retention-days: 7
 
       - name: Verify harmonized output
         run: |
