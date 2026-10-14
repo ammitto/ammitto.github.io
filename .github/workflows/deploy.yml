@@ -90,9 +90,10 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ammitto/ammitto
-          # Pinned to b500db6, gem main after #204, #205 and #206.
+          # Pinned to 4fab0fa, gem main after #204, #205, #206 and #207.
           # Includes preserved Swiss vessels, Japan source validation,
-          # Turkish listing dates and the output-schema publication gate.
+          # Turkish listing dates, the output-schema publication gate and
+          # preservation of literal backslashes in Turtle output.
           # This build verifies all fifteen source repositories, output
           # thresholds and browser behavior; Russia remains unpublished.
           #
@@ -107,7 +108,7 @@ jobs:
           # total_entities_floor only, none of the provenance fields, so the
           # staleness costs accuracy in the record and nothing in the gate.
           # Pin-to-SHA stays the policy.
-          ref: b500db6f480d23c4ffd3a1a188d3b25403f2a74f  # main after #204, #205 and #206
+          ref: 4fab0fae91ad8faae4e4327e614a2e5fe075bc04  # main after #204, #205, #206 and #207
           path: ammitto-gem
 
       - name: Checkout data repositories
