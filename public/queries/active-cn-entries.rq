@@ -1,0 +1,16 @@
+PREFIX ammitto: <https://www.ammitto.org/ontology/>
+PREFIX authority: <https://www.ammitto.org/authority/>
+
+SELECT DISTINCT ?entry ?entity ?name ?regime
+WHERE {
+  ?entry a ammitto:SanctionEntry ;
+         ammitto:hasAuthority authority:cn ;
+         ammitto:status "active" ;
+         ammitto:entityId ?entity ;
+         ammitto:hasRegime ?regime .
+  ?entity ammitto:hasName ?nameNode .
+  ?nameNode ammitto:fullName ?name ;
+            ammitto:isPrimary true .
+}
+ORDER BY ?entity ?entry
+LIMIT 20

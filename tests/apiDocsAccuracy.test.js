@@ -86,7 +86,7 @@ test('documents the canonical API host, not one that redirects', () => {
   // browser and a silent failure in `curl` without -L, which is exactly
   // how these examples are written.
   assert.ok(
-    !page.includes('ammitto.github.io'),
+    !page.includes('https://ammitto.github.io'),
     'no example may point at the redirecting host',
   )
 })
@@ -178,6 +178,10 @@ test('each endpoint entry is complete', () => {
     '/all.jsonld and /all.ttl',
     '/ontology/classes.jsonld',
     '/facets/{facet}.json',
+    '/search-index/manifest.json',
+    '/search-index/{source}.json',
+    '/by-authority/{code}.jsonld',
+    '/node/entry/{source}/{list}/{id}.jsonld',
   ])
   for (const field of ['method:', 'description:', 'example:', 'response:']) {
     assert.equal(

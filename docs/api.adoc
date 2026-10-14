@@ -1,0 +1,112 @@
+= Static API and SPARQL
+
+The public API at https://www.ammitto.org/api/v1/ consists of generated,
+read-only files. No API key is required. Fetch `/index.jsonld` to discover the
+files in the current publication. Source codes, identifiers, counts and sizes
+can change with each run. The website's `/api` page shows request and response
+examples; `/openapi.json` is the downloadable OpenAPI 3.1 contract.
+
+== Select and search data
+
+The `.jsonld` suffix is part of every JSON-LD file path. Entity and entry
+identifiers may contain multiple path segments. Use the relevant
+`node/{kind}/index.jsonld` to discover them; legal instruments use
+`node/legal-instrument/`, not `node/instrument/`.
+
+`by-authority`, `by-regime`, `by-status` and `by-list` slices contain sanction
+entry references in `entries`, not complete entities. `by-type` contains entity
+references. Fetch a referenced node via `/api/v1/node/` plus its IRI path and
+`.jsonld`; the entity IRI itself is an identifier, not the API download URL.
+An entry's `entityId` links to its entity, and an entity's `hasSanctionEntry`
+links back to its entries.
+
+Entity IRIs also identify website detail routes. Those routes are hydrated by
+the application from the GitHub Pages `404.html` fallback, so opening a detail
+route directly can render the entity while returning HTTP 404. This is the
+website's existing routing behavior, not a JSON-LD response. API clients should
+fetch the `.jsonld` node path, check the HTTP status and parse the response body;
+a rendered HTML page is not evidence that an API file exists.
+
+For search, fetch `search-index/manifest.json`, select a descriptor from
+`shards`, then fetch `search-index/{file}`. Each shard has an `entities` array
+of compact records. The old `search-index.json` file is no longer published.
+The website applies FlexSearch in the browser; the static API does not accept
+search, filter or pagination parameters. Filter downloaded records locally,
+or request an already-published slice. Downloaded files are snapshots, not
+live queries against the issuing authority.
+
+Supporting slices have their own envelopes: `by-organization` carries
+`published`, `signed` and `authorized` announcement summaries, while
+`by-document-type` carries `announcements` and `legalInstruments`.
+The root `by-list/index.jsonld` lists `sources`; its per-source index lists
+`available` list identifiers. Group node files currently retain the serialized
+model fields `id` and `entry_ids`, rather than the `@id` envelope of entity and
+entry nodes. The OpenAPI contract distinguishes these response families.
+
+== SPARQL availability
+
+Ammitto currently publishes RDF/Turtle downloads, not a hosted SPARQL query
+service. There is no public SPARQL endpoint URL to configure. The OpenAPI
+contract describes file GETs only. Use SPARQL locally or import the data into
+a SPARQL store you operate. This documentation creates no service or account.
+
+=== Query locally
+
+Prerequisites: Ruby with the `rdf-turtle` and `sparql` gems available. These
+commands use their `sparql` CLI; equivalent RDF tools can load the same Turtle.
+Start with one source to reduce memory and download cost:
+
+[source,shell]
+----
+curl --fail --location --compressed \
+  https://www.ammitto.org/api/v1/sources/cn.ttl -o cn.ttl
+curl --fail --location \
+  https://www.ammitto.org/queries/active-cn-entries.rq -o active-cn-entries.rq
+sparql execute --dataset cn.ttl --format json active-cn-entries.rq
+----
+
+To query the whole publication, download `/api/v1/all.ttl` instead and pass
+`--dataset all.ttl`. Inspect its `bytes` value in the catalogue before loading
+it; an RDF store can need substantially more memory than the file size.
+
+The query in `public/queries/active-cn-entries.rq` selects active CN sanction
+entries and their entities, primary names and regimes. The query in
+`public/queries/entities-by-type.rq` counts distinct entities by type. It counts
+only the dataset loaded, so a source graph does not give the global totals.
+Both queries can also be downloaded from the website's `/api` page.
+
+The Turtle exporter uses `ammitto:` = `https://www.ammitto.org/ontology/`
+and `authority:` = `https://www.ammitto.org/authority/`. Its entry predicates
+are `ammitto:hasAuthority`, `ammitto:hasRegime` and `ammitto:entityId`.
+Names are blank nodes reached through `ammitto:hasName`, with
+`ammitto:fullName` and the boolean `ammitto:isPrimary`.
+These are Turtle predicates; JSON-LD keys such as `authority`, `regime` and
+`names` are not interchangeable with them. Additional nested objects without
+an `@type` may be emitted as JSON string literals rather than queryable nodes;
+inspect the actual Turtle before writing a query for another field.
+
+=== Use a store you operate
+
+Import the Turtle into the default graph of your chosen SPARQL store, then run
+these same queries in its query interface. For a named-graph import, wrap the
+query patterns in `GRAPH <your-import-graph-iri> { ... }`. Follow the store's
+own import, authentication and network configuration instructions. Keep
+updates and administrative APIs restricted when publishing a query service.
+
+If your store exposes a SPARQL Protocol query URL, submit a read-only query to
+that URL. Replace `SPARQL_URL` below with your store's actual URL; it is not an
+Ammitto endpoint:
+
+[source,shell]
+----
+SPARQL_URL='http://localhost:3030/ammitto/query'
+curl --fail --get \
+  --header 'Accept: application/sparql-results+json' \
+  --data-urlencode 'query@active-cn-entries.rq' \
+  "$SPARQL_URL"
+----
+
+The localhost URL illustrates a separately configured store, not a service
+started by the commands above. Importing RDF does not change the static API.
+Refresh a local graph from a single publication when the catalogue's
+`generated` timestamp changes; mixing old and new downloads can break joins.

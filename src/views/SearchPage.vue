@@ -802,7 +802,7 @@ function focusAfterBarEmptied() {
         </aside>
 
         <!-- Results -->
-        <main class="flex-1 min-w-0">
+        <section class="flex-1 min-w-0" aria-label="Search results">
           <!--
             The one live region on this page. Visually hidden because the same
             facts are already on screen; announced as a single sentence so a
@@ -1047,7 +1047,7 @@ function focusAfterBarEmptied() {
               Clear all filters
             </button>
           </div>
-        </main>
+        </section>
       </div>
     </div>
 

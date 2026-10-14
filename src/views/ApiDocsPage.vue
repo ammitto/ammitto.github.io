@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import CodeBlock from '@/components/molecules/CodeBlock.vue'
 import { pillToneVars, METHOD_SEED } from '@/config/palette'
+import activeEntriesQuery from '../../public/queries/active-cn-entries.rq?raw'
+import entitiesByTypeQuery from '../../public/queries/entities-by-type.rq?raw'
+
+const publicBase = import.meta.env.BASE_URL
 
 const baseUrl = 'https://www.ammitto.org/api/v1'
 
@@ -66,7 +70,7 @@ const endpoints = [
   {
     method: 'GET',
     path: '/sources/{source}.jsonld',
-    description: 'Every entity and entry from one source, as JSON-LD. Fourteen sources publish today; the catalogue lists them.',
+    description: 'Every entity and entry from one source, as JSON-LD. The catalogue lists the sources available in the current publication.',
     example: `curl ${baseUrl}/sources/eu.jsonld`,
     response: `{
   "@context": "https://ammitto.org/api/v1/context.jsonld",
@@ -101,8 +105,8 @@ const endpoints = [
     method: 'GET',
     path: '/all.jsonld and /all.ttl',
     description:
-      'The whole graph in one file — JSON-LD or RDF/Turtle. Large: 156 MB and 116 MB respectively, though the JSON-LD transfers at about 8 MB gzipped. Prefer a source aggregate or a node document unless you genuinely want everything.',
-    example: `curl -H 'Accept-Encoding: gzip' ${baseUrl}/all.jsonld`,
+      'The whole graph in one file — JSON-LD or RDF/Turtle. Check current byte sizes in the catalogue before downloading. Prefer a source aggregate or a node document when you only need part of the graph.',
+    example: `curl --fail --compressed ${baseUrl}/all.jsonld`,
     response: `{
   "@context": "https://ammitto.org/api/v1/context.jsonld",
   "@graph": [ /* every entity, entry, regime, authority and instrument */ ]
@@ -112,7 +116,7 @@ const endpoints = [
     method: 'GET',
     path: '/ontology/classes.jsonld',
     description:
-      'The published vocabulary: 18 classes, with properties.jsonld and hierarchy.json beside it. context.jsonld at the root maps the terms every document above uses.',
+      'The published vocabulary, with properties.jsonld and hierarchy.json beside it. context.jsonld at the root maps the terms every document above uses.',
     example: `curl ${baseUrl}/ontology/classes.jsonld`,
     response: `{
   "@context": "https://ammitto.org/api/v1/context.jsonld",
@@ -140,6 +144,53 @@ const endpoints = [
   ]
 }`
   },
+
+  {
+    method: 'GET',
+    path: '/search-index/manifest.json',
+    description: 'Discover source shards for client-side search. Each file is relative to search-index/. The former search-index.json download has been replaced.',
+    example: `curl --fail ${baseUrl}/search-index/manifest.json`,
+    response: `{
+  "metadata": { "generated": "2026-10-14T10:35:08Z", "totalEntities": 61578, "sources": 14 },
+  "shards": [ { "code": "cn", "file": "cn.json", "count": 323 } ]
+}`
+  },
+  {
+    method: 'GET',
+    path: '/search-index/{source}.json',
+    description: 'A compact entities array for one source; select the file from the manifest. Its metadata describes only this shard. names are strings here, unlike NameVariant objects in full entity nodes.',
+    example: `curl --fail ${baseUrl}/search-index/cn.json`,
+    response: `{
+  "metadata": { "generated": "2026-10-14T10:35:08Z", "totalEntities": 323, "sources": 1 },
+  "entities": [ { "id": "https://www.ammitto.org/entity/cn/202510-dedrone-by-axon", "ref": "cn/202510-dedrone-by-axon", "type": "organization", "names": ["Dedrone by Axon", "反无人机技术公司"], "primaryName": "Dedrone by Axon", "authority": "cn", "status": "active" } ]
+}`
+  },
+  {
+    method: 'GET',
+    path: '/by-authority/{code}.jsonld',
+    description: 'Sanction-entry references, not full entities. Discover codes at by-authority/index.jsonld. by-regime, by-status and by-list work similarly; by-type contains entity references.',
+    example: `curl --fail ${baseUrl}/by-authority/cn.jsonld`,
+    response: `{
+  "@context": "https://ammitto.org/api/v1/context.jsonld",
+  "@type": "Index",
+  "slice": "by-authority",
+  "authority": { "@id": "https://www.ammitto.org/authority/cn" },
+  "entries": [ { "@id": "https://www.ammitto.org/entry/cn/unreliable-entity-list/202510-dedrone-by-axon" } ]
+}`
+  },
+  {
+    method: 'GET',
+    path: '/node/entry/{source}/{list}/{id}.jsonld',
+    description: 'A sanction entry links entityId to its entity and carries authority, regime and status. Discover exact paths in node/entry/index.jsonld; entry identifiers can contain further path segments.',
+    example: `curl --fail ${baseUrl}/node/entry/cn/unreliable-entity-list/202510-dedrone-by-axon.jsonld`,
+    response: `{
+  "@id": "https://www.ammitto.org/entry/cn/unreliable-entity-list/202510-dedrone-by-axon",
+  "@type": "SanctionEntry",
+  "entityId": "https://www.ammitto.org/entity/cn/202510-dedrone-by-axon",
+  "authority": { "@id": "https://www.ammitto.org/authority/cn" },
+  "status": "active"
+}`
+  },
 ]
 
 const codeExamples = {
@@ -156,6 +207,36 @@ const data = await (await fetch('${baseUrl}/sources/eu.jsonld')).json();
 for (const node of data['@graph']) {
   if (!node['@id'].includes('/entity/')) continue;
   console.log(node.names?.[0]?.fullName);
+}`,
+  search: `// Filter a downloaded shard; this is a local substring query, not FlexSearch.
+async function getJson(path) {
+  const response = await fetch('${baseUrl}/' + path);
+  if (!response.ok) throw new Error('HTTP ' + response.status + ': ' + path);
+  return response.json();
+}
+const manifest = await getJson('search-index/manifest.json');
+const shard = manifest.shards.find(s => s.code === 'cn');
+if (!shard) throw new Error('CN is not in this publication');
+const data = await getJson('search-index/' + shard.file);
+const query = 'dedrone';
+const matches = data.entities.filter(entity =>
+  entity.status === 'active' &&
+  entity.names.some(name => name.toLowerCase().includes(query.toLowerCase()))
+);
+console.log(matches.map(entity => entity.ref));`,
+  entries: `// Resolve a slice reference to its entry, then to its entity.
+// Uses getJson from the preceding example.
+function nodePath(iri) {
+  const url = new URL(iri);
+  if (url.origin !== 'https://www.ammitto.org') throw new Error('Unexpected IRI');
+  return 'node' + url.pathname + '.jsonld';
+}
+const slice = await getJson('by-authority/cn.jsonld');
+const first = slice.entries[0];
+if (first) {
+  const entry = await getJson(nodePath(first['@id']));
+  const entity = await getJson(nodePath(entry.entityId));
+  console.log(entry.status, entity.names.find(n => n.isPrimary)?.fullName);
 }`,
   ruby: `require 'net/http'
 require 'json'
@@ -192,11 +273,11 @@ for n in data['@graph']:
         API Documentation
       </h1>
       <p class="text-light-muted dark:text-dark-muted mb-8 max-w-3xl">
-        Access sanctions data through our free, public API. No API key required.
+        Download sanctions data as static, read-only files. No API key required. Search and filtering run in your client; these URLs do not accept search or pagination parameters.
       </p>
       <p class="text-light-muted dark:text-dark-muted mb-8">
         Prefer a direct file download?
-        <RouterLink to="/download" class="text-brand-link hover:underline">
+        <RouterLink to="/download" class="text-brand-link underline">
           Download the published datasets
         </RouterLink>.
       </p>
@@ -209,6 +290,15 @@ for n in data['@graph']:
           :code="baseUrl"
           title="Base URL"
         />
+      </section>
+
+      <section class="mb-12" aria-labelledby="contract-heading">
+        <h2 id="contract-heading" class="text-2xl font-semibold mb-4 text-light-text dark:text-dark-text">OpenAPI contract</h2>
+        <p class="text-light-muted dark:text-dark-muted">
+          <a :href="`${publicBase}openapi.json`" download class="text-brand-link underline">Download OpenAPI 3.1 (JSON)</a>
+          for the static file API. File suffixes are required. Available identifiers come from the catalogue and collection indexes;
+          legal instruments use <code>node/legal-instrument/</code>. Snapshot values below are illustrative excerpts, not live totals.
+        </p>
       </section>
 
       <section class="mb-12">
@@ -243,7 +333,7 @@ for n in data['@graph']:
               <CodeBlock
                 :code="endpoint.response"
                 language="json"
-                title="Example Response"
+                title="Response excerpt (values vary by publication)"
               />
             </div>
           </div>
@@ -262,6 +352,14 @@ for n in data['@graph']:
           </div>
 
           <div>
+            <h3 class="text-lg font-medium mb-3 text-light-text dark:text-dark-text">Search one source locally</h3>
+            <CodeBlock :code="codeExamples.search" language="javascript" />
+          </div>
+          <div>
+            <h3 class="text-lg font-medium mb-3 text-light-text dark:text-dark-text">Follow a sanction-entry reference</h3>
+            <CodeBlock :code="codeExamples.entries" language="javascript" />
+          </div>
+          <div>
             <h3 class="text-lg font-medium mb-3 text-light-text dark:text-dark-text">Ruby</h3>
             <CodeBlock :code="codeExamples.ruby" language="ruby" />
           </div>
@@ -273,13 +371,40 @@ for n in data['@graph']:
         </div>
       </section>
 
+      <section class="mb-12" aria-labelledby="sparql-heading">
+        <h2 id="sparql-heading" class="text-2xl font-semibold mb-4 text-light-text dark:text-dark-text">SPARQL: query a local dataset</h2>
+        <p class="text-light-muted dark:text-dark-muted mb-4">
+          Ammitto publishes Turtle downloads; it currently has no hosted SPARQL endpoint.
+          Load <code>sources/cn.ttl</code> or <code>all.ttl</code> into your own RDF tool or SPARQL store.
+          The queries use the default graph and the Turtle exporter’s ontology predicates.
+          An entity’s names are blank nodes reached through <code>ammitto:hasName</code>.
+        </p>
+        <p class="text-light-muted dark:text-dark-muted mb-4">
+          With Ruby and the <code>rdf-turtle</code> and <code>sparql</code> gems already available, download a source and run the query locally:
+        </p>
+        <CodeBlock :code="`curl --fail --location --compressed ${baseUrl}/sources/cn.ttl -o cn.ttl
+curl --fail --location https://www.ammitto.org/queries/active-cn-entries.rq -o active-cn-entries.rq
+sparql execute --dataset cn.ttl --format json active-cn-entries.rq`" language="bash" />
+        <h3 class="text-lg font-medium my-4 text-light-text dark:text-dark-text">Active CN entries with primary names</h3>
+        <CodeBlock :code="activeEntriesQuery" language="sparql" />
+        <a :href="`${publicBase}queries/active-cn-entries.rq`" download class="text-brand-link underline">Download active-entry query</a>
+        <h3 class="text-lg font-medium my-4 text-light-text dark:text-dark-text">Count distinct entities by type</h3>
+        <CodeBlock :code="entitiesByTypeQuery" language="sparql" />
+        <a :href="`${publicBase}queries/entities-by-type.rq`" download class="text-brand-link underline">Download entity-count query</a>
+        <p class="text-light-muted dark:text-dark-muted mt-4">
+          Counts cover only the loaded dataset. For a store you operate, import Turtle into its default graph and use its query interface.
+          A named-graph import needs <code>GRAPH &lt;your-import-graph-iri&gt; { ... }</code> around the query patterns.
+          Follow that store’s authentication and network setup instructions; the static API cannot execute SPARQL.
+          See <a href="https://github.com/ammitto/ammitto.github.io/blob/main/docs/api.adoc" class="text-brand-link underline">the local and self-hosting guide</a> for details.
+        </p>
+      </section>
+
       <section class="mb-12">
         <h2 class="text-2xl font-semibold mb-4 text-light-text dark:text-dark-text">
-          Rate Limits
+          Caching and bulk access
         </h2>
         <p class="text-light-muted dark:text-dark-muted">
-          There are no strict rate limits, but please be respectful of the service.
-          For high-volume access, consider downloading the data files and hosting them locally.
+          No service quota is specified here; hosting limits may apply. Cache snapshots and use compressed downloads. For repeated or high-volume queries, download the relevant data and query it locally.
         </p>
       </section>
     </div>
