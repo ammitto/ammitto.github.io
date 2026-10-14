@@ -90,9 +90,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ammitto/ammitto
-          # Pinned to c73c61f, gem main after #194-#201.
-          # Includes the reviewed UN, TR, WB, UK, US, CA and EU field
-          # preservation fixes and guarded cleanup of obsolete node files.
+          # Pinned to 4acd53c, gem main after #202 and #203.
+          # Includes Swiss vessel identity preservation and usable Japan
+          # validation schemas, alongside the earlier source-field fixes.
           # This PR's build validates the combined gem against all fifteen
           # data repositories, output thresholds and the browser suite.
           #
@@ -107,7 +107,7 @@ jobs:
           # total_entities_floor only, none of the provenance fields, so the
           # staleness costs accuracy in the record and nothing in the gate.
           # Pin-to-SHA stays the policy.
-          ref: c73c61f990e663ab39ef24d3a42a0f7e111edb44  # main after #194-#201
+          ref: 4acd53c3c4cc87ef03b14de30f5342afbad50450  # main after #202 and #203
           path: ammitto-gem
 
       - name: Checkout data repositories
