@@ -121,6 +121,19 @@ after one warmup query, with exact result-order checks. Both versions use the
 current dependencies and helper modules. Network, JSON parsing, rendering and
 production page-load performance are outside this measurement.
 
+=== Manually maintained source freshness
+
+China's source card and entity pages show the latest announcement included in
+the published snapshot, separately from its repository commit date. Neither
+date establishes when the official websites were last checked or when a
+contributor imported a notice; those dates are shown as not recorded.
+Newer official announcements may still need manual import.
+
+The deployment generates `/source-freshness.json` from the checked-out
+`data-cn` revision and its harmonized announcements. This website provenance
+file is separate from the sanctions API catalogue. Local snapshots without
+the file show unknown dates rather than reusing the site's build timestamp.
+
 === API Data
 
 The website loads data from `public/api/v1/`:
