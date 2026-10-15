@@ -128,8 +128,8 @@ onBeforeUnmount(() => { if (svg.value) select(svg.value).on('.zoom', null) })
         <p class="text-sm text-light-muted dark:text-dark-muted">{{ nodes.length }} ontology classes · select a class to view its details below.</p>
       </div>
       <div class="graph-controls flex flex-wrap gap-2" role="group" aria-label="Graph view controls">
-        <button type="button" aria-label="Zoom out" @click="changeZoom(0.8)">−</button>
-        <button type="button" aria-label="Zoom in" @click="changeZoom(1.25)">+</button>
+        <button type="button" aria-label="Zoom out" @click="changeZoom(0.8)">Zoom out</button>
+        <button type="button" aria-label="Zoom in" @click="changeZoom(1.25)">Zoom in</button>
         <button type="button" @click="reset">Reset view</button>
       </div>
     </div>
