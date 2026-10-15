@@ -38,6 +38,8 @@
   // in automatically; unrelated application code is not compiled.
   "include": [
     "src/utils/normalizeNode.ts",
+    "src/utils/ontologyGraph.ts",
+    "src/utils/virtualGrid.ts",
     "src/utils/summarySlice.ts",
     "src/utils/entryFetchPool.ts",
     "src/utils/birthDisplay.ts",

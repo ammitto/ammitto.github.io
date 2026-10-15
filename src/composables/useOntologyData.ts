@@ -57,6 +57,8 @@ interface PropertiesResponse {
 // Global state
 const classes = ref<Map<string, OntologyClass>>(new Map())
 const properties = ref<Map<string, OntologyProperty>>(new Map())
+// Graph relationships need every explicit domain, including repeated property IDs.
+const graphProperties = ref<OntologyProperty[]>([])
 const hierarchy = ref<HierarchyNode | null>(null)
 const isLoading = ref(false)
 const isLoaded = ref(false)
@@ -119,6 +121,8 @@ async function loadOntology(): Promise<void> {
       const id = cls['@id'].split('/').pop() || cls['@id']
       classes.value.set(id, cls)
     }
+
+    graphProperties.value = propertiesData['@graph']
 
     // Build property map
     for (const prop of propertiesData['@graph']) {
@@ -264,6 +268,7 @@ export function useOntologyData() {
     // Data
     classes,
     properties,
+    graphProperties,
     hierarchy,
     flattenedHierarchy,
 

@@ -2,7 +2,7 @@
 import { ref, shallowRef, computed, onMounted, onBeforeUnmount, watch, nextTick, toRaw } from 'vue'
 import { useRoute, useRouter, type LocationQueryValue } from 'vue-router'
 import SearchInput from '@/components/atoms/SearchInput.vue'
-import EntityCard from '@/components/molecules/EntityCard.vue'
+import VirtualEntityGrid from '@/components/organisms/VirtualEntityGrid.vue'
 import SearchFilters from '@/components/organisms/SearchFilters.vue'
 import SideDrawer from '@/components/molecules/SideDrawer.vue'
 import AppliedFiltersBar, { type AppliedChip } from '@/components/molecules/AppliedFiltersBar.vue'
@@ -904,13 +904,12 @@ function focusAfterBarEmptied() {
           </p>
 
           <!-- Results Grid -->
-          <div v-if="paginatedEntities.length > 0" class="grid sm:grid-cols-2 gap-4" data-testid="search-results">
-            <EntityCard
-              v-for="entity in paginatedEntities"
-              :key="entity.id"
-              :entity="entity"
-            />
-          </div>
+          <VirtualEntityGrid
+            v-if="paginatedEntities.length > 0"
+            :entities="paginatedEntities"
+            :virtualize="!showPartial"
+            :reset-key="JSON.stringify([debouncedQuery, filters, showPartial])"
+          />
 
           <!--
             Placeholder cards while the index loads, so the results area is not

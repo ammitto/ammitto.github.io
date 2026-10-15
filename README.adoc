@@ -13,6 +13,8 @@ It is a https://vuejs.org[Vue.js 3] application built with https://vitejs.dev[Vi
 * **Sanctions Search Database** - Search sanctioned entities from the publishing sources
 * **Ontology Browser** - Explore the Ammitto knowledge graph schema
 * **Lightweight Search** - Client-side FlexSearch over a compact index rather than the whole graph
+* **Virtual Search Results** - Measured result rows keep scrolling lists bounded, with a show-all option
+* **Class Relationship Graph** - An on-demand ontology graph with keyboard selection, pan and zoom
 * **Dark Mode** - Full dark mode support
 * **Responsive Design** - Mobile-first design with Tailwind CSS
 
@@ -91,6 +93,33 @@ src/
 ├── router/             # Vue Router configuration
 └── assets/             # Static assets
 ----
+
+=== Search and asset performance
+
+Completed search results beyond the first 50 cards use virtual rows. Partial
+results retain their progressive presentation. “Show all loaded results”
+provides an alternative for reading every loaded link without virtualization.
+The ontology graph loads separately from search and uses the schema files,
+not the full sanctions graph.
+
+In production, a service worker caches only a bounded allowlist of this build's
+hashed static assets. It does not cache API data, HTML, OpenAPI or query
+downloads. Updates activate naturally after existing tabs close; the worker
+does not force a reload or provide an offline sanctions-data fallback.
+
+To compare search CPU costs, save a baseline version of
+`src/composables/useSearchIndex.ts` and run:
+
+[source,shell]
+----
+NODE_ENV=production node scripts/measure-search-performance.mjs /tmp/useSearchIndex-before.ts 60000 5
+----
+
+This runs five alternating samples per version in separate child processes,
+using 60,000 synthetic rows. It reports cold index loading and repeated queries
+after one warmup query, with exact result-order checks. Both versions use the
+current dependencies and helper modules. Network, JSON parsing, rendering and
+production page-load performance are outside this measurement.
 
 === API Data
 
