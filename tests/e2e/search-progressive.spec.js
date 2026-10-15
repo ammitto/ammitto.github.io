@@ -151,8 +151,8 @@ async function controlBuild(page) {
 
     window.__states = []
     new MutationObserver(() => {
-      const main = document.querySelector('main main')
-      if (!main) return
+      const results = document.querySelector('section[aria-label="Search results"]')
+      if (!results) return
       const banner = document.querySelector('[data-testid="search-progress"]')
       window.__states.push({
         input: document.querySelector('main input, input[type="search"], input')?.value ?? '',
@@ -170,7 +170,7 @@ async function controlBuild(page) {
         bannerLive: banner ? banner.hasAttribute('aria-live') || banner.hasAttribute('role') : false,
         skeleton: !!document.querySelector('[data-testid="search-skeleton"]'),
         count: document.querySelector('[data-testid="search-count"]')?.textContent.trim() ?? null,
-        noMatch: main.textContent.includes('No match found'),
+        noMatch: results.textContent.includes('No match found'),
         announced: document.querySelector('[role="status"]')?.textContent.trim() ?? '',
       })
     }).observe(document, {
@@ -192,7 +192,7 @@ async function settle(page) {
       window.__timers() === 0 &&
       (window.__held.length > 0 ||
         !!document.querySelector('[data-testid="search-count"]') ||
-        (document.querySelector('main main')?.textContent ?? '').includes('No match found')),
+        (document.querySelector('section[aria-label="Search results"]')?.textContent ?? '').includes('No match found')),
     null,
     { timeout: 60000, polling: 20 },
   )
@@ -392,7 +392,7 @@ test.describe('search partial results while the index builds', () => {
     const firstNegative = states.findIndex((s) => s.noMatch)
     expect(firstNegative).toBeGreaterThan(-1)
     expect(states.slice(firstNegative).every((s) => s.banner === null)).toBe(true)
-    await expect(page.locator('main main')).toContainText('Data as of 23 September 2026')
+    await expect(page.getByRole('region', { name: 'Search results' })).toContainText('Data as of 23 September 2026')
     expect(errors).toEqual([])
   })
 

@@ -1,0 +1,2261 @@
+{
+  "capturedAt": "2026-10-14T11:19:41.529026+00:00",
+  "note": "Actual response excerpts: arrays bounded and Turtle text truncated; other values unmodified. Includes each route and every enum branch. Not a complete corpus.",
+  "cases": [
+    {
+      "template": "/index.jsonld",
+      "parameters": {},
+      "path": "/index.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/index.jsonld",
+      "status": 200,
+      "response": {
+        "@context": "https://ammitto.org/api/v1/context.jsonld",
+        "@type": "Index",
+        "slice": "catalogue",
+        "generated": "2026-10-14T11:05:15Z",
+        "entries": [
+          {
+            "name": "all.jsonld",
+            "url": "all.jsonld",
+            "mediaType": "application/ld+json",
+            "description": "Every node in one graph",
+            "bytes": 158427278
+          },
+          {
+            "name": "all.ttl",
+            "url": "all.ttl",
+            "mediaType": "text/turtle",
+            "description": "The same graph as Turtle",
+            "bytes": 117432149
+          }
+        ]
+      }
+    },
+    {
+      "template": "/stats.json",
+      "parameters": {},
+      "path": "/stats.json",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/stats.json",
+      "status": 200,
+      "response": {
+        "generated_at": "2026-10-14T11:05:15Z",
+        "sources": {
+          "eu": {
+            "entities": 6233,
+            "entries": 6233
+          },
+          "un": {
+            "entities": 1010,
+            "entries": 1010
+          },
+          "wb": {
+            "entities": 1517,
+            "entries": 1517
+          },
+          "uk": {
+            "entities": 6408,
+            "entries": 6408
+          },
+          "au": {
+            "entities": 4009,
+            "entries": 4009
+          },
+          "ca": {
+            "entities": 5707,
+            "entries": 5707
+          },
+          "cn": {
+            "entities": 323,
+            "entries": 323
+          },
+          "tr": {
+            "entities": 276,
+            "entries": 276
+          },
+          "nz": {
+            "entities": 2111,
+            "entries": 2111
+          },
+          "jp": {
+            "entities": 5097,
+            "entries": 5097
+          },
+          "eu_vessels": {
+            "entities": 730,
+            "entries": 733
+          },
+          "un_vessels": {
+            "entities": 59,
+            "entries": 59
+          },
+          "us": {
+            "entities": 19431,
+            "entries": 19431
+          },
+          "ch": {
+            "entities": 8667,
+            "entries": 8667
+          }
+        },
+        "total_entities": 61578,
+        "total_entries": 61581,
+        "total_instruments": 812,
+        "total_regimes": 176,
+        "total_authorities": 14,
+        "total_groups": 30,
+        "total_document_types": 35,
+        "total_organizations": 37
+      }
+    },
+    {
+      "template": "/context.jsonld",
+      "parameters": {},
+      "path": "/context.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/context.jsonld",
+      "status": 200,
+      "response": {
+        "@context": {
+          "@vocab": "https://ammitto.org/schema/v1/",
+          "xsd": "http://www.w3.org/2001/XMLSchema#",
+          "schema": "https://schema.org/",
+          "prov": "http://www.w3.org/ns/prov#",
+          "owl": "http://www.w3.org/2002/07/owl#",
+          "skos": "http://www.w3.org/2004/02/skos/core#",
+          "Entity": {
+            "@id": "Entity"
+          },
+          "PersonEntity": {
+            "@id": "PersonEntity"
+          },
+          "OrganizationEntity": {
+            "@id": "OrganizationEntity"
+          },
+          "VesselEntity": {
+            "@id": "VesselEntity"
+          },
+          "AircraftEntity": {
+            "@id": "AircraftEntity"
+          },
+          "SanctionEntry": {
+            "@id": "SanctionEntry"
+          },
+          "SanctionRegime": {
+            "@id": "SanctionRegime"
+          },
+          "SanctionEffect": {
+            "@id": "SanctionEffect"
+          },
+          "LegalInstrument": {
+            "@id": "LegalInstrument"
+          },
+          "OfficialAnnouncement": {
+            "@id": "OfficialAnnouncement"
+          },
+          "LocalizedString": {
+            "@id": "LocalizedString"
+          },
+          "LegalCitation": {
+            "@id": "LegalCitation"
+          },
+          "SanctionList": {
+            "@id": "SanctionList"
+          },
+          "SanctionGroup": {
+            "@id": "SanctionGroup"
+          },
+          "SanctionPeriodModification": {
+            "@id": "SanctionPeriodModification"
+          },
+          "names": {
+            "@id": "schema:name",
+            "@container": "@set"
+          },
+          "entityType": {
+            "@id": "entityType",
+            "@type": "@vocab"
+          },
+          "hasSanctionEntry": {
+            "@id": "hasSanctionEntry",
+            "@type": "@id",
+            "@container": "@set"
+          },
+          "authority": {
+            "@id": "authority",
+            "@type": "@id"
+          },
+          "regime": {
+            "@id": "regime"
+          },
+          "listType": {
+            "@id": "listType"
+          },
+          "legalBases": {
+            "@id": "legalBasis",
+            "@container": "@set"
+          },
+          "effects": {
+            "@id": "effect",
+            "@container": "@set"
+          },
+          "reasons": {
+            "@id": "reason",
+            "@container": "@set"
+          },
+          "period": {
+            "@id": "period"
+          },
+          "status": {
+            "@id": "status",
+            "@type": "@vocab"
+          },
+          "announcement": {
+            "@id": "announcement"
+          },
+          "effectType": {
+            "@id": "effectType",
+            "@type": "@vocab"
+          },
+          "asset_freeze": "asset_freeze",
+          "travel_ban": "travel_ban",
+          "trade_restriction": "trade_restriction",
+          "debarment": "debarment",
+          "sectoral_sanction": "sectoral_sanction",
+          "reasonCategory": {
+            "@id": "reasonCategory",
+            "@type": "@vocab"
+          },
+          "terrorism": "terrorism",
+          "proliferation": "proliferation",
+          "human_rights_violations": "human_rights_violations",
+          "corruption": "corruption",
+          "aggression": "aggression",
+          "rawSourceData": {
+            "@id": "rawSourceData"
+          },
+          "sourceFile": {
+            "@id": "sourceFile"
+          },
+          "rawContent": {
+            "@id": "rawContent"
+          },
+          "sourceSpecificFields": {
+            "@id": "sourceSpecificFields"
+          },
+          "imoNumber": {
+            "@id": "imoNumber"
+          },
+          "mmsi": {
+            "@id": "mmsi"
+          },
+          "callSign": {
+            "@id": "callSign"
+          },
+          "flagState": {
+            "@id": "flagState"
+          },
+          "vesselType": {
+            "@id": "vesselType"
+          },
+          "owner": {
+            "@id": "owner",
+            "@type": "@id"
+          },
+          "operator": {
+            "@id": "operator",
+            "@type": "@id"
+          },
+          "birthInfo": {
+            "@id": "birthInfo",
+            "@container": "@set"
+          },
+          "nationalities": {
+            "@id": "nationality",
+            "@container": "@set"
+          },
+          "gender": {
+            "@id": "schema:gender"
+          },
+          "identifications": {
+            "@id": "identification",
+            "@container": "@set"
+          },
+          "registrationNumber": {
+            "@id": "registrationNumber"
+          },
+          "incorporationDate": {
+            "@id": "incorporationDate",
+            "@type": "xsd:date"
+          },
+          "legalForm": {
+            "@id": "legalForm"
+          },
+          "beneficialOwners": {
+            "@id": "beneficialOwner",
+            "@type": "@id",
+            "@container": "@set"
+          },
+          "title": {
+            "@id": "schema:title"
+          },
+          "url": {
+            "@id": "schema:url",
+            "@type": "@id"
+          },
+          "publishedDate": {
+            "@id": "schema:datePublished",
+            "@type": "xsd:date"
+          },
+          "author": {
+            "@id": "schema:author"
+          },
+          "sameAs": {
+            "@id": "owl:sameAs",
+            "@type": "@id",
+            "@container": "@set"
+          },
+          "seeAlso": {
+            "@id": "rdfs:seeAlso",
+            "@type": "@id"
+          },
+          "sourceReferences": {
+            "@id": "prov:hadPrimarySource",
+            "@container": "@set"
+          },
+          "linkedEntities": {
+            "@id": "linkedEntity",
+            "@container": "@set"
+          },
+          "sourceCode": {
+            "@id": "sourceCode"
+          },
+          "referenceNumber": {
+            "@id": "referenceNumber"
+          },
+          "resolution": {
+            "@id": "resolution"
+          },
+          "fetchedAt": {
+            "@id": "fetchedAt",
+            "@type": "xsd:dateTime"
+          },
+          "targetId": {
+            "@id": "targetId",
+            "@type": "@id"
+          },
+          "relationshipType": {
+            "@id": "relationshipType",
+            "@type": "@vocab"
+          },
+          "targetName": {
+            "@id": "targetName"
+          },
+          "targetType": {
+            "@id": "targetType"
+          },
+          "gt": {
+            "@id": "grossTonnage",
+            "@type": "xsd:integer"
+          },
+          "dwt": {
+            "@id": "deadweightTonnage",
+            "@type": "xsd:integer"
+          },
+          "nt": {
+            "@id": "netTonnage",
+            "@type": "xsd:integer"
+          },
+          "grt": {
+            "@id": "grossRegisterTonnage",
+            "@type": "xsd:integer"
+          },
+          "tonnage": {
+            "@id": "tonnage"
+          },
+          "birthDate": {
+            "@id": "schema:birthDate",
+            "@type": "xsd:date"
+          },
+          "birthYear": {
+            "@id": "birthYear",
+            "@type": "xsd:gYear"
+          },
+          "year": {
+            "@id": "year",
+            "@type": "xsd:gYear"
+          },
+          "dateRangeFrom": {
+            "@id": "dateRangeFrom",
+            "@type": "xsd:date"
+          },
+          "dateRangeTo": {
+            "@id": "dateRangeTo",
+            "@type": "xsd:date"
+          },
+          "yearRangeFrom": {
+            "@id": "yearRangeFrom",
+            "@type": "xsd:gYear"
+          },
+          "yearRangeTo": {
+            "@id": "yearRangeTo",
+            "@type": "xsd:gYear"
+          },
+          "birthCity": {
+            "@id": "schema:birthPlace"
+          },
+          "birthCountry": {
+            "@id": "birthCountry"
+          },
+          "streetAddress": {
+            "@id": "schema:streetAddress"
+          },
+          "addressLocality": {
+            "@id": "schema:addressLocality"
+          },
+          "addressRegion": {
+            "@id": "schema:addressRegion"
+          },
+          "postalCode": {
+            "@id": "schema:postalCode"
+          },
+          "addressCountry": {
+            "@id": "schema:addressCountry"
+          },
+          "idType": {
+            "@id": "idType",
+            "@type": "@vocab"
+          },
+          "idNumber": {
+            "@id": "idNumber"
+          },
+          "idCountry": {
+            "@id": "idCountry"
+          },
+          "issueDate": {
+            "@id": "issueDate",
+            "@type": "xsd:date"
+          },
+          "expiryDate": {
+            "@id": "expiryDate",
+            "@type": "xsd:date"
+          },
+          "fromStatus": {
+            "@id": "fromStatus",
+            "@type": "@vocab"
+          },
+          "toStatus": {
+            "@id": "toStatus",
+            "@type": "@vocab"
+          },
+          "statusHistory": {
+            "@id": "statusHistory",
+            "@container": "@set"
+          },
+          "suspensionEndDate": {
+            "@id": "suspensionEndDate",
+            "@type": "xsd:date"
+          },
+          "dissolutionDate": {
+            "@id": "dissolutionDate",
+            "@type": "xsd:date"
+          },
+          "country": {
+            "@id": "country"
+          },
+          "countryIsoCode": {
+            "@id": "countryIsoCode"
+          },
+          "sector": {
+            "@id": "sector"
+          },
+          "value": {
+            "@id": "value"
+          },
+          "lang": {
+            "@id": "lang"
+          },
+          "script": {
+            "@id": "script"
+          },
+          "region": {
+            "@id": "region"
+          },
+          "isPrimary": {
+            "@id": "isPrimary",
+            "@type": "xsd:boolean"
+          },
+          "isTransliteration": {
+            "@id": "isTransliteration",
+            "@type": "xsd:boolean"
+          },
+          "transliterationSystem": {
+            "@id": "transliterationSystem"
+          },
+          "legalInstrumentId": {
+            "@id": "legalInstrumentId",
+            "@type": "@id"
+          },
+          "articles": {
+            "@id": "articles",
+            "@container": "@set"
+          },
+          "sections": {
+            "@id": "sections",
+            "@container": "@set"
+          },
+          "paragraphs": {
+            "@id": "paragraphs",
+            "@container": "@set"
+          },
+          "citationType": {
+            "@id": "citationType"
+          },
+          "context": {
+            "@id": "context"
+          },
+          "quotedText": {
+            "@id": "quotedText",
+            "@container": "@set"
+          },
+          "source": {
+            "@id": "source"
+          },
+          "code": {
+            "@id": "code"
+          },
+          "description": {
+            "@id": "description"
+          },
+          "description_zh": {
+            "@id": "description_zh"
+          },
+          "description_en": {
+            "@id": "description_en"
+          },
+          "establishedDate": {
+            "@id": "establishedDate",
+            "@type": "xsd:date"
+          },
+          "metadata": {
+            "@id": "metadata"
+          },
+          "legalCitations": {
+            "@id": "legalCitation",
+            "@container": "@set"
+          },
+          "announcementId": {
+            "@id": "announcementId",
+            "@type": "@id"
+          },
+          "listId": {
+            "@id": "listId",
+            "@type": "@id"
+          },
+          "entryIds": {
+            "@id": "entryId",
+            "@type": "@id",
+            "@container": "@set"
+          },
+          "sharedMeasures": {
+            "@id": "sharedMeasure",
+            "@container": "@set"
+          },
+          "sharedReasons": {
+            "@id": "sharedReason",
+            "@container": "@set"
+          },
+          "effectiveTime": {
+            "@id": "effectiveTime"
+          },
+          "entityCount": {
+            "@id": "entityCount",
+            "@type": "xsd:integer"
+          },
+          "notes": {
+            "@id": "notes"
+          },
+          "targetAnnouncementId": {
+            "@id": "targetAnnouncementId",
+            "@type": "@id"
+          },
+          "targetAnnouncementDocumentId": {
+            "@id": "targetAnnouncementDocumentId"
+          },
+          "targetAnnouncementDate": {
+            "@id": "targetAnnouncementDate",
+            "@type": "xsd:date"
+          },
+          "affectedEntityCount": {
+            "@id": "affectedEntityCount",
+            "@type": "xsd:integer"
+          },
+          "affectedEntityNames": {
+            "@id": "affectedEntityName",
+            "@container": "@set"
+          },
+          "action": {
+            "@id": "action"
+          },
+          "untilDate": {
+            "@id": "untilDate",
+            "@type": "xsd:date"
+          },
+          "effectiveDate": {
+            "@id": "effectiveDate",
+            "@type": "xsd:date"
+          },
+          "untilTime": {
+            "@id": "untilTime"
+          },
+          "durationDays": {
+            "@id": "durationDays",
+            "@type": "xsd:integer"
+          },
+          "durationDescription": {
+            "@id": "durationDescription"
+          },
+          "reason": {
+            "@id": "reason",
+            "@container": "@set"
+          },
+          "sanctionGroupIds": {
+            "@id": "sanctionGroupId",
+            "@type": "@id",
+            "@container": "@set"
+          },
+          "modifications": {
+            "@id": "modification",
+            "@container": "@set"
+          },
+          "groupId": {
+            "@id": "groupId",
+            "@type": "@id"
+          }
+        }
+      }
+    },
+    {
+      "template": "/all.jsonld",
+      "parameters": {},
+      "path": "/all.jsonld",
+      "provenance": "Previously downloaded release HTTP200 artifact; arrays/text bounded for regression fixture.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/all.jsonld",
+      "status": 200,
+      "response": {
+        "@context": "https://ammitto.org/api/v1/context.jsonld",
+        "@graph": [
+          {
+            "@context": "https://ammitto.org/api/v1/context.jsonld",
+            "@id": "https://www.ammitto.org/authority/eu",
+            "@type": "Authority",
+            "name": "European Union",
+            "countryCode": "EU"
+          },
+          {
+            "@context": "https://ammitto.org/api/v1/context.jsonld",
+            "@id": "https://www.ammitto.org/authority/un",
+            "@type": "Authority",
+            "name": "United Nations",
+            "countryCode": "UN"
+          }
+        ]
+      }
+    },
+    {
+      "template": "/all.ttl",
+      "parameters": {},
+      "path": "/all.ttl",
+      "provenance": "Previously downloaded release HTTP200 artifact; arrays/text bounded for regression fixture. Turtle text truncated to first4096characters.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/all.ttl",
+      "status": 200,
+      "response": "@prefix ammitto: <https://www.ammitto.org/ontology/> .\n@prefix entity: <https://www.ammitto.org/entity/> .\n@prefix entry: <https://www.ammitto.org/entry/> .\n@prefix instrument: <https://www.ammitto.org/instrument/> .\n@prefix regime: <https://www.ammitto.org/regime/> .\n@prefix authority: <https://www.ammitto.org/authority/> .\n@prefix schema: <http://schema.org/> .\n@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .\n@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .\n@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .\n@prefix owl: <http://www.w3.org/2002/07/owl#> .\n\n<https://www.ammitto.org/authority/eu>\n  a ammitto:Authority ;\n  schema:name \"European Union\" ;\n  ammitto:countryCode \"EU\" .\n<https://www.ammitto.org/authority/un>\n  a ammitto:Authority ;\n  schema:name \"United Nations\" ;\n  ammitto:countryCode \"UN\" .\n<https://www.ammitto.org/authority/us>\n  a ammitto:Authority ;\n  schema:name \"United States (OFAC)\" ;\n  ammitto:countryCode \"US\" .\n<https://www.ammitto.org/authority/wb>\n  a ammitto:Authority ;\n  schema:name \"World Bank\" ;\n  ammitto:countryCode \"WB\" .\n<https://www.ammitto.org/authority/uk>\n  a ammitto:Authority ;\n  schema:name \"United Kingdom (OFSI)\" ;\n  ammitto:countryCode \"GB\" .\n<https://www.ammitto.org/authority/au>\n  a ammitto:Authority ;\n  schema:name \"Australia (DFAT)\" ;\n  ammitto:countryCode \"AU\" .\n<https://www.ammitto.org/authority/ca>\n  a ammitto:Authority ;\n  schema:name \"Canada (SEFO)\" ;\n  ammitto:countryCode \"CA\" .\n<https://www.ammitto.org/authority/ch>\n  a ammitto:Authority ;\n  schema:name \"Switzerland (SECO)\" ;\n  ammitto:countryCode \"CH\" .\n<https://www.ammitto.org/authority/cn>\n  a ammitto:Authority ;\n  schema:name \"China (MOFCOM/MFA)\" ;\n  ammitto:countryCode \"CN\" .\n<https://www.ammitto.org/authority/tr>\n  a ammitto:Authority ;\n  schema:name \"Turkey (Ministry of Treasury and Finance)\" ;\n  ammitto:countryCode \"TR\" .\n<https://www.ammitto.org/authority/nz>\n  a ammitto:Authority ;\n  schema:name \"New Zealand (MFAT)\" ;\n  ammitto:countryCode \"NZ\" .\n<https://www.ammitto.org/authority/jp>\n  a ammitto:Authority ;\n  schema:name \"Japan (METI End-User List)\" ;\n  ammitto:countryCode \"JP\" .\n<https://www.ammitto.org/authority/eu_vessels>\n  a ammitto:Authority ;\n  schema:name \"EU Designated Vessels (via Denmark DMA)\" ;\n  ammitto:countryCode \"EU\" .\n<https://www.ammitto.org/authority/un_vessels>\n  a ammitto:Authority ;\n  schema:name \"UN Security Council (1718 Committee)\" ;\n  ammitto:countryCode \"UN\" .\n<https://www.ammitto.org/regime/taqa>\n  a ammitto:SanctionRegime ;\n  schema:name \"TAQA\" ;\n  ammitto:code \"TAQA\" .\n<https://www.ammitto.org/regime/euaq>\n  a ammitto:SanctionRegime ;\n  schema:name \"EUAQ\" ;\n  ammitto:code \"EUAQ\" .\n<https://www.ammitto.org/regime/syria>\n  a ammitto:SanctionRegime ;\n  schema:name \"Syria\" ;\n  ammitto:code \"SYRIA\" .\n<https://www.ammitto.org/regime/iran>\n  a ammitto:SanctionRegime ;\n  schema:name \"Iran\" ;\n  ammitto:code \"IRAN\" .\n<https://www.ammitto.org/regime/hr>\n  a ammitto:SanctionRegime ;\n  schema:name \"HR\" ;\n  ammitto:code \"HR\" .\n<https://www.ammitto.org/regime/russia>\n  a ammitto:SanctionRegime ;\n  schema:name \"Russia/Ukraine\" ;\n  ammitto:code \"RUSSIA\" .\n<https://www.ammitto.org/regime/mda>\n  a ammitto:SanctionRegime ;\n  schema:name \"MDA\" ;\n  ammitto:code \"MDA\" .\n<https://www.ammitto.org/regime/irq>\n  a ammitto:SanctionRegime ;\n  schema:name \"Iraq\" ;\n  ammitto:code \"IRQ\" .\n<https://www.ammitto.org/regime/myanmar>\n  a ammitto:SanctionRegime ;\n  schema:name \"Myanmar\" ;\n  ammitto:code \"MYANMAR\" .\n<https://www.ammitto.org/regime/belarus>\n  a ammitto:SanctionRegime ;\n  schema:name \"Belarus\" ;\n  ammitto:code \"BELARUS\" .\n<https://www.ammitto.org/regime/drc>\n  a ammitto:SanctionRegime ;\n  schema:name \"Democratic Republic of the Congo\" ;\n  ammitto:code \"DRC\" .\n<https://www.ammitto.org/regime/somalia>\n  a ammitto:SanctionRegime ;\n  schema:name \"Somalia\" ;\n  ammitto:code \"SOMALIA\" .\n<https://www.ammitto.org/regime/haiti>\n  a ammitto:SanctionRegime ;\n  schema:name \"Haiti\" ;\n  ammitto:code \"HAITI\" .\n<https://www.ammitto.org/regime/ham>\n  a ammitto:SanctionRegime ;\n  schema:name \"HAM\" ;\n  ammit"
+    },
+    {
+      "template": "/sources/{source}.jsonld",
+      "parameters": {
+        "source": "cn"
+      },
+      "path": "/sources/cn.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/sources/cn.jsonld",
+      "status": 200,
+      "response": {
+        "@context": "https://ammitto.org/api/v1/context.jsonld",
+        "@graph": [
+          {
+            "@id": "https://www.ammitto.org/entity/cn/202510-dedrone-by-axon",
+            "@type": "OrganizationEntity",
+            "entityType": "organization",
+            "names": [
+              {
+                "@type": "NameVariant",
+                "fullName": "Dedrone by Axon",
+                "script": "Latn",
+                "isPrimary": true
+              },
+              {
+                "@type": "NameVariant",
+                "fullName": "反无人机技术公司",
+                "script": "Hani",
+                "isPrimary": false
+              }
+            ],
+            "sourceReferences": [],
+            "linkedEntities": [],
+            "hasSanctionEntry": [
+              "https://www.ammitto.org/entry/cn/unreliable-entity-list/202510-dedrone-by-axon"
+            ],
+            "remarks": "List: cn/unreliable-entity-list",
+            "identifications": [],
+            "addresses": [],
+            "beneficialOwners": []
+          },
+          {
+            "@id": "https://www.ammitto.org/entry/cn/unreliable-entity-list/202510-dedrone-by-axon",
+            "@type": "SanctionEntry",
+            "entityId": "https://www.ammitto.org/entity/cn/202510-dedrone-by-axon",
+            "authority": {
+              "@id": "https://www.ammitto.org/authority/cn"
+            },
+            "regime": {
+              "@id": "https://www.ammitto.org/regime/cn_unreliable_entity",
+              "name": "不可靠实体清单 (Unreliable Entity List)"
+            },
+            "legalBases": [],
+            "effects": [
+              {
+                "@type": "SanctionEffect",
+                "effectType": "prohibit_import_export",
+                "scope": "full",
+                "description": [
+                  {
+                    "value": "禁止上述实体从事与中国有关的进出口活动",
+                    "lang": "zh",
+                    "script": "Hani",
+                    "is_primary": true
+                  },
+                  {
+                    "value": "Prohibit the entity from engaging in import and export activities related to China",
+                    "lang": "en",
+                    "script": "Latn",
+                    "is_primary": false
+                  }
+                ]
+              },
+              {
+                "@type": "SanctionEffect",
+                "effectType": "prohibit_investment_new",
+                "scope": "full",
+                "description": [
+                  {
+                    "value": "禁止上述实体在中国境内新增投资",
+                    "lang": "zh",
+                    "script": "Hani",
+                    "is_primary": true
+                  },
+                  {
+                    "value": "Prohibit the entity from making new investments in China",
+                    "lang": "en",
+                    "script": "Latn",
+                    "is_primary": false
+                  }
+                ]
+              }
+            ],
+            "reasons": [
+              {
+                "@type": "SanctionReason",
+                "category": "other",
+                "description": [
+                  {
+                    "value": "为维护国家主权、安全和发展利益。",
+                    "lang": "zh",
+                    "script": "Hani",
+                    "is_primary": true
+                  },
+                  {
+                    "value": "To safeguard national sovereignty, security and development interests.",
+                    "lang": "en",
+                    "script": "Latn",
+                    "is_primary": false
+                  }
+                ]
+              }
+            ],
+            "period": {
+              "@type": "TemporalPeriod",
+              "effectiveDate": "2025-10-09",
+              "isIndefinite": true
+            },
+            "status": "active",
+            "statusHistory": [],
+            "referenceNumber": "202510-dedrone-by-axon",
+            "groupId": "https://www.ammitto.org/group/cn/202510",
+            "legalCitations": [
+              {
+                "@type": "LegalCitation",
+                "legalInstrumentId": "https://www.ammitto.org/legal-instrument/cn/npc-foreign-trade-law-2025",
+                "citationType": "legal_basis"
+              },
+              {
+                "@type": "LegalCitation",
+                "legalInstrumentId": "https://www.ammitto.org/legal-instrument/cn/npc-national-security-law-2015",
+                "citationType": "legal_basis"
+              }
+            ],
+            "announcement": {
+              "@type": "OfficialAnnouncement",
+              "title": "不可靠实体清单工作机制关于将反无人机技术公司等外国实体列入不可靠实体清单的公告",
+              "url": "https://www.mofcom.gov.cn/zwgk/zcfb/art/2025/art_9b662990fa4a4d26ba3984ab5d826960.html",
+              "publishDate": "2025-10-09",
+              "publishTime": "16:00",
+              "documentType": "cn/unreliable-entity-list-working-mechanism-announcement",
+              "documentId": "〔2025〕10号",
+              "signatory": "cn/unreliable-entity-list-working-mechanism",
+              "publisher": "cn/ministry-of-commerce-industry-security-and-import-export-control",
+              "authority": "cn/unreliable-entity-list-working-mechanism",
+              "content": "为维护国家主权、安全和发展利益，根据《中华人民共和国对外贸易法》《中华人民共\n和国国家安全法》《中华人民共和国反外国制裁法》等有关法律，不可靠实体清单工作\n机制依据《不可靠实体清单规定》第二条、第八条和第十条等有关规定，决定将反无人\n机技术公司、TechInsights公司及其分支机构等外国实体列入不可靠实体清单，并采取\n以下处理措施：\n\n一、禁止上述实体从事与中国有关的进出口活动；\n\n二、禁止上述实体在中国境内新增投资；\n\n三、禁止中国境内的组织、个人与上述实体进行有关交易、合作等活动，特别是向上述实体传输数据、提供敏感信息。\n\n本公告未尽事宜，按《不可靠实体清单规定》执行。\n\n本公告自公布之日起实施。\n\n附：被列入不可靠实体清单的外国实体\n\n不可靠实体清单工作机制\n（商务部代章）\n2025年10月9日\n\n附\n\n被列入不可靠实体清单的外国实体\n\n1. 反无人机技术公司（Dedrone by Axon）\n2. 迪杰恩技术公司（DZYNE Technologies）\n3. 埃比特系统美国分公司（Elbit Systems of America, LLC）\n4. 伊比鲁斯公司（Epirus, Inc.）\n5. 宇航环境公司（AeroVironment, Inc.）\n6. Exelis公司（Exelis Inc.）\n7. 联合技术系统运营公司（Alliant Techsystems Operations LLC）\n8. 贝宜系统股份有限公司（BAE Systems, Inc.）\n9. Teledyne FLIR公司（Teledyne FLIR, LLC）\n10. VSE公司（VSE Corporation）\n11. 立方全球防务公司(Cubic Global Defense)\n12. Recorded Future公司（Recorded Future, Inc.）\n13. 哈利法克斯国际安全论坛 （Halifax International Security Forum）\n14. TechInsights公司（TechInsights Inc.）及其分支机构\n  - TechInsights Inc.\n  - TechInsights Europe Limited\n  - TechInsights Europe Sp zo.o\n  - TechInsights Japan KK\n  - TechInsights USA Inc\n  - TechInsights Korea Co. Ltd.\n  - TechInsights Market Analysis Limited\n  - SARL Strategy Analytics\n  - Strategy Analytics GmbH Market Research and Management Consulting\n  - SARI Strategy Analytics Private Limited\n",
+              "language": "zh-CN"
+            },
+            "rawSourceData": {
+              "@type": "RawSourceData",
+              "sourceFormat": "yaml",
+              "sourceSpecificFields": {
+                "cn:list_type": "unreliable_entity",
+                "cn:sanction_list": "cn/unreliable-entity-list",
+                "cn:chinese_name": "反无人机技术公司",
+                "cn:english_name": "Dedrone by Axon"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "template": "/sources/{source}.ttl",
+      "parameters": {
+        "source": "cn"
+      },
+      "path": "/sources/cn.ttl",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records. Turtle text truncated to first4096characters.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/sources/cn.ttl",
+      "status": 200,
+      "response": "@prefix ammitto: <https://www.ammitto.org/ontology/> .\n@prefix entity: <https://www.ammitto.org/entity/> .\n@prefix entry: <https://www.ammitto.org/entry/> .\n@prefix instrument: <https://www.ammitto.org/instrument/> .\n@prefix regime: <https://www.ammitto.org/regime/> .\n@prefix authority: <https://www.ammitto.org/authority/> .\n@prefix schema: <http://schema.org/> .\n@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .\n@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .\n@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .\n@prefix owl: <http://www.w3.org/2002/07/owl#> .\n\n<https://www.ammitto.org/entity/cn/202510-dedrone-by-axon>\n  a ammitto:OrganizationEntity ;\n  ammitto:entityType \"organization\" ;\n  ammitto:hasName [ a ammitto:NameVariant ; ammitto:fullName \"Dedrone by Axon\" ; ammitto:script \"Latn\" ; ammitto:isPrimary \"true\"^^xsd:boolean ] ;\n  ammitto:hasName [ a ammitto:NameVariant ; ammitto:fullName \"反无人机技术公司\" ; ammitto:script \"Hani\" ; ammitto:isPrimary \"false\"^^xsd:boolean ] ;\n  ammitto:hasSanctionEntry <https://www.ammitto.org/entry/cn/unreliable-entity-list/202510-dedrone-by-axon> ;\n  ammitto:remarks \"List: cn/unreliable-entity-list\" .\n<https://www.ammitto.org/entry/cn/unreliable-entity-list/202510-dedrone-by-axon>\n  a ammitto:SanctionEntry ;\n  ammitto:entityId <https://www.ammitto.org/entity/cn/202510-dedrone-by-axon> ;\n  ammitto:hasAuthority <https://www.ammitto.org/authority/cn> ;\n  ammitto:hasRegime <https://www.ammitto.org/regime/cn_unreliable_entity> ;\n  ammitto:hasEffect [ a ammitto:SanctionEffect ; ammitto:effectType \"prohibit_import_export\" ; ammitto:scope \"full\" ; schema:description \"\"\"{\"value\":\"禁止上述实体从事与中国有关的进出口活动\",\"lang\":\"zh\",\"script\":\"Hani\",\"is_primary\":true}\"\"\" ; schema:description \"\"\"{\"value\":\"Prohibit the entity from engaging in import and export activities related to China\",\"lang\":\"en\",\"script\":\"Latn\",\"is_primary\":false}\"\"\" ] ;\n  ammitto:hasEffect [ a ammitto:SanctionEffect ; ammitto:effectType \"prohibit_investment_new\" ; ammitto:scope \"full\" ; schema:description \"\"\"{\"value\":\"禁止上述实体在中国境内新增投资\",\"lang\":\"zh\",\"script\":\"Hani\",\"is_primary\":true}\"\"\" ; schema:description \"\"\"{\"value\":\"Prohibit the entity from making new investments in China\",\"lang\":\"en\",\"script\":\"Latn\",\"is_primary\":false}\"\"\" ] ;\n  ammitto:hasEffect [ a ammitto:SanctionEffect ; ammitto:effectType \"prohibit_transactions\" ; ammitto:scope \"full\" ; schema:description \"\"\"{\"value\":\"禁止中国境内的组织、个人与上述实体进行有关交易、合作等活动，特别是向上述实体传输数据、提供敏感信息\\n\",\"lang\":\"zh\",\"script\":\"Hani\",\"is_primary\":true}\"\"\" ; schema:description \"\"\"{\"value\":\"Prohibit organizations and individuals in China from engaging in\\ntransactions, cooperation, etc. with the entity, especially\\ntransmitting data and providing sensitive information to the entity\\n\",\"lang\":\"en\",\"script\":\"Latn\",\"is_primary\":false}\"\"\" ] ;\n  ammitto:hasReason [ a ammitto:SanctionReason ; ammitto:category \"other\" ; schema:description \"\"\"{\"value\":\"为维护国家主权、安全和发展利益。\",\"lang\":\"zh\",\"script\":\"Hani\",\"is_primary\":true}\"\"\" ; schema:description \"\"\"{\"value\":\"To safeguard national sovereignty, security and development interests.\",\"lang\":\"en\",\"script\":\"Latn\",\"is_primary\":false}\"\"\" ] ;\n  ammitto:hasPeriod [ a ammitto:TemporalPeriod ; ammitto:effectiveDate \"2025-10-09\"^^xsd:date ; ammitto:isIndefinite \"true\"^^xsd:boolean ] ;\n  ammitto:status \"active\" ;\n  ammitto:referenceNumber \"202510-dedrone-by-axon\" ;\n  ammitto:groupId <https://www.ammitto.org/group/cn/202510> ;\n  ammitto:legalCitations [ a ammitto:LegalCitation ; ammitto:legalInstrumentId <https://www.ammitto.org/legal-instrument/cn/npc-foreign-trade-law-2025> ; ammitto:citationType \"legal_basis\" ] ;\n  ammitto:legalCitations [ a ammitto:LegalCitation ; ammitto:legalInstrumentId <https://www.ammitto.org/legal-instrument/cn/npc-national-security-law-2015> ; ammitto:citationType \"legal_basis\" ] ;\n  ammitto:legalCitations [ a ammitto:LegalCitation ; ammitto:legalInstrumentId <https://www.ammitto.org/legal-instrument/cn/npc-anti-foreign-sanctions-law> ; ammitto:citationType \"legal_basis\" ] ;\n  ammitto:legalCitations [ a ammitto:LegalCitation ; ammitto:legalInstrumentId <https://www.ammi"
+    },
+    {
+      "template": "/search-index/manifest.json",
+      "parameters": {},
+      "path": "/search-index/manifest.json",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/search-index/manifest.json",
+      "status": 200,
+      "response": {
+        "metadata": {
+          "generated": "2026-10-14T11:07:47Z",
+          "totalEntities": 61578,
+          "sources": 14
+        },
+        "shards": [
+          {
+            "code": "au",
+            "file": "au.json",
+            "count": 4009
+          },
+          {
+            "code": "ca",
+            "file": "ca.json",
+            "count": 5707
+          }
+        ]
+      }
+    },
+    {
+      "template": "/search-index/{source}.json",
+      "parameters": {
+        "source": "cn"
+      },
+      "path": "/search-index/cn.json",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/search-index/cn.json",
+      "status": 200,
+      "response": {
+        "metadata": {
+          "generated": "2026-10-14T11:07:47Z",
+          "totalEntities": 323,
+          "sources": 1
+        },
+        "entities": [
+          {
+            "id": "https://www.ammitto.org/entity/cn/202510-dedrone-by-axon",
+            "ref": "cn/202510-dedrone-by-axon",
+            "type": "organization",
+            "names": [
+              "Dedrone by Axon",
+              "反无人机技术公司"
+            ],
+            "primaryName": "Dedrone by Axon",
+            "regime": "cn_unreliable_entity",
+            "authority": "cn",
+            "listType": "unreliable-entity-list",
+            "status": "active"
+          },
+          {
+            "id": "https://www.ammitto.org/entity/cn/202510-dzyne-technologies",
+            "ref": "cn/202510-dzyne-technologies",
+            "type": "organization",
+            "names": [
+              "DZYNE Technologies",
+              "迪杰恩技术公司"
+            ],
+            "primaryName": "DZYNE Technologies",
+            "regime": "cn_unreliable_entity",
+            "authority": "cn",
+            "listType": "unreliable-entity-list",
+            "status": "active"
+          }
+        ]
+      }
+    },
+    {
+      "template": "/facets/{facet}.json",
+      "parameters": {
+        "facet": "authorities"
+      },
+      "path": "/facets/authorities.json",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/facets/authorities.json",
+      "status": 200,
+      "response": {
+        "facets": [
+          {
+            "code": "us",
+            "name": "United States",
+            "count": 19431
+          },
+          {
+            "code": "ch",
+            "name": "Switzerland",
+            "count": 8667
+          }
+        ]
+      }
+    },
+    {
+      "template": "/facets/{facet}.json",
+      "parameters": {
+        "facet": "countries"
+      },
+      "path": "/facets/countries.json",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/facets/countries.json",
+      "status": 200,
+      "response": {
+        "facets": [
+          {
+            "code": "RUSSIA",
+            "count": 7795
+          },
+          {
+            "code": "IRAN",
+            "count": 2156
+          }
+        ]
+      }
+    },
+    {
+      "template": "/facets/{facet}.json",
+      "parameters": {
+        "facet": "list_types"
+      },
+      "path": "/facets/list_types.json",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/facets/list_types.json",
+      "status": 200,
+      "response": {
+        "facets": [
+          {
+            "code": "consolidated-list",
+            "name": "Consolidated List",
+            "count": 34421
+          },
+          {
+            "code": "sdn-list",
+            "name": "Sdn List",
+            "count": 19431
+          }
+        ]
+      }
+    },
+    {
+      "template": "/facets/{facet}.json",
+      "parameters": {
+        "facet": "regimes"
+      },
+      "path": "/facets/regimes.json",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/facets/regimes.json",
+      "status": 200,
+      "response": {
+        "facets": [
+          {
+            "code": "russia",
+            "name": "Russia/Ukraine",
+            "count": 9912
+          },
+          {
+            "code": "ch_seco",
+            "name": "Switzerland SECO Sanctions",
+            "count": 8667
+          }
+        ]
+      }
+    },
+    {
+      "template": "/facets/{facet}.json",
+      "parameters": {
+        "facet": "statuses"
+      },
+      "path": "/facets/statuses.json",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/facets/statuses.json",
+      "status": 200,
+      "response": {
+        "facets": [
+          {
+            "code": "active",
+            "name": "Active",
+            "count": 61578
+          }
+        ]
+      }
+    },
+    {
+      "template": "/facets/{facet}.json",
+      "parameters": {
+        "facet": "types"
+      },
+      "path": "/facets/types.json",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/facets/types.json",
+      "status": 200,
+      "response": {
+        "facets": [
+          {
+            "code": "person",
+            "name": "Person",
+            "icon": "user",
+            "count": 31330
+          },
+          {
+            "code": "organization",
+            "name": "Organization",
+            "icon": "building",
+            "count": 25617
+          }
+        ]
+      }
+    },
+    {
+      "template": "/ontology/{document}.jsonld",
+      "parameters": {
+        "document": "classes"
+      },
+      "path": "/ontology/classes.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/ontology/classes.jsonld",
+      "status": 200,
+      "response": {
+        "@context": "https://ammitto.org/api/v1/context.jsonld",
+        "@graph": [
+          {
+            "@id": "https://www.ammitto.org/ontology/Entity",
+            "@type": "rdfs:Class",
+            "label": "Entity",
+            "comment": "Base class for all sanctionable entities",
+            "properties": [
+              "https://www.ammitto.org/ontology/entityType",
+              "https://www.ammitto.org/ontology/names"
+            ]
+          },
+          {
+            "@id": "https://www.ammitto.org/ontology/PersonEntity",
+            "@type": "rdfs:Class",
+            "label": "Person Entity",
+            "comment": "A human individual subject to sanctions",
+            "subClassOf": "https://www.ammitto.org/ontology/Entity",
+            "properties": [
+              "https://www.ammitto.org/ontology/birthInfo",
+              "https://www.ammitto.org/ontology/nationalities"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "template": "/ontology/{document}.jsonld",
+      "parameters": {
+        "document": "properties"
+      },
+      "path": "/ontology/properties.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/ontology/properties.jsonld",
+      "status": 200,
+      "response": {
+        "@context": "https://ammitto.org/api/v1/context.jsonld",
+        "@graph": [
+          {
+            "@id": "https://www.ammitto.org/ontology/entityType",
+            "@type": "rdf:Property",
+            "label": "Entity Type",
+            "comment": "The type of entity",
+            "domain": "https://www.ammitto.org/ontology/Entity",
+            "range": "http://www.w3.org/2001/XMLSchema#string"
+          },
+          {
+            "@id": "https://www.ammitto.org/ontology/names",
+            "@type": "rdf:Property",
+            "label": "Names",
+            "comment": "Name variants for the entity",
+            "domain": "https://www.ammitto.org/ontology/Entity",
+            "range": "https://www.ammitto.org/ontology/Name",
+            "isArray": true
+          }
+        ]
+      }
+    },
+    {
+      "template": "/ontology/hierarchy.json",
+      "parameters": {},
+      "path": "/ontology/hierarchy.json",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/ontology/hierarchy.json",
+      "status": 200,
+      "response": {
+        "name": "AmmittoOntology",
+        "label": "Ammitto Ontology",
+        "children": [
+          {
+            "name": "Entity",
+            "label": "Entity",
+            "count": 0,
+            "children": [
+              {
+                "name": "PersonEntity",
+                "label": "Person",
+                "code": "person",
+                "count": 0,
+                "icon": "user",
+                "color": "#3b82f6",
+                "children": []
+              },
+              {
+                "name": "OrganizationEntity",
+                "label": "Organization",
+                "code": "organization",
+                "count": 0,
+                "icon": "building",
+                "color": "#10b981",
+                "children": []
+              }
+            ]
+          },
+          {
+            "name": "SanctionEntry",
+            "label": "Sanction Entry",
+            "icon": "scroll-text",
+            "children": [],
+            "count": 0
+          }
+        ]
+      }
+    },
+    {
+      "template": "/ontology/examples/{type}.jsonld",
+      "parameters": {
+        "type": "person"
+      },
+      "path": "/ontology/examples/person.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/ontology/examples/person.jsonld",
+      "status": 200,
+      "response": {
+        "@context": "https://ammitto.org/api/v1/context.jsonld",
+        "@id": "https://www.ammitto.org/entity/example/person",
+        "@type": "PersonEntity",
+        "entityType": "person",
+        "names": [
+          {
+            "@type": "Name",
+            "fullName": "DOE, John",
+            "isPrimary": true
+          }
+        ],
+        "birthInfo": [
+          {
+            "@type": "BirthInfo",
+            "date": "1970-01-15",
+            "countryCode": "XX"
+          }
+        ],
+        "nationalities": [
+          {
+            "@type": "Nationality",
+            "countryCode": "XX"
+          }
+        ],
+        "hasSanctionEntry": [
+          {
+            "@id": "https://www.ammitto.org/entry/example/person"
+          }
+        ]
+      }
+    },
+    {
+      "template": "/ontology/examples/{type}.jsonld",
+      "parameters": {
+        "type": "organization"
+      },
+      "path": "/ontology/examples/organization.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/ontology/examples/organization.jsonld",
+      "status": 200,
+      "response": {
+        "@context": "https://ammitto.org/api/v1/context.jsonld",
+        "@id": "https://www.ammitto.org/entity/example/organization",
+        "@type": "OrganizationEntity",
+        "entityType": "organization",
+        "names": [
+          {
+            "@type": "Name",
+            "fullName": "EXAMPLE CORPORATION LTD",
+            "isPrimary": true
+          }
+        ],
+        "addresses": [
+          {
+            "@type": "Address",
+            "street": "123 Example St",
+            "city": "Example City",
+            "countryCode": "XX"
+          }
+        ],
+        "hasSanctionEntry": [
+          {
+            "@id": "https://www.ammitto.org/entry/example/organization"
+          }
+        ]
+      }
+    },
+    {
+      "template": "/ontology/examples/{type}.jsonld",
+      "parameters": {
+        "type": "vessel"
+      },
+      "path": "/ontology/examples/vessel.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/ontology/examples/vessel.jsonld",
+      "status": 200,
+      "response": {
+        "@context": "https://ammitto.org/api/v1/context.jsonld",
+        "@id": "https://www.ammitto.org/entity/example/vessel",
+        "@type": "VesselEntity",
+        "entityType": "vessel",
+        "names": [
+          {
+            "@type": "Name",
+            "fullName": "EXAMPLE VESSEL",
+            "isPrimary": true
+          }
+        ],
+        "imo": "1234567",
+        "mmsi": "123456789",
+        "flag": "Example Flag State",
+        "tonnage": 50000,
+        "callSign": "ABCD1",
+        "hasSanctionEntry": [
+          {
+            "@id": "https://www.ammitto.org/entry/example/vessel"
+          }
+        ]
+      }
+    },
+    {
+      "template": "/node/{kind}/index.jsonld",
+      "parameters": {
+        "kind": "authority"
+      },
+      "path": "/node/authority/index.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/node/authority/index.jsonld",
+      "status": 200,
+      "response": {
+        "@context": "https://ammitto.org/api/v1/context.jsonld",
+        "@type": "Index",
+        "nodes": [
+          {
+            "@id": "https://www.ammitto.org/authority/au"
+          },
+          {
+            "@id": "https://www.ammitto.org/authority/ca"
+          }
+        ]
+      }
+    },
+    {
+      "template": "/node/{kind}/index.jsonld",
+      "parameters": {
+        "kind": "document-type"
+      },
+      "path": "/node/document-type/index.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/node/document-type/index.jsonld",
+      "status": 200,
+      "response": {
+        "@context": "https://ammitto.org/api/v1/context.jsonld",
+        "@type": "Index",
+        "nodes": [
+          {
+            "@id": "https://www.ammitto.org/document-type/ch/act"
+          },
+          {
+            "@id": "https://www.ammitto.org/document-type/ch/announcement"
+          }
+        ]
+      }
+    },
+    {
+      "template": "/node/{kind}/index.jsonld",
+      "parameters": {
+        "kind": "entity"
+      },
+      "path": "/node/entity/index.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/node/entity/index.jsonld",
+      "status": 200,
+      "response": {
+        "@context": "https://ammitto.org/api/v1/context.jsonld",
+        "@type": "Index",
+        "nodes": [
+          {
+            "@id": "https://www.ammitto.org/entity/au/100"
+          },
+          {
+            "@id": "https://www.ammitto.org/entity/au/101"
+          }
+        ]
+      }
+    },
+    {
+      "template": "/node/{kind}/index.jsonld",
+      "parameters": {
+        "kind": "entry"
+      },
+      "path": "/node/entry/index.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/node/entry/index.jsonld",
+      "status": 200,
+      "response": {
+        "@context": "https://ammitto.org/api/v1/context.jsonld",
+        "@type": "Index",
+        "nodes": [
+          {
+            "@id": "https://www.ammitto.org/entry/au/consolidated-list/100"
+          },
+          {
+            "@id": "https://www.ammitto.org/entry/au/consolidated-list/101"
+          }
+        ]
+      }
+    },
+    {
+      "template": "/node/{kind}/index.jsonld",
+      "parameters": {
+        "kind": "group"
+      },
+      "path": "/node/group/index.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/node/group/index.jsonld",
+      "status": 200,
+      "response": {
+        "@context": "https://ammitto.org/api/v1/context.jsonld",
+        "@type": "Index",
+        "nodes": [
+          {
+            "@id": "https://www.ammitto.org/group/cn/1"
+          },
+          {
+            "@id": "https://www.ammitto.org/group/cn/10"
+          }
+        ]
+      }
+    },
+    {
+      "template": "/node/{kind}/index.jsonld",
+      "parameters": {
+        "kind": "legal-instrument"
+      },
+      "path": "/node/legal-instrument/index.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/node/legal-instrument/index.jsonld",
+      "status": 200,
+      "response": {
+        "@context": "https://ammitto.org/api/v1/context.jsonld",
+        "@type": "Index",
+        "nodes": [
+          {
+            "@id": "https://www.ammitto.org/legal-instrument/au/2013-03-07"
+          },
+          {
+            "@id": "https://www.ammitto.org/legal-instrument/au/2024-03-01"
+          }
+        ]
+      }
+    },
+    {
+      "template": "/node/{kind}/index.jsonld",
+      "parameters": {
+        "kind": "organization"
+      },
+      "path": "/node/organization/index.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/node/organization/index.jsonld",
+      "status": 200,
+      "response": {
+        "@context": "https://ammitto.org/api/v1/context.jsonld",
+        "@type": "Index",
+        "nodes": [
+          {
+            "@id": "https://www.ammitto.org/organization/ch/eda"
+          },
+          {
+            "@id": "https://www.ammitto.org/organization/ch/ejpd"
+          }
+        ]
+      }
+    },
+    {
+      "template": "/node/{kind}/index.jsonld",
+      "parameters": {
+        "kind": "regime"
+      },
+      "path": "/node/regime/index.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/node/regime/index.jsonld",
+      "status": 200,
+      "response": {
+        "@context": "https://ammitto.org/api/v1/context.jsonld",
+        "@type": "Index",
+        "nodes": [
+          {
+            "@id": "https://www.ammitto.org/regime/1373__2001_"
+          },
+          {
+            "@id": "https://www.ammitto.org/regime/1533__democratic_people_s_republic_of_the_congo_"
+          }
+        ]
+      }
+    },
+    {
+      "template": "/node/entity/{source}/{id}.jsonld",
+      "parameters": {
+        "source": "cn",
+        "id": "1-aevex-aerospace"
+      },
+      "path": "/node/entity/cn/1-aevex-aerospace.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/node/entity/cn/1-aevex-aerospace.jsonld",
+      "status": 200,
+      "response": {
+        "@id": "https://www.ammitto.org/entity/cn/1-aevex-aerospace",
+        "@type": "OrganizationEntity",
+        "entityType": "organization",
+        "names": [
+          {
+            "@type": "NameVariant",
+            "fullName": "AEVEX Aerospace",
+            "script": "Latn",
+            "isPrimary": true
+          },
+          {
+            "@type": "NameVariant",
+            "fullName": "AEVEX航天公司",
+            "script": "Hani",
+            "isPrimary": false
+          }
+        ],
+        "sourceReferences": [],
+        "linkedEntities": [],
+        "hasSanctionEntry": [
+          "https://www.ammitto.org/entry/cn/import-export-control-list/1-aevex-aerospace"
+        ],
+        "remarks": "List: cn/export-control-list",
+        "identifications": [],
+        "addresses": [],
+        "beneficialOwners": [],
+        "@context": "https://ammitto.org/api/v1/context.jsonld"
+      }
+    },
+    {
+      "template": "/node/entry/{source}/{list}/{id}.jsonld",
+      "parameters": {
+        "source": "cn",
+        "list": "anti-sanction-list",
+        "id": "1-hudson-institute"
+      },
+      "path": "/node/entry/cn/anti-sanction-list/1-hudson-institute.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/node/entry/cn/anti-sanction-list/1-hudson-institute.jsonld",
+      "status": 200,
+      "response": {
+        "@id": "https://www.ammitto.org/entry/cn/anti-sanction-list/1-hudson-institute",
+        "@type": "SanctionEntry",
+        "entityId": "https://www.ammitto.org/entity/cn/1-hudson-institute",
+        "authority": {
+          "@id": "https://www.ammitto.org/authority/cn"
+        },
+        "regime": {
+          "@id": "https://www.ammitto.org/regime/cn_anti_sanctions",
+          "name": "反制裁清单 (Anti-Sanctions List)"
+        },
+        "legalBases": [],
+        "effects": [
+          {
+            "@type": "SanctionEffect",
+            "effectType": "prohibit_transactions",
+            "scope": "full",
+            "description": [
+              {
+                "value": "严格限制我国境内的高校、机构等组织和个人与其进行有关交易、交流、合作等活动。",
+                "lang": "zh",
+                "script": "Hani",
+                "is_primary": true
+              },
+              {
+                "value": "Strictly restrict Chinese universities, institutions, and individuals from engaging in relevant transactions, exchanges, and cooperation with them.",
+                "lang": "en",
+                "script": "Latn",
+                "is_primary": false
+              }
+            ]
+          }
+        ],
+        "reasons": [
+          {
+            "@type": "SanctionReason",
+            "category": "other",
+            "description": [
+              {
+                "value": "美方不顾中方反复交涉和坚决反对，执意允许台湾地区领导人蔡英文于2023年3月29日\n至31日和4月4日至6日“过境”窜美从事政治活动。美国哈德逊研究所、里根图书馆为蔡\n英文在美从事“台独”分裂活动提供平台和便利，严重违反一个中国原则和中美三个联合\n公报规定，严重损害中方主权和领土完整。",
+                "lang": "zh",
+                "script": "Hani",
+                "is_primary": true
+              },
+              {
+                "value": "The US allowed Taiwan's leader Tsai Ing-wen to \"transit\" through the\nUS for political activities from March 29 to 31 and April 4 to 6,\ndespite repeated Chinese protests and strong opposition. The Hudson\nInstitute and the Reagan Library provided platforms and convenience\nfor Tsai Ing-wen's \"Taiwan independence\" activities in the US,\nseriously violating the One-China principle and the three China-US\njoint communiqués, seriously damaging China's sovereignty and\nterritorial integrity.",
+                "lang": "en",
+                "script": "Latn",
+                "is_primary": false
+              }
+            ]
+          }
+        ],
+        "period": {
+          "@type": "TemporalPeriod",
+          "effectiveDate": "2023-04-07",
+          "isIndefinite": true
+        },
+        "status": "active",
+        "statusHistory": [],
+        "referenceNumber": "1-hudson-institute",
+        "groupId": "https://www.ammitto.org/group/cn/1",
+        "legalCitations": [
+          {
+            "@type": "LegalCitation",
+            "legalInstrumentId": "https://www.ammitto.org/legal-instrument/cn/npc-anti-foreign-sanctions-law",
+            "articles": [
+              "第四条",
+              "第五条"
+            ],
+            "citationType": "legal_basis"
+          }
+        ],
+        "announcement": {
+          "@type": "OfficialAnnouncement",
+          "title": "关于对美国哈德逊研究所、里根图书馆及其负责人采取反制措施的决定",
+          "url": "https://www.mfa.gov.cn/web/wjb_673085/zfxxgk_674865/gknrlb/fzcqdcs/202304/t20230407_11055802.shtml",
+          "publishDate": "2023-04-07",
+          "publishTime": "10:55",
+          "documentType": "cn/ministry-of-foreign-affairs-order",
+          "documentId": "第1号",
+          "signatory": "秦刚",
+          "signatoryTitle": "部长",
+          "publisher": "cn/ministry-of-foreign-affairs",
+          "authority": "cn/ministry-of-foreign-affairs",
+          "content": "现公布《关于对美国哈德逊研究所、里根图书馆及其负责人采取反制措施的决定》，自2023年4月7日起施行。\n\n部长 秦刚\n\n2023年4月7日\n\n关于对美国哈德逊研究所、里根图书馆及其负责人采取反制措施的决定\n\n美方不顾中方反复交涉和坚决反对，执意允许台湾地区领导人蔡英文于2023年3月29日\n至31日和4月4日至6日“过境”窜美从事政治活动。美国哈德逊研究所、里根图书馆为蔡\n英文在美从事“台独”分裂活动提供平台和便利，严重违反一个中国原则和中美三个联合\n公报规定，严重损害中方主权和领土完整。\n\n依据《中华人民共和国反外国制裁法》第四条、第五条、第六条、第十五条规定，中方\n决定对美国哈德逊研究所、里根图书馆及其负责人等后附《反制清单》列明的机构和个\n人采取以下反制措施：\n\n一、对哈德逊研究所、里根图书馆等2家机构：\n\n严格限制我国境内的高校、机构等组织和个人与其进行有关交易、交流、合作等活动。\n\n二、对哈德逊研究所董事会主席萨拉·斯特恩、所长约翰·瓦特斯，负责里根图书馆日常\n维护的里根基金会前执行主任约翰·希布斯奇、首席行政官乔安妮·德雷克等4名个人：\n\n（一）冻结在我国境内的动产、不动产和其他各类财产；\n\n（二）禁止我国境内的组织、个人与其进行有关交易、合作等活动；\n\n（三）对其本人不予签发签证、不准入境。\n\n本决定自2023年4月7日起施行。\n\n附件：反制清单\n外交部\n2023年4月7日\n\n附件\n反制清单\n\n一、哈德逊研究所\n\n二、里根图书馆\n\n三、哈德逊研究所董事会主席萨拉·斯特恩（Sarah May Stern），女\n\n四、哈德逊研究所所长约翰·瓦特斯（John P. Walters），男\n\n五、里根基金会前执行主任约翰·希布斯奇（John Heubusch），男\n\n六、里根基金会首席行政官乔安妮·德雷克（Joanne M. Drake），女\n",
+          "language": "zh-CN"
+        },
+        "rawSourceData": {
+          "@type": "RawSourceData",
+          "sourceFormat": "yaml",
+          "sourceSpecificFields": {
+            "cn:list_type": "anti_sanctions",
+            "cn:sanction_list": "cn/anti-sanction-list",
+            "cn:chinese_name": "哈德逊研究所",
+            "cn:english_name": "Hudson Institute"
+          }
+        },
+        "@context": "https://ammitto.org/api/v1/context.jsonld"
+      }
+    },
+    {
+      "template": "/node/legal-instrument/{source}/{id}.jsonld",
+      "parameters": {
+        "source": "cn",
+        "id": "mofcom-dual-use-export-control-regulation"
+      },
+      "path": "/node/legal-instrument/cn/mofcom-dual-use-export-control-regulation.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/node/legal-instrument/cn/mofcom-dual-use-export-control-regulation.jsonld",
+      "status": 200,
+      "response": {
+        "@context": "https://ammitto.org/api/v1/context.jsonld",
+        "@id": "https://www.ammitto.org/legal-instrument/cn/mofcom-dual-use-export-control-regulation",
+        "@type": "LegalInstrument",
+        "identifier": "mofcom-dual-use-export-control-regulation",
+        "name": "Regulations on the Export Control of Dual-use Items of the People's Republic of China",
+        "title": [
+          {
+            "zh-Hans": "中华人民共和国两用物项出口管制条例"
+          },
+          {
+            "en": "Regulations on the Export Control of Dual-use Items of the People's Republic of China"
+          }
+        ],
+        "type": "cn/state-council-order",
+        "documentId": "第792号",
+        "url": "https://wb.flk.npc.gov.cn/xzfg/WORD/8cc0803ca0a44e299a232b4636b1e5bc.docx",
+        "publishDate": "2024-09-18",
+        "effectiveDate": "2024-12-01",
+        "content": [
+          {
+            "type": "chapter",
+            "index": 1,
+            "label": "第一章",
+            "title": "总则",
+            "content": [
+              {
+                "type": "clause",
+                "index": 1,
+                "label": "第一条",
+                "content": [
+                  "为了维护国家安全和利益，履行防扩散等国际义务，加强和规范两用物项出口管制，根据《中华人民共和国出口管制法》（以下简称出口管制法）等法律，制定本条例。"
+                ]
+              },
+              {
+                "type": "clause",
+                "index": 2,
+                "label": "第二条",
+                "content": [
+                  "国家对两用物项的出口管制，适用本条例。",
+                  "本条例所称两用物项，是指既有民事用途，又有军事用途或者有助于提升军事潜力，特别是可以用于设计、开发、生产或者使用大规模杀伤性武器及其运载工具的货物、技术和服务，包括相关的技术资料等数据。"
+                ]
+              }
+            ]
+          },
+          {
+            "type": "chapter",
+            "index": 2,
+            "label": "第二章",
+            "title": "管制政策",
+            "content": [
+              {
+                "type": "clause",
+                "index": 2,
+                "label": "第九条",
+                "content": [
+                  "国务院商务主管部门会同国家有关部门制定、调整两用物项出口管制政策，其中重大政策应当报国务院批准，或者报国务院、中央军事委员会批准。"
+                ]
+              },
+              {
+                "type": "clause",
+                "index": 2,
+                "label": "第十条",
+                "content": [
+                  "国国务院商务主管部门会同外交、海关等国家有关部门可以结合下列因素对两用物项出口目的国家和地区进行评估，确定风险等级，采取相应的管制措施：",
+                  {
+                    "type": "numbered-list",
+                    "index": 1,
+                    "content": [
+                      {
+                        "type": "list-item",
+                        "index": 1,
+                        "label": "（一）",
+                        "content": [
+                          "对国家安全和利益的影响；"
+                        ]
+                      },
+                      {
+                        "type": "list-item",
+                        "index": 2,
+                        "label": "（二）",
+                        "content": [
+                          "履行防扩散等国际义务的需要；"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "citationType": "legal_basis",
+        "lang": "zh-Hans"
+      }
+    },
+    {
+      "template": "/node/{kind}/{code}.jsonld",
+      "parameters": {
+        "kind": "authority",
+        "code": "cn"
+      },
+      "path": "/node/authority/cn.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/node/authority/cn.jsonld",
+      "status": 200,
+      "response": {
+        "@context": "https://ammitto.org/api/v1/context.jsonld",
+        "@id": "https://www.ammitto.org/authority/cn",
+        "@type": "Authority",
+        "name": "China (MOFCOM/MFA)",
+        "countryCode": "CN"
+      }
+    },
+    {
+      "template": "/node/{kind}/{code}.jsonld",
+      "parameters": {
+        "kind": "regime",
+        "code": "cn_anti_sanctions"
+      },
+      "path": "/node/regime/cn_anti_sanctions.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/node/regime/cn_anti_sanctions.jsonld",
+      "status": 200,
+      "response": {
+        "@context": "https://ammitto.org/api/v1/context.jsonld",
+        "@id": "https://www.ammitto.org/regime/cn_anti_sanctions",
+        "@type": "SanctionRegime",
+        "name": "反制裁清单 (Anti-Sanctions List)",
+        "code": "CN_ANTI_SANCTIONS"
+      }
+    },
+    {
+      "template": "/node/{kind}/{source}/{id}.jsonld",
+      "parameters": {
+        "kind": "document-type",
+        "source": "cn",
+        "id": "ministry-of-commerce-announcement"
+      },
+      "path": "/node/document-type/cn/ministry-of-commerce-announcement.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/node/document-type/cn/ministry-of-commerce-announcement.jsonld",
+      "status": 200,
+      "response": {
+        "@context": "https://ammitto.org/api/v1/context.jsonld",
+        "@id": "https://www.ammitto.org/document-type/cn/ministry-of-commerce-announcement",
+        "@type": "DocumentType",
+        "identifier": "cn/ministry-of-commerce-announcement",
+        "name": [
+          {
+            "value": "中华人民共和国商务部公告",
+            "lang": "zh",
+            "script": "Hani",
+            "isPrimary": true
+          },
+          {
+            "value": "Announcement of the Ministry of Commerce of the People's Republic of China",
+            "lang": "en",
+            "script": "Latn",
+            "isPrimary": false
+          }
+        ]
+      }
+    },
+    {
+      "template": "/node/group/{source}/{id}.jsonld",
+      "parameters": {
+        "source": "cn",
+        "id": "1"
+      },
+      "path": "/node/group/cn/1.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/node/group/cn/1.jsonld",
+      "status": 200,
+      "response": {
+        "id": "https://www.ammitto.org/group/cn/1",
+        "announcement_id": "https://www.ammitto.org/announcement/cn/1",
+        "announcement_title": "关于对美国哈德逊研究所、里根图书馆及其负责人采取反制措施的决定",
+        "entry_ids": [
+          "https://www.ammitto.org/entry/cn/anti-sanction-list/1-hudson-institute",
+          "https://www.ammitto.org/entry/cn/anti-sanction-list/1-reagan-library"
+        ],
+        "effective_date": "2023-04-07",
+        "entity_count": 6,
+        "notes": "Group of 6 entities sanctioned together"
+      }
+    },
+    {
+      "template": "/node/{kind}/{source}/{id}.jsonld",
+      "parameters": {
+        "kind": "organization",
+        "source": "cn",
+        "id": "ministry-of-commerce"
+      },
+      "path": "/node/organization/cn/ministry-of-commerce.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/node/organization/cn/ministry-of-commerce.jsonld",
+      "status": 200,
+      "response": {
+        "@context": "https://ammitto.org/api/v1/context.jsonld",
+        "@id": "https://www.ammitto.org/organization/cn/ministry-of-commerce",
+        "@type": "Organization",
+        "identifier": "cn/ministry-of-commerce",
+        "name": [
+          {
+            "value": "中华人民共和国商务部",
+            "lang": "zh",
+            "script": "Hani",
+            "isPrimary": true
+          },
+          {
+            "value": "Ministry of Commerce, People's Republic of China",
+            "lang": "en",
+            "script": "Latn",
+            "isPrimary": false
+          }
+        ]
+      }
+    },
+    {
+      "template": "/by-list/{source}/index.jsonld",
+      "parameters": {
+        "source": "cn"
+      },
+      "path": "/by-list/cn/index.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/by-list/cn/index.jsonld",
+      "status": 200,
+      "response": {
+        "@context": "https://ammitto.org/api/v1/context.jsonld",
+        "@type": "Index",
+        "slice": "by-list",
+        "source": "cn",
+        "available": [
+          "https://www.ammitto.org/list/cn/anti-sanction-list",
+          "https://www.ammitto.org/list/cn/import-export-control-list"
+        ]
+      }
+    },
+    {
+      "template": "/by-list/{source}/{list}.jsonld",
+      "parameters": {
+        "source": "cn",
+        "list": "unreliable-entity-list"
+      },
+      "path": "/by-list/cn/unreliable-entity-list.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/by-list/cn/unreliable-entity-list.jsonld",
+      "status": 200,
+      "response": {
+        "@context": "https://ammitto.org/api/v1/context.jsonld",
+        "@type": "Index",
+        "slice": "by-list",
+        "list": {
+          "@id": "https://www.ammitto.org/list/cn/unreliable-entity-list"
+        },
+        "entries": [
+          {
+            "@id": "https://www.ammitto.org/entry/cn/unreliable-entity-list/202510-dedrone-by-axon"
+          },
+          {
+            "@id": "https://www.ammitto.org/entry/cn/unreliable-entity-list/202510-dzyne-technologies"
+          }
+        ]
+      }
+    },
+    {
+      "template": "/by-authority/index.jsonld",
+      "parameters": {},
+      "path": "/by-authority/index.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/by-authority/index.jsonld",
+      "status": 200,
+      "response": {
+        "@context": "https://ammitto.org/api/v1/context.jsonld",
+        "@type": "Index",
+        "slice": "by-authority",
+        "available": [
+          "https://www.ammitto.org/authority/au",
+          "https://www.ammitto.org/authority/ca"
+        ]
+      }
+    },
+    {
+      "template": "/by-regime/index.jsonld",
+      "parameters": {},
+      "path": "/by-regime/index.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/by-regime/index.jsonld",
+      "status": 200,
+      "response": {
+        "@context": "https://ammitto.org/api/v1/context.jsonld",
+        "@type": "Index",
+        "slice": "by-regime",
+        "available": [
+          "https://www.ammitto.org/regime/1373__2001_",
+          "https://www.ammitto.org/regime/1533__democratic_people_s_republic_of_the_congo_"
+        ]
+      }
+    },
+    {
+      "template": "/by-status/index.jsonld",
+      "parameters": {},
+      "path": "/by-status/index.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/by-status/index.jsonld",
+      "status": 200,
+      "response": {
+        "@context": "https://ammitto.org/api/v1/context.jsonld",
+        "@type": "Index",
+        "slice": "by-status",
+        "available": [
+          "active"
+        ]
+      }
+    },
+    {
+      "template": "/by-type/index.jsonld",
+      "parameters": {},
+      "path": "/by-type/index.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/by-type/index.jsonld",
+      "status": 200,
+      "response": {
+        "@context": "https://ammitto.org/api/v1/context.jsonld",
+        "@type": "Index",
+        "slice": "by-type",
+        "available": [
+          "aircraft",
+          "organization"
+        ]
+      }
+    },
+    {
+      "template": "/by-organization/index.jsonld",
+      "parameters": {},
+      "path": "/by-organization/index.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/by-organization/index.jsonld",
+      "status": 200,
+      "response": {
+        "@context": "https://ammitto.org/api/v1/context.jsonld",
+        "@type": "Index",
+        "slice": "by-organization",
+        "available": [
+          "https://www.ammitto.org/organization/ch/eda",
+          "https://www.ammitto.org/organization/ch/ejpd"
+        ]
+      }
+    },
+    {
+      "template": "/by-document-type/index.jsonld",
+      "parameters": {},
+      "path": "/by-document-type/index.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/by-document-type/index.jsonld",
+      "status": 200,
+      "response": {
+        "@context": "https://ammitto.org/api/v1/context.jsonld",
+        "@type": "Index",
+        "slice": "by-document-type",
+        "available": [
+          "https://www.ammitto.org/document-type/ch/act",
+          "https://www.ammitto.org/document-type/ch/announcement"
+        ]
+      }
+    },
+    {
+      "template": "/by-list/index.jsonld",
+      "parameters": {},
+      "path": "/by-list/index.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/by-list/index.jsonld",
+      "status": 200,
+      "response": {
+        "@context": "https://ammitto.org/api/v1/context.jsonld",
+        "@type": "Index",
+        "slice": "by-list",
+        "sources": [
+          "au",
+          "ca"
+        ]
+      }
+    },
+    {
+      "template": "/by-authority/{code}.jsonld",
+      "parameters": {
+        "code": "cn"
+      },
+      "path": "/by-authority/cn.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/by-authority/cn.jsonld",
+      "status": 200,
+      "response": {
+        "@context": "https://ammitto.org/api/v1/context.jsonld",
+        "@type": "Index",
+        "slice": "by-authority",
+        "authority": {
+          "@id": "https://www.ammitto.org/authority/cn"
+        },
+        "entries": [
+          {
+            "@id": "https://www.ammitto.org/entry/cn/unreliable-entity-list/202510-dedrone-by-axon"
+          },
+          {
+            "@id": "https://www.ammitto.org/entry/cn/unreliable-entity-list/202510-dzyne-technologies"
+          }
+        ]
+      }
+    },
+    {
+      "template": "/by-regime/{code}.jsonld",
+      "parameters": {
+        "code": "cn_unreliable_entity"
+      },
+      "path": "/by-regime/cn_unreliable_entity.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/by-regime/cn_unreliable_entity.jsonld",
+      "status": 200,
+      "response": {
+        "@context": "https://ammitto.org/api/v1/context.jsonld",
+        "@type": "Index",
+        "slice": "by-regime",
+        "regime": {
+          "@id": "https://www.ammitto.org/regime/cn_unreliable_entity"
+        },
+        "entries": [
+          {
+            "@id": "https://www.ammitto.org/entry/cn/unreliable-entity-list/202510-dedrone-by-axon"
+          },
+          {
+            "@id": "https://www.ammitto.org/entry/cn/unreliable-entity-list/202510-dzyne-technologies"
+          }
+        ]
+      }
+    },
+    {
+      "template": "/by-status/{code}.jsonld",
+      "parameters": {
+        "code": "active"
+      },
+      "path": "/by-status/active.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/by-status/active.jsonld",
+      "status": 200,
+      "response": {
+        "@context": "https://ammitto.org/api/v1/context.jsonld",
+        "@type": "Index",
+        "slice": "by-status",
+        "status": "active",
+        "entries": [
+          {
+            "@id": "https://www.ammitto.org/entry/eu/consolidated-list/eu100160"
+          },
+          {
+            "@id": "https://www.ammitto.org/entry/eu/consolidated-list/eu100121"
+          }
+        ]
+      }
+    },
+    {
+      "template": "/by-type/{code}.jsonld",
+      "parameters": {
+        "code": "person"
+      },
+      "path": "/by-type/person.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/by-type/person.jsonld",
+      "status": 200,
+      "response": {
+        "@context": "https://ammitto.org/api/v1/context.jsonld",
+        "@type": "Index",
+        "slice": "by-type",
+        "entityType": "person",
+        "entities": [
+          {
+            "@id": "https://www.ammitto.org/entity/eu/eu100160"
+          },
+          {
+            "@id": "https://www.ammitto.org/entity/eu/eu100121"
+          }
+        ]
+      }
+    },
+    {
+      "template": "/by-organization/{source}/{id}.jsonld",
+      "parameters": {
+        "source": "cn",
+        "id": "ministry-of-commerce"
+      },
+      "path": "/by-organization/cn/ministry-of-commerce.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/by-organization/cn/ministry-of-commerce.jsonld",
+      "status": 200,
+      "response": {
+        "@context": "https://ammitto.org/api/v1/context.jsonld",
+        "@type": "Index",
+        "slice": "by-organization",
+        "organization": {
+          "@id": "https://www.ammitto.org/organization/cn/ministry-of-commerce"
+        },
+        "published": [
+          {
+            "documentId": "第1号",
+            "title": "公布将28家美国实体列入出口管制管控名单",
+            "publishDate": "2025-01-02",
+            "url": "https://www.mofcom.gov.cn/zwgk/zcfb/art/2025/art_1ee79b1b7f21444ebf4797c0ff8500fd.html",
+            "groupId": "https://www.ammitto.org/group/cn/import-export-control-list-1",
+            "entryCount": 28
+          },
+          {
+            "documentId": "2025年第13号",
+            "title": "公布将15家美国实体列入出口管制管控名单",
+            "publishDate": "2025-03-04",
+            "url": "https://www.mofcom.gov.cn/zwgk/zcfb/art/2025/art_e1ea9512b1f84dc6b1a17f703fa4cf56.html",
+            "groupId": "https://www.ammitto.org/group/cn/import-export-control-list-202513",
+            "entryCount": 15
+          }
+        ],
+        "signed": [
+          {
+            "documentId": "第1号",
+            "title": "公布将28家美国实体列入出口管制管控名单",
+            "publishDate": "2025-01-02",
+            "url": "https://www.mofcom.gov.cn/zwgk/zcfb/art/2025/art_1ee79b1b7f21444ebf4797c0ff8500fd.html",
+            "groupId": "https://www.ammitto.org/group/cn/import-export-control-list-1",
+            "entryCount": 28
+          },
+          {
+            "documentId": "2025年第13号",
+            "title": "公布将15家美国实体列入出口管制管控名单",
+            "publishDate": "2025-03-04",
+            "url": "https://www.mofcom.gov.cn/zwgk/zcfb/art/2025/art_e1ea9512b1f84dc6b1a17f703fa4cf56.html",
+            "groupId": "https://www.ammitto.org/group/cn/import-export-control-list-202513",
+            "entryCount": 15
+          }
+        ],
+        "authorized": [
+          {
+            "documentId": "第1号",
+            "title": "公布将28家美国实体列入出口管制管控名单",
+            "publishDate": "2025-01-02",
+            "url": "https://www.mofcom.gov.cn/zwgk/zcfb/art/2025/art_1ee79b1b7f21444ebf4797c0ff8500fd.html",
+            "groupId": "https://www.ammitto.org/group/cn/import-export-control-list-1",
+            "entryCount": 28
+          },
+          {
+            "documentId": "2025年第13号",
+            "title": "公布将15家美国实体列入出口管制管控名单",
+            "publishDate": "2025-03-04",
+            "url": "https://www.mofcom.gov.cn/zwgk/zcfb/art/2025/art_e1ea9512b1f84dc6b1a17f703fa4cf56.html",
+            "groupId": "https://www.ammitto.org/group/cn/import-export-control-list-202513",
+            "entryCount": 15
+          }
+        ]
+      }
+    },
+    {
+      "template": "/by-document-type/{source}/{id}.jsonld",
+      "parameters": {
+        "source": "cn",
+        "id": "state-council-order"
+      },
+      "path": "/by-document-type/cn/state-council-order.jsonld",
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/by-document-type/cn/state-council-order.jsonld",
+      "status": 200,
+      "response": {
+        "@context": "https://ammitto.org/api/v1/context.jsonld",
+        "@type": "Index",
+        "slice": "by-document-type",
+        "documentType": {
+          "@id": "https://www.ammitto.org/document-type/cn/state-council-order"
+        },
+        "announcements": [],
+        "legalInstruments": [
+          {
+            "@id": "https://www.ammitto.org/legal-instrument/cn/mofcom-dual-use-export-control-regulation",
+            "identifier": "mofcom-dual-use-export-control-regulation",
+            "title": [
+              {
+                "zh-Hans": "中华人民共和国两用物项出口管制条例"
+              },
+              {
+                "en": "Regulations on the Export Control of Dual-use Items of the People's Republic of China"
+              }
+            ],
+            "name": "Regulations on the Export Control of Dual-use Items of the People's Republic of China",
+            "publishDate": "2024-09-18"
+          }
+        ]
+      }
+    },
+    {
+      "template": "/by-organization/{source}/{id}.jsonld",
+      "parameters": {
+        "source": "ch",
+        "id": "eda"
+      },
+      "path": "/by-organization/ch/eda.jsonld",
+      "counterexample": true,
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/by-organization/ch/eda.jsonld",
+      "status": 200,
+      "response": {
+        "@context": "https://ammitto.org/api/v1/context.jsonld",
+        "@type": "Index",
+        "slice": "by-organization",
+        "organization": {
+          "@id": "https://www.ammitto.org/organization/ch/eda"
+        },
+        "published": [],
+        "signed": [],
+        "authorized": []
+      }
+    },
+    {
+      "template": "/by-document-type/{source}/{id}.jsonld",
+      "parameters": {
+        "source": "ch",
+        "id": "act"
+      },
+      "path": "/by-document-type/ch/act.jsonld",
+      "counterexample": true,
+      "provenance": "HTTP200 fetched 2026-10-14; arrays bounded to first two records.",
+      "sourceUrl": "https://www.ammitto.org/api/v1/by-document-type/ch/act.jsonld",
+      "status": 200,
+      "response": {
+        "@context": "https://ammitto.org/api/v1/context.jsonld",
+        "@type": "Index",
+        "slice": "by-document-type",
+        "documentType": {
+          "@id": "https://www.ammitto.org/document-type/ch/act"
+        },
+        "announcements": [],
+        "legalInstruments": []
+      }
+    }
+  ]
+}

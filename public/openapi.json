@@ -1,0 +1,2162 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Ammitto static data API",
+    "version": "1.0.0",
+    "description": "Read-only generated files. No API key, server-side search, filtering, pagination, or hosted SPARQL query endpoint. Discover available files in /index.jsonld; publication contents and counts change. JSON-LD suffixes are required. Identifiers may span path segments: use indexes rather than assuming an opaque one-segment id. Error handling and HTTP caching are provided by static hosting."
+  },
+  "servers": [
+    {
+      "url": "https://www.ammitto.org/api/v1",
+      "description": "Public static publication"
+    }
+  ],
+  "paths": {
+    "/index.jsonld": {
+      "get": {
+        "summary": "Discover the published files and collections",
+        "operationId": "getIndexJsonld",
+        "responses": {
+          "200": {
+            "description": "Published file. Values reflect the current generated snapshot.",
+            "content": {
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Catalogue"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File absent from the publication. Error body and media type depend on static hosting; no JSON error envelope is guaranteed."
+          }
+        }
+      }
+    },
+    "/stats.json": {
+      "get": {
+        "summary": "Read counts and generation timestamp",
+        "operationId": "getStatsJson",
+        "responses": {
+          "200": {
+            "description": "Published file. Values reflect the current generated snapshot.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Stats"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File absent from the publication. Error body and media type depend on static hosting; no JSON error envelope is guaranteed."
+          }
+        }
+      }
+    },
+    "/context.jsonld": {
+      "get": {
+        "summary": "Read the JSON-LD context",
+        "operationId": "getContextJsonld",
+        "responses": {
+          "200": {
+            "description": "Published file. Values reflect the current generated snapshot.",
+            "content": {
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Context"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File absent from the publication. Error body and media type depend on static hosting; no JSON error envelope is guaranteed."
+          }
+        }
+      }
+    },
+    "/all.jsonld": {
+      "get": {
+        "summary": "Download the whole JSON-LD graph",
+        "operationId": "getAllJsonld",
+        "responses": {
+          "200": {
+            "description": "Published file. Values reflect the current generated snapshot.",
+            "content": {
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Graph"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File absent from the publication. Error body and media type depend on static hosting; no JSON error envelope is guaranteed."
+          }
+        }
+      }
+    },
+    "/all.ttl": {
+      "get": {
+        "summary": "Download the whole Turtle graph",
+        "operationId": "getAllTtl",
+        "responses": {
+          "200": {
+            "description": "Published file. Values reflect the current generated snapshot.",
+            "content": {
+              "text/turtle": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File absent from the publication. Error body and media type depend on static hosting; no JSON error envelope is guaranteed."
+          }
+        }
+      }
+    },
+    "/sources/{source}.jsonld": {
+      "get": {
+        "summary": "Download a source graph",
+        "operationId": "getSourcesSourceJsonld",
+        "responses": {
+          "200": {
+            "description": "Published file. Values reflect the current generated snapshot.",
+            "content": {
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Graph"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File absent from the publication. Error body and media type depend on static hosting; no JSON error envelope is guaranteed."
+          }
+        },
+        "parameters": [
+          {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "description": "Published identifier from the catalogue or collection index. Preserve any slash-separated identifier components when forming the URL.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/sources/{source}.ttl": {
+      "get": {
+        "summary": "Download a source graph",
+        "operationId": "getSourcesSourceTtl",
+        "responses": {
+          "200": {
+            "description": "Published file. Values reflect the current generated snapshot.",
+            "content": {
+              "text/turtle": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File absent from the publication. Error body and media type depend on static hosting; no JSON error envelope is guaranteed."
+          }
+        },
+        "parameters": [
+          {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "description": "Published identifier from the catalogue or collection index. Preserve any slash-separated identifier components when forming the URL.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/search-index/manifest.json": {
+      "get": {
+        "summary": "Discover compact search shards",
+        "operationId": "getSearchIndexManifestJson",
+        "responses": {
+          "200": {
+            "description": "Published file. Values reflect the current generated snapshot.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchManifest"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File absent from the publication. Error body and media type depend on static hosting; no JSON error envelope is guaranteed."
+          }
+        },
+        "description": "shards[].file is relative to search-index/. Replaces the former search-index.json file."
+      }
+    },
+    "/search-index/{source}.json": {
+      "get": {
+        "summary": "Download compact source records",
+        "operationId": "getSearchIndexSourceJson",
+        "responses": {
+          "200": {
+            "description": "Published file. Values reflect the current generated snapshot.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchShard"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File absent from the publication. Error body and media type depend on static hosting; no JSON error envelope is guaranteed."
+          }
+        },
+        "parameters": [
+          {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "description": "Published identifier from the catalogue or collection index. Preserve any slash-separated identifier components when forming the URL.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "Downloaded data for client-side filtering and indexing; no server-side search parameters."
+      }
+    },
+    "/facets/{facet}.json": {
+      "get": {
+        "summary": "Read filter values and counts",
+        "operationId": "getFacetsFacetJson",
+        "responses": {
+          "200": {
+            "description": "Published file. Values reflect the current generated snapshot.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Facets"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File absent from the publication. Error body and media type depend on static hosting; no JSON error envelope is guaranteed."
+          }
+        },
+        "parameters": [
+          {
+            "name": "facet",
+            "in": "path",
+            "required": true,
+            "description": "Select a value published in the catalogue.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "authorities",
+                "countries",
+                "list_types",
+                "regimes",
+                "statuses",
+                "types"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "/ontology/{document}.jsonld": {
+      "get": {
+        "summary": "Read ontology classes or properties",
+        "operationId": "getOntologyDocumentJsonld",
+        "responses": {
+          "200": {
+            "description": "Published file. Values reflect the current generated snapshot.",
+            "content": {
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Graph"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File absent from the publication. Error body and media type depend on static hosting; no JSON error envelope is guaranteed."
+          }
+        },
+        "parameters": [
+          {
+            "name": "document",
+            "in": "path",
+            "required": true,
+            "description": "Select a value published in the catalogue.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "classes",
+                "properties"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "/ontology/hierarchy.json": {
+      "get": {
+        "summary": "Read ontology class hierarchy",
+        "operationId": "getOntologyHierarchyJson",
+        "responses": {
+          "200": {
+            "description": "Published file. Values reflect the current generated snapshot.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Hierarchy"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File absent from the publication. Error body and media type depend on static hosting; no JSON error envelope is guaranteed."
+          }
+        }
+      }
+    },
+    "/ontology/examples/{type}.jsonld": {
+      "get": {
+        "summary": "Read an example entity",
+        "operationId": "getOntologyExamplesTypeJsonld",
+        "responses": {
+          "200": {
+            "description": "Published file. Values reflect the current generated snapshot.",
+            "content": {
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Node"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File absent from the publication. Error body and media type depend on static hosting; no JSON error envelope is guaranteed."
+          }
+        },
+        "parameters": [
+          {
+            "name": "type",
+            "in": "path",
+            "required": true,
+            "description": "Select a value published in the catalogue.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "person",
+                "organization",
+                "vessel"
+              ]
+            }
+          }
+        ],
+        "description": "Illustrative ontology examples are curated separately from published entity nodes and may use legacy name types."
+      }
+    },
+    "/node/{kind}/index.jsonld": {
+      "get": {
+        "summary": "Discover individual node references",
+        "operationId": "getNodeKindIndexJsonld",
+        "responses": {
+          "200": {
+            "description": "Published file. Values reflect the current generated snapshot.",
+            "content": {
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeIndex"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File absent from the publication. Error body and media type depend on static hosting; no JSON error envelope is guaranteed."
+          }
+        },
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "description": "Select a value published in the catalogue.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "authority",
+                "document-type",
+                "entity",
+                "entry",
+                "group",
+                "legal-instrument",
+                "organization",
+                "regime"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "/node/entity/{source}/{id}.jsonld": {
+      "get": {
+        "summary": "Read an entity node",
+        "operationId": "getNodeEntitySourceIdJsonld",
+        "responses": {
+          "200": {
+            "description": "Published file. Values reflect the current generated snapshot.",
+            "content": {
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Entity"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File absent from the publication. Error body and media type depend on static hosting; no JSON error envelope is guaranteed."
+          }
+        },
+        "parameters": [
+          {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "description": "Published identifier from the catalogue or collection index. Preserve any slash-separated identifier components when forming the URL.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Published identifier from the catalogue or collection index. Preserve any slash-separated identifier components when forming the URL.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "id may contain additional path components. Use node/entity/index.jsonld for exact identifiers."
+      }
+    },
+    "/node/entry/{source}/{list}/{id}.jsonld": {
+      "get": {
+        "summary": "Read a sanction entry node",
+        "operationId": "getNodeEntrySourceListIdJsonld",
+        "responses": {
+          "200": {
+            "description": "Published file. Values reflect the current generated snapshot.",
+            "content": {
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SanctionEntry"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File absent from the publication. Error body and media type depend on static hosting; no JSON error envelope is guaranteed."
+          }
+        },
+        "parameters": [
+          {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "description": "Published identifier from the catalogue or collection index. Preserve any slash-separated identifier components when forming the URL.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "list",
+            "in": "path",
+            "required": true,
+            "description": "Published identifier from the catalogue or collection index. Preserve any slash-separated identifier components when forming the URL.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Published identifier from the catalogue or collection index. Preserve any slash-separated identifier components when forming the URL.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "entityId identifies the entity. authority and regime are @id objects; status is a string. id may contain additional path components."
+      }
+    },
+    "/node/legal-instrument/{source}/{id}.jsonld": {
+      "get": {
+        "summary": "Read a legal instrument node",
+        "operationId": "getNodeLegalInstrumentSourceIdJsonld",
+        "responses": {
+          "200": {
+            "description": "Published file. Values reflect the current generated snapshot.",
+            "content": {
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Node"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File absent from the publication. Error body and media type depend on static hosting; no JSON error envelope is guaranteed."
+          }
+        },
+        "parameters": [
+          {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "description": "Published identifier from the catalogue or collection index. Preserve any slash-separated identifier components when forming the URL.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Published identifier from the catalogue or collection index. Preserve any slash-separated identifier components when forming the URL.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/node/{kind}/{code}.jsonld": {
+      "get": {
+        "summary": "Read an authority or regime node",
+        "operationId": "getNodeKindCodeJsonld",
+        "responses": {
+          "200": {
+            "description": "Published file. Values reflect the current generated snapshot.",
+            "content": {
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Node"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File absent from the publication. Error body and media type depend on static hosting; no JSON error envelope is guaranteed."
+          }
+        },
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "description": "Select a value published in the catalogue.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "authority",
+                "regime"
+              ]
+            }
+          },
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "description": "Published identifier from the catalogue or collection index. Preserve any slash-separated identifier components when forming the URL.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/node/{kind}/{source}/{id}.jsonld": {
+      "get": {
+        "summary": "Read a supporting node",
+        "operationId": "getNodeKindSourceIdJsonld",
+        "responses": {
+          "200": {
+            "description": "Published file. Values reflect the current generated snapshot.",
+            "content": {
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Node"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File absent from the publication. Error body and media type depend on static hosting; no JSON error envelope is guaranteed."
+          }
+        },
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "description": "Select a value published in the catalogue.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "document-type",
+                "organization"
+              ]
+            }
+          },
+          {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "description": "Published identifier from the catalogue or collection index. Preserve any slash-separated identifier components when forming the URL.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Published identifier from the catalogue or collection index. Preserve any slash-separated identifier components when forming the URL.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/by-list/{source}/index.jsonld": {
+      "get": {
+        "summary": "Discover lists within a source",
+        "operationId": "getByListSourceIndexJsonld",
+        "responses": {
+          "200": {
+            "description": "Published file. Values reflect the current generated snapshot.",
+            "content": {
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListDiscoveryIndex"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File absent from the publication. Error body and media type depend on static hosting; no JSON error envelope is guaranteed."
+          }
+        },
+        "parameters": [
+          {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "description": "Published identifier from the catalogue or collection index. Preserve any slash-separated identifier components when forming the URL.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/by-list/{source}/{list}.jsonld": {
+      "get": {
+        "summary": "Read sanction-entry references for a list",
+        "operationId": "getByListSourceListJsonld",
+        "responses": {
+          "200": {
+            "description": "Published file. Values reflect the current generated snapshot.",
+            "content": {
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListEntryIndex"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File absent from the publication. Error body and media type depend on static hosting; no JSON error envelope is guaranteed."
+          }
+        },
+        "parameters": [
+          {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "description": "Published identifier from the catalogue or collection index. Preserve any slash-separated identifier components when forming the URL.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "list",
+            "in": "path",
+            "required": true,
+            "description": "Published identifier from the catalogue or collection index. Preserve any slash-separated identifier components when forming the URL.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/by-authority/index.jsonld": {
+      "get": {
+        "summary": "Discover authority slice identifiers",
+        "operationId": "getByAuthorityIndexJsonld",
+        "responses": {
+          "200": {
+            "description": "Published file. Values reflect the current generated snapshot.",
+            "content": {
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorityDiscoveryIndex"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File absent from the publication. Error body and media type depend on static hosting; no JSON error envelope is guaranteed."
+          }
+        }
+      }
+    },
+    "/by-regime/index.jsonld": {
+      "get": {
+        "summary": "Discover regime slice identifiers",
+        "operationId": "getByRegimeIndexJsonld",
+        "responses": {
+          "200": {
+            "description": "Published file. Values reflect the current generated snapshot.",
+            "content": {
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegimeDiscoveryIndex"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File absent from the publication. Error body and media type depend on static hosting; no JSON error envelope is guaranteed."
+          }
+        }
+      }
+    },
+    "/by-status/index.jsonld": {
+      "get": {
+        "summary": "Discover status slice identifiers",
+        "operationId": "getByStatusIndexJsonld",
+        "responses": {
+          "200": {
+            "description": "Published file. Values reflect the current generated snapshot.",
+            "content": {
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusDiscoveryIndex"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File absent from the publication. Error body and media type depend on static hosting; no JSON error envelope is guaranteed."
+          }
+        }
+      }
+    },
+    "/by-type/index.jsonld": {
+      "get": {
+        "summary": "Discover type slice identifiers",
+        "operationId": "getByTypeIndexJsonld",
+        "responses": {
+          "200": {
+            "description": "Published file. Values reflect the current generated snapshot.",
+            "content": {
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TypeDiscoveryIndex"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File absent from the publication. Error body and media type depend on static hosting; no JSON error envelope is guaranteed."
+          }
+        }
+      }
+    },
+    "/by-organization/index.jsonld": {
+      "get": {
+        "summary": "Discover organization slice identifiers",
+        "operationId": "getByOrganizationIndexJsonld",
+        "responses": {
+          "200": {
+            "description": "Published file. Values reflect the current generated snapshot.",
+            "content": {
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationDiscoveryIndex"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File absent from the publication. Error body and media type depend on static hosting; no JSON error envelope is guaranteed."
+          }
+        }
+      }
+    },
+    "/by-document-type/index.jsonld": {
+      "get": {
+        "summary": "Discover document-type slice identifiers",
+        "operationId": "getByDocumentTypeIndexJsonld",
+        "responses": {
+          "200": {
+            "description": "Published file. Values reflect the current generated snapshot.",
+            "content": {
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentTypeDiscoveryIndex"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File absent from the publication. Error body and media type depend on static hosting; no JSON error envelope is guaranteed."
+          }
+        }
+      }
+    },
+    "/by-list/index.jsonld": {
+      "get": {
+        "summary": "Discover sources with list slices",
+        "operationId": "getByListIndexJsonld",
+        "responses": {
+          "200": {
+            "description": "Published file. Values reflect the current generated snapshot.",
+            "content": {
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListSourceIndex"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File absent from the publication. Error body and media type depend on static hosting; no JSON error envelope is guaranteed."
+          }
+        }
+      }
+    },
+    "/by-authority/{code}.jsonld": {
+      "get": {
+        "summary": "Read sanction-entry references by authority",
+        "operationId": "getByAuthorityCodeJsonld",
+        "responses": {
+          "200": {
+            "description": "Published file. Values reflect the current generated snapshot.",
+            "content": {
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorityEntryIndex"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File absent from the publication. Error body and media type depend on static hosting; no JSON error envelope is guaranteed."
+          }
+        },
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "description": "Published identifier from the catalogue or collection index. Preserve any slash-separated identifier components when forming the URL.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/by-regime/{code}.jsonld": {
+      "get": {
+        "summary": "Read sanction-entry references by regime",
+        "operationId": "getByRegimeCodeJsonld",
+        "responses": {
+          "200": {
+            "description": "Published file. Values reflect the current generated snapshot.",
+            "content": {
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegimeEntryIndex"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File absent from the publication. Error body and media type depend on static hosting; no JSON error envelope is guaranteed."
+          }
+        },
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "description": "Published identifier from the catalogue or collection index. Preserve any slash-separated identifier components when forming the URL.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/by-status/{code}.jsonld": {
+      "get": {
+        "summary": "Read sanction-entry references by status",
+        "operationId": "getByStatusCodeJsonld",
+        "responses": {
+          "200": {
+            "description": "Published file. Values reflect the current generated snapshot.",
+            "content": {
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusEntryIndex"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File absent from the publication. Error body and media type depend on static hosting; no JSON error envelope is guaranteed."
+          }
+        },
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "description": "Published identifier from the catalogue or collection index. Preserve any slash-separated identifier components when forming the URL.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/by-type/{code}.jsonld": {
+      "get": {
+        "summary": "Read entity references by type",
+        "operationId": "getByTypeCodeJsonld",
+        "responses": {
+          "200": {
+            "description": "Published file. Values reflect the current generated snapshot.",
+            "content": {
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityTypeIndex"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File absent from the publication. Error body and media type depend on static hosting; no JSON error envelope is guaranteed."
+          }
+        },
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "description": "Published identifier from the catalogue or collection index. Preserve any slash-separated identifier components when forming the URL.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/by-organization/{source}/{id}.jsonld": {
+      "get": {
+        "summary": "Read published, signed and authorized announcement summaries",
+        "operationId": "getByOrganizationSourceIdJsonld",
+        "responses": {
+          "200": {
+            "description": "Published file. Values reflect the current generated snapshot.",
+            "content": {
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationDocumentIndex"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File absent from the publication. Error body and media type depend on static hosting; no JSON error envelope is guaranteed."
+          }
+        },
+        "parameters": [
+          {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "description": "Published identifier from the catalogue or collection index. Preserve any slash-separated identifier components when forming the URL.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Published identifier from the catalogue or collection index. Preserve any slash-separated identifier components when forming the URL.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/by-document-type/{source}/{id}.jsonld": {
+      "get": {
+        "summary": "Read announcement and legal-instrument summaries",
+        "operationId": "getByDocumentTypeSourceIdJsonld",
+        "responses": {
+          "200": {
+            "description": "Published file. Values reflect the current generated snapshot.",
+            "content": {
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentTypeDocumentIndex"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File absent from the publication. Error body and media type depend on static hosting; no JSON error envelope is guaranteed."
+          }
+        },
+        "parameters": [
+          {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "description": "Published identifier from the catalogue or collection index. Preserve any slash-separated identifier components when forming the URL.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Published identifier from the catalogue or collection index. Preserve any slash-separated identifier components when forming the URL.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/node/group/{source}/{id}.jsonld": {
+      "get": {
+        "summary": "Read a sanction group",
+        "operationId": "getNodeGroupSourceIdJsonld",
+        "responses": {
+          "200": {
+            "description": "Published file. Values reflect the current generated snapshot.",
+            "content": {
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SanctionGroup"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File absent from the publication. Error body and media type depend on static hosting; no JSON error envelope is guaranteed."
+          }
+        },
+        "parameters": [
+          {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "description": "Published identifier from the catalogue or collection index. Preserve any slash-separated identifier components when forming the URL.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Published identifier from the catalogue or collection index. Preserve any slash-separated identifier components when forming the URL.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "Group files retain the serialized snake_case model fields, including id and entry_ids, rather than the @id envelope used by other node families."
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Node": {
+        "type": "object",
+        "required": [
+          "@id"
+        ],
+        "properties": {
+          "@id": {
+            "type": "string",
+            "format": "uri"
+          },
+          "@context": {
+            "type": "string"
+          },
+          "@type": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      },
+      "Graph": {
+        "type": "object",
+        "required": [
+          "@graph"
+        ],
+        "properties": {
+          "@context": {
+            "type": "string"
+          },
+          "@graph": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Node"
+            }
+          }
+        }
+      },
+      "Reference": {
+        "type": "object",
+        "required": [
+          "@id"
+        ],
+        "properties": {
+          "@id": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      },
+      "Catalogue": {
+        "type": "object",
+        "required": [
+          "@type",
+          "slice",
+          "generated",
+          "entries"
+        ],
+        "properties": {
+          "@type": {
+            "const": "Index"
+          },
+          "slice": {
+            "const": "catalogue"
+          },
+          "generated": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "name",
+                "url",
+                "description"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "mediaType": {
+                  "type": "string"
+                },
+                "bytes": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "members": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "collections": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "index": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Stats": {
+        "type": "object",
+        "required": [
+          "generated_at",
+          "sources",
+          "total_entities",
+          "total_entries"
+        ],
+        "properties": {
+          "generated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "sources": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "required": [
+                "entities",
+                "entries"
+              ],
+              "properties": {
+                "entities": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "entries": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "total_entities": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "total_entries": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "total_regimes": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "SearchMetadata": {
+        "type": "object",
+        "required": [
+          "generated",
+          "totalEntities",
+          "sources"
+        ],
+        "properties": {
+          "generated": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "totalEntities": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sources": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "SearchManifest": {
+        "type": "object",
+        "required": [
+          "metadata",
+          "shards"
+        ],
+        "properties": {
+          "metadata": {
+            "$ref": "#/components/schemas/SearchMetadata"
+          },
+          "shards": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "code",
+                "file",
+                "count"
+              ],
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "file": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9_-]+\\.json$"
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        }
+      },
+      "SearchShard": {
+        "type": "object",
+        "required": [
+          "metadata",
+          "entities"
+        ],
+        "properties": {
+          "metadata": {
+            "$ref": "#/components/schemas/SearchMetadata"
+          },
+          "entities": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "ref",
+                "type",
+                "names",
+                "primaryName"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "ref": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "names": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "primaryName": {
+                  "type": "string"
+                },
+                "authority": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Facets": {
+        "type": "object",
+        "required": [
+          "facets"
+        ],
+        "properties": {
+          "facets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "code",
+                "count"
+              ],
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        }
+      },
+      "Hierarchy": {
+        "type": "object",
+        "required": [
+          "name",
+          "children"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Hierarchy"
+            }
+          }
+        }
+      },
+      "Context": {
+        "type": "object",
+        "required": [
+          "@context"
+        ],
+        "properties": {
+          "@context": {
+            "type": "object"
+          }
+        }
+      },
+      "NodeIndex": {
+        "type": "object",
+        "required": [
+          "@type",
+          "nodes"
+        ],
+        "properties": {
+          "@type": {
+            "const": "Index"
+          },
+          "nodes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Reference"
+            }
+          }
+        }
+      },
+      "NameVariant": {
+        "type": "object",
+        "required": [
+          "@type",
+          "fullName"
+        ],
+        "properties": {
+          "@type": {
+            "const": "NameVariant"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "script": {
+            "type": "string"
+          },
+          "isPrimary": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Entity": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Node"
+          },
+          {
+            "type": "object",
+            "required": [
+              "@type",
+              "entityType",
+              "names"
+            ],
+            "properties": {
+              "@type": {
+                "type": "string"
+              },
+              "entityType": {
+                "type": "string",
+                "enum": [
+                  "person",
+                  "organization",
+                  "vessel",
+                  "aircraft",
+                  "unknown"
+                ]
+              },
+              "names": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/NameVariant"
+                }
+              },
+              "hasSanctionEntry": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "SanctionEntry": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Node"
+          },
+          {
+            "type": "object",
+            "required": [
+              "@type",
+              "entityId"
+            ],
+            "properties": {
+              "@type": {
+                "const": "SanctionEntry"
+              },
+              "entityId": {
+                "type": "string",
+                "format": "uri"
+              },
+              "authority": {
+                "$ref": "#/components/schemas/Reference"
+              },
+              "regime": {
+                "$ref": "#/components/schemas/Reference"
+              },
+              "status": {
+                "type": "string"
+              },
+              "referenceNumber": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "AuthorityEntryIndex": {
+        "type": "object",
+        "required": [
+          "@type",
+          "slice",
+          "authority",
+          "entries"
+        ],
+        "properties": {
+          "@context": {
+            "type": "string"
+          },
+          "@type": {
+            "const": "Index"
+          },
+          "slice": {
+            "const": "by-authority"
+          },
+          "authority": {
+            "$ref": "#/components/schemas/Reference"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Reference"
+            }
+          }
+        }
+      },
+      "RegimeEntryIndex": {
+        "type": "object",
+        "required": [
+          "@type",
+          "slice",
+          "regime",
+          "entries"
+        ],
+        "properties": {
+          "@context": {
+            "type": "string"
+          },
+          "@type": {
+            "const": "Index"
+          },
+          "slice": {
+            "const": "by-regime"
+          },
+          "regime": {
+            "$ref": "#/components/schemas/Reference"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Reference"
+            }
+          }
+        }
+      },
+      "StatusEntryIndex": {
+        "type": "object",
+        "required": [
+          "@type",
+          "slice",
+          "status",
+          "entries"
+        ],
+        "properties": {
+          "@context": {
+            "type": "string"
+          },
+          "@type": {
+            "const": "Index"
+          },
+          "slice": {
+            "const": "by-status"
+          },
+          "status": {
+            "type": "string"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Reference"
+            }
+          }
+        }
+      },
+      "ListEntryIndex": {
+        "type": "object",
+        "required": [
+          "@type",
+          "slice",
+          "list",
+          "entries"
+        ],
+        "properties": {
+          "@context": {
+            "type": "string"
+          },
+          "@type": {
+            "const": "Index"
+          },
+          "slice": {
+            "const": "by-list"
+          },
+          "list": {
+            "$ref": "#/components/schemas/Reference"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Reference"
+            }
+          }
+        }
+      },
+      "EntityTypeIndex": {
+        "type": "object",
+        "required": [
+          "@type",
+          "slice",
+          "entityType",
+          "entities"
+        ],
+        "properties": {
+          "@context": {
+            "type": "string"
+          },
+          "@type": {
+            "const": "Index"
+          },
+          "slice": {
+            "const": "by-type"
+          },
+          "entityType": {
+            "type": "string",
+            "enum": [
+              "person",
+              "organization",
+              "vessel",
+              "aircraft",
+              "unknown"
+            ]
+          },
+          "entities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Reference"
+            }
+          }
+        }
+      },
+      "ListSourceIndex": {
+        "type": "object",
+        "required": [
+          "@type",
+          "slice",
+          "sources"
+        ],
+        "properties": {
+          "@context": {
+            "type": "string"
+          },
+          "@type": {
+            "const": "Index"
+          },
+          "slice": {
+            "const": "by-list"
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ListDiscoveryIndex": {
+        "type": "object",
+        "required": [
+          "@type",
+          "slice",
+          "source",
+          "available"
+        ],
+        "properties": {
+          "@context": {
+            "type": "string"
+          },
+          "@type": {
+            "const": "Index"
+          },
+          "slice": {
+            "const": "by-list"
+          },
+          "source": {
+            "type": "string"
+          },
+          "available": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            }
+          }
+        }
+      },
+      "AuthorityDiscoveryIndex": {
+        "type": "object",
+        "required": [
+          "@type",
+          "slice",
+          "available"
+        ],
+        "properties": {
+          "@context": {
+            "type": "string"
+          },
+          "@type": {
+            "const": "Index"
+          },
+          "slice": {
+            "const": "by-authority"
+          },
+          "available": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "RegimeDiscoveryIndex": {
+        "type": "object",
+        "required": [
+          "@type",
+          "slice",
+          "available"
+        ],
+        "properties": {
+          "@context": {
+            "type": "string"
+          },
+          "@type": {
+            "const": "Index"
+          },
+          "slice": {
+            "const": "by-regime"
+          },
+          "available": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "StatusDiscoveryIndex": {
+        "type": "object",
+        "required": [
+          "@type",
+          "slice",
+          "available"
+        ],
+        "properties": {
+          "@context": {
+            "type": "string"
+          },
+          "@type": {
+            "const": "Index"
+          },
+          "slice": {
+            "const": "by-status"
+          },
+          "available": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "TypeDiscoveryIndex": {
+        "type": "object",
+        "required": [
+          "@type",
+          "slice",
+          "available"
+        ],
+        "properties": {
+          "@context": {
+            "type": "string"
+          },
+          "@type": {
+            "const": "Index"
+          },
+          "slice": {
+            "const": "by-type"
+          },
+          "available": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "OrganizationDiscoveryIndex": {
+        "type": "object",
+        "required": [
+          "@type",
+          "slice",
+          "available"
+        ],
+        "properties": {
+          "@context": {
+            "type": "string"
+          },
+          "@type": {
+            "const": "Index"
+          },
+          "slice": {
+            "const": "by-organization"
+          },
+          "available": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "DocumentTypeDiscoveryIndex": {
+        "type": "object",
+        "required": [
+          "@type",
+          "slice",
+          "available"
+        ],
+        "properties": {
+          "@context": {
+            "type": "string"
+          },
+          "@type": {
+            "const": "Index"
+          },
+          "slice": {
+            "const": "by-document-type"
+          },
+          "available": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "LocalizedString": {
+        "type": "object",
+        "required": [
+          "value"
+        ],
+        "properties": {
+          "value": {
+            "type": "string"
+          },
+          "lang": {
+            "type": "string"
+          },
+          "script": {
+            "type": "string"
+          },
+          "isPrimary": {
+            "type": "boolean"
+          },
+          "is_primary": {
+            "type": "boolean"
+          }
+        }
+      },
+      "LocalizedText": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "$ref": "#/components/schemas/LocalizedString"
+          },
+          {
+            "$ref": "#/components/schemas/LanguageMap"
+          },
+          {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/LocalizedString"
+                },
+                {
+                  "$ref": "#/components/schemas/LanguageMap"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "AnnouncementSummary": {
+        "type": "object",
+        "required": [
+          "documentId",
+          "publishDate",
+          "entryCount"
+        ],
+        "properties": {
+          "documentId": {
+            "type": "string"
+          },
+          "title": {
+            "$ref": "#/components/schemas/LocalizedText"
+          },
+          "publishDate": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "groupId": {
+            "type": "string"
+          },
+          "entryCount": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "LegalInstrumentSummary": {
+        "type": "object",
+        "required": [
+          "@id"
+        ],
+        "properties": {
+          "@id": {
+            "type": "string",
+            "format": "uri"
+          },
+          "identifier": {
+            "type": "string"
+          },
+          "title": {
+            "$ref": "#/components/schemas/LocalizedText"
+          },
+          "name": {
+            "$ref": "#/components/schemas/LocalizedText"
+          },
+          "publishDate": {
+            "type": "string"
+          }
+        }
+      },
+      "OrganizationDocumentIndex": {
+        "type": "object",
+        "required": [
+          "@type",
+          "slice",
+          "organization",
+          "published",
+          "signed",
+          "authorized"
+        ],
+        "properties": {
+          "@context": {
+            "type": "string"
+          },
+          "@type": {
+            "const": "Index"
+          },
+          "slice": {
+            "const": "by-organization"
+          },
+          "organization": {
+            "$ref": "#/components/schemas/Reference"
+          },
+          "published": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnnouncementSummary"
+            }
+          },
+          "signed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnnouncementSummary"
+            }
+          },
+          "authorized": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnnouncementSummary"
+            }
+          }
+        }
+      },
+      "DocumentTypeDocumentIndex": {
+        "type": "object",
+        "required": [
+          "@type",
+          "slice",
+          "documentType",
+          "announcements",
+          "legalInstruments"
+        ],
+        "properties": {
+          "@context": {
+            "type": "string"
+          },
+          "@type": {
+            "const": "Index"
+          },
+          "slice": {
+            "const": "by-document-type"
+          },
+          "documentType": {
+            "$ref": "#/components/schemas/Reference"
+          },
+          "announcements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnnouncementSummary"
+            }
+          },
+          "legalInstruments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LegalInstrumentSummary"
+            }
+          }
+        }
+      },
+      "LanguageMap": {
+        "type": "object",
+        "minProperties": 1,
+        "patternProperties": {
+          "^[a-zA-Z]+(?:-[a-zA-Z0-9]+)*$": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SanctionGroup": {
+        "type": "object",
+        "required": [
+          "id",
+          "entry_ids"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uri"
+          },
+          "announcement_id": {
+            "type": "string",
+            "format": "uri"
+          },
+          "announcement_title": {
+            "type": "string"
+          },
+          "entry_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          "effective_date": {
+            "type": "string"
+          },
+          "entity_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "security": [],
+  "externalDocs": {
+    "description": "Static API and SPARQL usage",
+    "url": "https://www.ammitto.org/api"
+  }
+}

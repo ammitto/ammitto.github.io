@@ -54,28 +54,14 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    # Measured on 2026-08-13 (run 31681782113): 7m16s end to end. Fifteen
-    # shallow clones took 5s, Ruby setup 8s, npm ci 2s, unit tests 2s,
-    # harmonize 3m05s, the output verification 15s, the Vite build 37s,
-    # Playwright chromium 28s, the browser suite 2m13s, artifact upload 10s.
-    #
-    # Thirty is a little over four times that, and the headroom is aimed at
-    # the two steps that grow with the data rather than with this repository:
-    # harmonize and the browser suite together are three quarters of the run,
-    # and both scale with an entity count that is upstream of us — 60,981 at
-    # the last calibration, the figure the composed proof recorded against
-    # the pin below, and the scale the 7m16s above was already measured at.
-    # (25,128 was the count on 2026-08-06; the data repositories themselves
-    # grew, at an unchanged gem.) The dataset can roughly triple before the
-    # timeout, rather than a real defect, becomes the thing that fails the
-    # job — and long before that, a run drifting toward thirty minutes is the
-    # signal that publishing has outgrown one job.
-    #
-    # Anything beyond that is a hang: a clone against an unresponsive remote,
-    # or a harmonize that stopped making progress. Six hours of a stuck
-    # runner is the alternative, and this workflow does not cancel in
-    # progress, so a wedged run also holds every later publish behind it.
-    timeout-minutes: 30
+    # Complete JSON/JSON-LD schema validation and strict Turtle parsing now
+    # run after harmonization. The earlier 7m16s calibration predates these
+    # gates. Run 38578031072 finished exports at 14:14:20 UTC, then reached
+    # the former 30-minute job limit before validation could report a result.
+    # Allow bounded diagnostic headroom for the complete validator; this is
+    # not evidence that validation passed or that 60 minutes is sufficient.
+    # All source, output, browser and deployment gates remain required.
+    timeout-minutes: 60
     defaults:
       run:
         # Explicit bash adds -o pipefail, so a failing producer in a
@@ -90,11 +76,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ammitto/ammitto
-          # Pinned to 4acd53c, gem main after #202 and #203.
-          # Includes Swiss vessel identity preservation and usable Japan
-          # validation schemas, alongside the earlier source-field fixes.
-          # This PR's build validates the combined gem against all fifteen
-          # data repositories, output thresholds and the browser suite.
+          # Pinned to 6672cff, gem main after #212.
+          # Includes preserved Swiss vessels, Japan source validation,
+          # Turkish listing dates, the output-schema publication gate and
+          # preserved Turtle backslashes, quiet strict parser logging and
+          # immutable canonical values and the canonical transformer pipeline.
+          # This build verifies all fifteen source repositories, output
+          # thresholds and browser behavior; Russia remains unpublished.
           #
           # DEBT, not introduced here: the manifest's gem_commit still reads
           # 5e8b95c, further behind each pin. Its own derivation note says
@@ -107,7 +95,7 @@ jobs:
           # total_entities_floor only, none of the provenance fields, so the
           # staleness costs accuracy in the record and nothing in the gate.
           # Pin-to-SHA stays the policy.
-          ref: 4acd53c3c4cc87ef03b14de30f5342afbad50450  # main after #202 and #203
+          ref: 6672cff4ce91c96088539c4fd8f74bdb573106ad  # main after #212
           path: ammitto-gem
 
       - name: Checkout data repositories
@@ -194,7 +182,16 @@ jobs:
             --verbose --combine \
             --allow-empty ru \
             --sources-dir .. \
-            --output-dir ../public/api/v1
+            --output-dir ../public/api/v1 \
+            --report ../harmonization-report.json
+
+      - name: Upload harmonization validation report
+        if: always() && hashFiles('harmonization-report.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: harmonization-validation-report
+          path: harmonization-report.json
+          retention-days: 7
 
       - name: Verify harmonized output
         run: |

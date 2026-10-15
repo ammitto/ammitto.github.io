@@ -35,6 +35,6 @@ const copyCode = async () => {
         {{ copied ? 'Copied!' : 'Copy' }}
       </button>
     </div>
-    <pre class="p-4 overflow-x-auto bg-dark-bg text-dark-text text-sm"><code>{{ code }}</code></pre>
+    <pre tabindex="0" class="p-4 overflow-x-auto bg-dark-bg text-dark-text text-sm"><code>{{ code }}</code></pre>
   </div>
 </template>

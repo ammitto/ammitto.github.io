@@ -100,7 +100,8 @@ The website loads data from `public/api/v1/`:
 |===
 | File | Description
 
-| `search-index.json` | Lightweight search index
+| `search-index/manifest.json` | Source shard catalogue for client-side search
+| `search-index/{source}.json` | Compact entity records for one source
 | `facets/*.json` | Filter facet counts
 | `ontology/classes.jsonld` | Ontology class definitions
 | `ontology/properties.jsonld` | Ontology property definitions
@@ -109,6 +110,32 @@ The website loads data from `public/api/v1/`:
 | `sources/{source}.jsonld` | Every entity and entry for one source. Published for the 14 sources that contribute entities, so there is no `sources/ru.jsonld` while `ru` is pending
 | `all.jsonld` | Complete knowledge graph
 |===
+
+=== API contract and SPARQL
+
+The `/api` page documents the static API and local query examples.
+`public/openapi.json` publishes its OpenAPI 3.1 contract at `/openapi.json`;
+it stays outside the generated `public/api/v1` directory so harmonization
+cannot replace it. Query files are published from `public/queries/`.
+
+See link:docs/api.adoc[the API and SPARQL guide] for slice references, search
+shards, tested query predicates, local Turtle queries and using a SPARQL store
+you operate. Ammitto currently provides Turtle files rather than a hosted
+SPARQL endpoint.
+
+Validate every documented response family and parameter branch against dated,
+bounded HTTP-response fixtures with the CI-only Ruby dependencies:
+
+[source,shell]
+----
+BUNDLE_GEMFILE=.github/validation.Gemfile bundle install
+BUNDLE_GEMFILE=.github/validation.Gemfile bundle exec ruby scripts/verify-api-contract.rb
+----
+
+The verifier uses JSONSchemer and also rejects missing required fields and wrong
+field types. CI runs it separately from the website's Node tests; it does not
+add a website runtime dependency. See `tests/fixtures/openapi-responses.json`
+for capture URLs and dates. Fixtures are excerpts rather than a complete corpus.
 
 === Deployment
 
@@ -145,7 +172,7 @@ Or manually via GitHub Actions workflow dispatch.
 │  SearchPage.vue                                                  │
 │       │                                                          │
 │       ▼                                                          │
-│  useSearchIndex.ts ──► FlexSearch ──► search-index.json         │
+│  useSearchIndex.ts ──► search-index/manifest.json                 │
 │       │                                                          │
 │       │ (on demand)                                              │
 │       ▼                                                          │

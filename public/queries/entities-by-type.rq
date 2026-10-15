@@ -1,0 +1,8 @@
+PREFIX ammitto: <https://www.ammitto.org/ontology/>
+
+SELECT ?type (COUNT(DISTINCT ?entity) AS ?count)
+WHERE {
+  ?entity ammitto:entityType ?type .
+}
+GROUP BY ?type
+ORDER BY ?type
