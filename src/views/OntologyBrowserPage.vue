@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, defineAsyncComponent } from 'vue'
 import { useOntologyData, type HierarchyNode } from '@/composables/useOntologyData'
 import CodeBlock from '@/components/molecules/CodeBlock.vue'
 import { entityTypes } from '@/config'
@@ -9,12 +9,19 @@ const {
   isLoading,
   isLoaded,
   hierarchy,
+  classes,
   properties,
+  graphProperties,
   getClass,
   getPropertiesForClass,
   getSubclasses,
   loadExample,
 } = useOntologyData()
+
+// Keep the D3 graph out of the initial application/search bundle.
+const OntologyGraph = defineAsyncComponent(() => import('@/components/organisms/OntologyGraph.vue'))
+
+const graphClasses = computed(() => Array.from(classes.value.values()))
 
 // Selected item for detail view
 const selectedClass = ref<string | null>(null)
@@ -134,6 +141,12 @@ onMounted(async () => {
 
     <!-- Main content -->
     <div v-else-if="isLoaded" class="max-w-7xl mx-auto px-4 py-8">
+      <OntologyGraph
+        :classes="graphClasses"
+        :properties="graphProperties"
+        :selected-class="selectedClass"
+        @select="selectClass"
+      />
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
         <!-- Left panel: Class Hierarchy -->

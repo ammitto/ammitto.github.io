@@ -4,6 +4,7 @@ import type { ViteSSGOptions } from 'vite-ssg'
 import { copyFileSync, existsSync, readdirSync, statSync, writeFileSync } from 'fs'
 import { resolve, join, relative, sep } from 'path'
 import { LIVE_ORIGIN_ENV, createApiHandler, resolveLiveOrigin } from './scripts/dev-api-proxy.js'
+import { generateServiceWorker } from './scripts/generate-service-worker.js'
 
 /** The origin the published IRIs are rooted at; also what a crawler is told. */
 const SITE_ORIGIN = 'https://www.ammitto.org'
@@ -66,6 +67,7 @@ function devApiData(): Plugin {
 // than reached through `defineConfig`.
 const config: UserConfig & { ssgOptions: Partial<ViteSSGOptions> } = {
   plugins: [vue(), devApiData()],
+  build: { manifest: true },
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
@@ -131,6 +133,8 @@ const config: UserConfig & { ssgOptions: Partial<ViteSSGOptions> } = {
           'Allow: /\n' +
           `Sitemap: ${SITE_ORIGIN}/sitemap.xml\n`,
       )
+
+      generateServiceWorker(dist)
     },
   },
 }

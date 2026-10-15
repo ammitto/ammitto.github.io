@@ -1,4 +1,4 @@
-import { ref, computed, toRaw } from 'vue'
+import { ref, shallowRef, triggerRef, computed, toRaw } from 'vue'
 import FlexSearch from 'flexsearch'
 import { normalizeNode } from '@/utils/normalizeNode'
 import { searchRowText } from '@/utils/birthAdapters'
@@ -80,8 +80,11 @@ interface FacetsResponse {
 }
 
 // Global state
-const searchIndex = ref<FlexSearch.Index | null>(null)
-const entities = ref<Map<string, SearchEntity>>(new Map())
+// Rows and FlexSearch internals are read-only after indexing. Deep proxies
+// charge every lookup/iteration for tracking that no reader needs. Publish
+// the shallow Map once per budgeted step instead of notifying per row.
+const searchIndex = shallowRef<FlexSearch.Index | null>(null)
+const entities = shallowRef<Map<string, SearchEntity>>(new Map())
 const isLoading = ref(false)
 const isLoaded = ref(false)
 const error = ref<string | null>(null)
@@ -306,11 +309,13 @@ async function loadSearchIndex(): Promise<void> {
         // in a microtask), so SearchPage defers its partial search to a timer.
         yieldControl: () => {
           indexedCount.value = added
+          triggerRef(entities)
           return yieldToEventLoop()
         },
       },
     )
 
+    triggerRef(entities)
     indexedCount.value = added
     searchIndex.value = index
     isLoaded.value = true
