@@ -185,6 +185,9 @@ jobs:
             --output-dir ../public/api/v1 \
             --report ../harmonization-report.json
 
+      - name: Record China source snapshot coverage
+        run: node scripts/generate-source-freshness.js data-cn public/api/v1 public/source-freshness.json
+
       - name: Upload harmonization validation report
         if: always() && hashFiles('harmonization-report.json') != ''
         uses: actions/upload-artifact@v4

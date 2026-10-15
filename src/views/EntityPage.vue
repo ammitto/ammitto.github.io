@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import Badge from '@/components/atoms/Badge.vue'
 import { useEntityData } from '@/composables/useEntityData'
 import SourceDocuments from '@/components/molecules/SourceDocuments.vue'
+import SourceFreshness from '@/components/molecules/SourceFreshness.vue'
 import { sources, entityTypes } from '@/config'
 import {
   getEntityNodePath,
@@ -848,6 +849,7 @@ onMounted(async () => {
           </div>
         </details>
 
+        <SourceFreshness v-if="source === 'cn'" />
         <SourceDocuments
           subject="this entity"
           :documents="documents"

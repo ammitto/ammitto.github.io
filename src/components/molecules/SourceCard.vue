@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { tileToneVars } from '@/config/palette'
 import { safeExternalUrl } from '@/utils/externalUrl'
+import SourceFreshness from './SourceFreshness.vue'
 
 const props = defineProps<{
   name: string
@@ -63,6 +64,7 @@ const formattedCount = computed(() => {
     <p class="text-light-muted dark:text-dark-muted mb-4">
       {{ description }}
     </p>
+    <SourceFreshness v-if="country === 'CN'" />
 
     <div class="flex items-center justify-between">
       <div class="flex gap-4 text-sm">
