@@ -76,11 +76,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ammitto/ammitto
-          # Pinned to 6672cff, gem main after #212.
+          # Pinned to a72a5c9, gem main after #214.
           # Includes preserved Swiss vessels, Japan source validation,
           # Turkish listing dates, the output-schema publication gate and
           # preserved Turtle backslashes, quiet strict parser logging and
-          # immutable canonical values and the canonical transformer pipeline.
+          # immutable canonical values, the canonical transformer pipeline and
+          # conservative cross-source identity links.
           # This build verifies all fifteen source repositories, output
           # thresholds and browser behavior; Russia remains unpublished.
           #
@@ -95,7 +96,7 @@ jobs:
           # total_entities_floor only, none of the provenance fields, so the
           # staleness costs accuracy in the record and nothing in the gate.
           # Pin-to-SHA stays the policy.
-          ref: 6672cff4ce91c96088539c4fd8f74bdb573106ad  # main after #212
+          ref: a72a5c92f84e293d7a3f1d718c6203fa665875ce  # main after #214
           path: ammitto-gem
 
       - name: Checkout data repositories
