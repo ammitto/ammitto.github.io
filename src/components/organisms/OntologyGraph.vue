@@ -158,15 +158,7 @@ onBeforeUnmount(() => { if (svg.value) select(svg.value).on('.zoom', null) })
     <div class="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-light-muted dark:text-dark-muted" aria-label="Graph legend">
       <span>Solid arrow: subclass of</span><span>Dashed arrow: class property</span>
     </div>
-    <div class="mt-4 grid gap-4 md:grid-cols-2">
-      <div>
-        <label for="ontology-graph-class" class="block text-sm font-medium text-light-text dark:text-dark-text mb-1">Select a class</label>
-        <select id="ontology-graph-class" class="w-full rounded border border-light-border dark:border-dark-border bg-light-bg dark:bg-dark-bg p-2 text-light-text dark:text-dark-text"
-          :value="selectedClass || ''" @change="choose(($event.target as HTMLSelectElement).value)">
-          <option value="" disabled>Choose a class</option>
-          <option v-for="node in model.nodes" :key="node.id" :value="node.classId">{{ node.label }}</option>
-        </select>
-      </div>
+    <div class="mt-4">
       <div class="text-sm text-light-muted dark:text-dark-muted" aria-live="polite" aria-atomic="true">
         <p v-if="!selected">Choose a class to read its relationships.</p>
         <template v-else>
@@ -184,7 +176,7 @@ onBeforeUnmount(() => { if (svg.value) select(svg.value).on('.zoom', null) })
 <style scoped>
 .graph-controls button { min-width: 2.75rem; min-height: 2.75rem; padding: 0.4rem 0.75rem; border: 1px solid rgb(var(--color-light-border)); border-radius: 0.375rem; color: rgb(var(--color-light-text)); }
 .dark .graph-controls button { border-color: rgb(var(--color-dark-border)); color: rgb(var(--color-dark-text)); }
-button:focus-visible, select:focus-visible, svg:focus-visible { outline: 3px solid rgb(var(--color-brand-link)); outline-offset: 3px; }
+button:focus-visible, svg:focus-visible { outline: 3px solid rgb(var(--color-brand-link)); outline-offset: 3px; }
 .graph-canvas { overflow: hidden; }
 .graph-canvas svg { min-height: 260px; max-height: 620px; cursor: grab; touch-action: none; }
 .graph-canvas svg:active { cursor: grabbing; }

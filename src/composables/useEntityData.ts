@@ -1,4 +1,5 @@
-import { ref, computed } from 'vue'
+import { ref, computed, onUnmounted } from 'vue'
+import { createLatestLoadGuard } from '@/utils/latestLoad'
 import { useRoute } from 'vue-router'
 import { useSearchIndex } from './useSearchIndex'
 import { normalizeNode, toNodeIri } from '@/utils/normalizeNode'
@@ -30,6 +31,8 @@ export interface FullEntity {
     middle_name?: string
     last_name?: string
     script?: string
+    language?: string
+    lang?: string
     is_primary: boolean
   }>
   remarks?: string
@@ -208,127 +211,98 @@ export function useEntityData() {
   // the basis is rendered as a link — see legalBasisRows.
   const legalBasisNodes = ref(new Map<string, LegalInstrumentNode>())
 
-  const loadEntity = async (ref: string) => {
+  const entityGuard = createLatestLoadGuard()
+  const evidenceGuard = createLatestLoadGuard()
+  const entriesLoading = ref(false)
+  const legalBasesLoading = ref(false)
+  const entryFailures = ref(0)
+  const legalBasisFailures = ref(0)
+  const entriesExpected = ref(0)
+  onUnmounted(() => { entityGuard.invalidate(); evidenceGuard.invalidate() })
+
+  const fetchEntry = async (entryIri: string): Promise<Entry | null> => {
+    try {
+      const entryPath = `api/v1/node/${entryIri.slice(ENTITY_IRI_BASE.length)}`
+      const response = await fetch(`${API_BASE}${entryPath}.jsonld`)
+      if (!response.ok) return null
+      return normalizeNode<Entry>(await response.json())
+    } catch {
+      return null
+    }
+  }
+
+  const fetchLegalBasisNode = async (iri: string): Promise<[string, LegalInstrumentNode] | null> => {
+    try {
+      const response = await fetch(`${API_BASE}${legalInstrumentNodeUrl(iri)}`)
+      if (!response.ok) return null
+      // Legal-instrument nodes retain their published camelCase vocabulary.
+      return [iri, await response.json() as LegalInstrumentNode]
+    } catch {
+      return null
+    }
+  }
+
+  const loadEntries = async (subject: FullEntity) => {
+    const currentEvidence = evidenceGuard.begin()
+    const isCurrent = () => currentEvidence() && entity.value === subject
+    entries.value = []
+    legalBasisNodes.value = new Map()
+    entryFailures.value = 0
+    legalBasisFailures.value = 0
+    entriesLoading.value = true
+    legalBasesLoading.value = false
+    const references = Array.isArray(subject.sanction_entry_ids) ? subject.sanction_entry_ids : []
+    entriesExpected.value = references.length
+    const iris = [...new Set(references.map(iri => toNodeIri(iri, 'entry')).filter((iri): iri is string => !!iri))]
+    const invalidCount = references.filter(iri => !toNodeIri(iri, 'entry')).length
+    const loaded = await mapWithPool(iris, iri => isCurrent() ? fetchEntry(iri) : Promise.resolve(null))
+    if (!isCurrent()) return
+    entries.value = loaded
+    entryFailures.value = invalidCount + iris.length - loaded.length
+    entriesLoading.value = false
+    const bases = legalBasisIris(loaded)
+    legalBasesLoading.value = bases.length > 0
+    const resolved = await mapWithPool(bases, iri => isCurrent() ? fetchLegalBasisNode(iri) : Promise.resolve(null))
+    if (!isCurrent()) return
+    legalBasisNodes.value = new Map(resolved)
+    legalBasisFailures.value = bases.length - resolved.length
+    legalBasesLoading.value = false
+  }
+
+  const loadEntity = async (entityRef: string) => {
+    const isCurrent = entityGuard.begin()
+    evidenceGuard.invalidate()
+    entity.value = null
     entityLoading.value = true
     entityError.value = null
     entries.value = []
     legalBasisNodes.value = new Map()
-
+    entriesLoading.value = false
+    legalBasesLoading.value = false
+    entryFailures.value = 0
+    legalBasisFailures.value = 0
+    entriesExpected.value = 0
     try {
-      // Try to load full entity from node file
-      const data = await loadFullEntity(ref)
-
-      if (data) {
-        entity.value = data as unknown as FullEntity
-
-        // Load entry data for this entity (contains effects, period, announcement, etc.)
-        await loadEntries()
-        // Resolved here rather than in the page, so the block renders once
-        // already named instead of flickering from slug to title.
-        await loadLegalBases()
-      } else {
-        entityError.value = 'Entity not found'
+      const data = await loadFullEntity(entityRef)
+      if (!isCurrent()) return
+      if (!data) {
+        entityError.value = 'Entity not found or temporarily unavailable'
+        return
       }
-    } catch (e) {
-      entityError.value = e instanceof Error ? e.message : 'Failed to load entity'
-    } finally {
+      const subject = data as unknown as FullEntity
+      entity.value = subject
+      // Primary identity is readable while listing evidence is fetched.
       entityLoading.value = false
+      await loadEntries(entity.value)
+    } catch (e) {
+      if (isCurrent()) entityError.value = e instanceof Error ? e.message : 'Failed to load entity'
+    } finally {
+      if (isCurrent()) entityLoading.value = false
     }
   }
 
-  // Load entries using sanction_entry_ids from the entity
-  const loadEntries = async () => {
-    const entryIris = entity.value?.sanction_entry_ids
-    if (!Array.isArray(entryIris) || entryIris.length === 0) {
-      return
-    }
-
-    // The IRI tail becomes a fetch path verbatim, so it must be a
-    // resolvable entry node IRI. A non-string would otherwise be iterated
-    // character by character, one bogus fetch per character.
-    const iris: string[] = []
-    for (const rawIri of entryIris) {
-      const entryIri = toNodeIri(rawIri, 'entry')
-      if (entryIri) iris.push(entryIri)
-      else console.warn('Skipping unrecognised entry reference:', rawIri)
-    }
-
-    // Fetched with bounded concurrency rather than one at a time.
-    //
-    // This loop used to await each entry in turn, so an entity carrying n
-    // entries cost n sequential round-trips. Every entity published today
-    // carries exactly one entry, so no page gets faster on the current
-    // data — and the entity page was never one of the two that time out.
-    // Those are the organization and document-type pages, which scan the
-    // whole corpus through their own separate loops and are not fixed
-    // here. What this removes is the cost of a case the model allows and
-    // the sources have not yet produced.
-    //
-    // The pool itself, including the cap and the ordering guarantee, is
-    // `mapWithPool` — kept in its own module so the unit tests can run it.
-    const loaded = await mapWithPool(iris, fetchEntry)
-    for (const entry of loaded) {
-      entries.value.push(entry)
-    }
-  }
-
-  // One entry node, or null. Behaviour is unchanged from the sequential
-  // version: a thrown error is warned about, a non-OK response is skipped
-  // silently, and either way one unreachable entry must not empty the
-  // whole list. The silent skip is pre-existing and deliberately preserved
-  // here rather than fixed alongside a performance change.
-  const fetchEntry = async (entryIri: string): Promise<Entry | null> => {
-    try {
-      // Convert IRI to API path
-      // IRI: https://www.ammitto.org/entry/cn/import-export-control-list/202535-csbc-corporation-taiwan
-      // Path: api/v1/node/entry/cn/import-export-control-list/202535-csbc-corporation-taiwan.jsonld
-      const entryPath = `api/v1/node/${entryIri.slice(ENTITY_IRI_BASE.length)}`
-      const response = await fetch(`${API_BASE}${entryPath}.jsonld`)
-      if (!response.ok) return null
-
-      // Entry nodes arrive in the producer's JSON-LD vocabulary
-      return normalizeNode<Entry>(await response.json())
-    } catch {
-      console.warn('Failed to load entry:', entryIri)
-      return null
-    }
-  }
-
-  // Name the instruments the listings cite.
-  //
-  // One request per DISTINCT instrument and nothing else. The published
-  // instrument index is deliberately not read: it carries `@id` and no
-  // other field, so it can neither name an instrument nor prove one is
-  // missing, and fetching it would add a six-figure download to every
-  // entity page in exchange for nothing. This is the shape the
-  // organization and document-type pages were rewritten to escape — the
-  // page must not walk an index to answer a question about one entity.
-  const loadLegalBases = async () => {
-    const iris = legalBasisIris(entries.value)
-    if (iris.length === 0) return
-
-    const resolved = await mapWithPool(iris, fetchLegalBasisNode)
-    legalBasisNodes.value = new Map(resolved)
-  }
-
-  // One instrument node paired with the IRI that referenced it, or null.
-  // Null is what makes the page render a plain label instead of a link, so
-  // an unreachable or unpublished instrument costs a link rather than a
-  // 404 — the same skip-one-item contract `fetchEntry` has.
-  const fetchLegalBasisNode = async (
-    iri: string,
-  ): Promise<[string, LegalInstrumentNode] | null> => {
-    try {
-      const response = await fetch(`${API_BASE}${legalInstrumentNodeUrl(iri)}`)
-      if (!response.ok) return null
-
-      // Instrument nodes are NOT normalized: this repo's other two readers
-      // take them in the producer's camelCase, and so does this one.
-      return [iri, (await response.json()) as LegalInstrumentNode]
-    } catch {
-      console.warn('Failed to load legal instrument:', iri)
-      return null
-    }
+  const retryEvidence = () => {
+    if (entity.value) return loadEntries(entity.value)
   }
 
   // The instruments authorising this entity's listings, each linked to its
@@ -429,10 +403,10 @@ export function useEntityData() {
 
   // Get status from entries
   const entryStatus = computed(() => {
-    for (const entry of entries.value) {
-      if (entry.status) return entry.status
-    }
-    return 'active'
+    if (entriesLoading.value || entryFailures.value > 0 || entries.value.length === 0) return 'unknown'
+    if (entries.value.some(entry => !entry.status)) return 'unknown'
+    const statuses = [...new Set(entries.value.map(entry => entry.status!))]
+    return statuses.length === 1 ? statuses[0] : 'mixed'
   })
 
   // Get list types from entry IDs (extract from path)
@@ -489,6 +463,12 @@ export function useEntityData() {
     entries,
     entityLoading,
     entityError,
+    entriesLoading,
+    legalBasesLoading,
+    entryFailures,
+    legalBasisFailures,
+    entriesExpected,
+    retryEvidence,
     loadEntity,
     entityId,
     primaryName,

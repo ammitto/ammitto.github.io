@@ -20,9 +20,11 @@ const props = defineProps<{
   entity: Entity
 }>()
 
-const primaryName = computed(() => props.entity.names[0] || 'Unknown')
+const primaryName = computed(() => props.entity.names[0] || 'Unnamed record')
 const aliases = computed(() => props.entity.names.slice(1, 4))
 const sourceInfo = computed(() => sources.find(s => s.code === props.entity.source))
+const titleId = computed(() => `record-name-${encodeURIComponent(props.entity.id)}`)
+const factsId = computed(() => `record-facts-${encodeURIComponent(props.entity.id)}`)
 const typeInfo = computed(() => entityTypes.find(t => t.code === props.entity.entityType))
 </script>
 
@@ -47,18 +49,14 @@ const typeInfo = computed(() => entityTypes.find(t => t.code === props.entity.en
     the slash in a ref like `uk/aqd0087` stays a separator instead of
     becoming %2F.
 
-    min-w-0 is load-bearing, not decoration. As a grid item this card defaults
-    to min-width:auto, so the track had to be at least as wide as the card's
-    min-content — and the name/alias lines are `truncate`, i.e. white-space:
-    nowrap, whose min-content is the FULL untruncated string. One long
-    sanctioned name therefore stretched the whole single-column grid and the
-    page with it: 1044px of scrollWidth in a 390px viewport on /search and
-    /browse/entities. min-w-0 lets the track ignore that intrinsic width, and
-    the truncation then does its job inside the card.
-    tests/e2e/overflow.spec.js holds this at 320px and 390px on every route.
+    min-w-0 lets this grid item shrink inside its track. Names and aliases
+    wrap in full, including unbroken identifiers and multilingual text.
   -->
   <RouterLink
     :to="`/entity/${entity.ref}`"
+    :data-entity-ref="entity.ref"
+    :aria-labelledby="titleId"
+    :aria-describedby="factsId"
     class="glass-card block min-w-0 p-4 hover:border-brand-primary/50 transition-all group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
   >
     <!--
@@ -69,11 +67,11 @@ const typeInfo = computed(() => entityTypes.find(t => t.code === props.entity.en
     -->
     <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3 mb-2">
       <div class="sm:flex-1 min-w-0">
-        <h3 class="font-semibold text-lg truncate text-light-text dark:text-dark-text">
-          {{ primaryName }}
+        <h3 :id="titleId" class="font-semibold text-lg break-words [overflow-wrap:anywhere] text-light-text dark:text-dark-text">
+          <bdi>{{ primaryName }}</bdi>
         </h3>
-        <div v-if="aliases.length > 0" class="text-sm text-light-muted dark:text-dark-muted truncate">
-          Also known as: {{ aliases.join(', ') }}
+        <div v-if="aliases.length > 0" class="text-sm text-light-muted dark:text-dark-muted break-words [overflow-wrap:anywhere]">
+          Also known as: <bdi>{{ aliases.join(', ') }}</bdi>
         </div>
       </div>
       <div class="flex flex-wrap gap-1 min-w-0 sm:flex-col sm:flex-nowrap sm:items-end">
@@ -84,18 +82,19 @@ const typeInfo = computed(() => entityTypes.find(t => t.code === props.entity.en
             the word beside it, so it is hidden rather than announced as
             "bust in silhouette" ahead of every result.
           -->
-          <span aria-hidden="true">{{ typeInfo?.icon }}</span> {{ typeInfo?.name }}
+          <span aria-hidden="true">{{ typeInfo?.icon }}</span> {{ typeInfo?.name || entity.entityType }}
         </Badge>
         <Badge variant="source" :source-code="entity.source">
-          {{ sourceInfo?.name }}
+          {{ sourceInfo?.name || entity.source }}
         </Badge>
       </div>
     </div>
 
-    <div class="flex flex-wrap gap-2 mt-3">
-      <Badge v-if="entity.status" :variant="entity.status as any">
+    <div :id="factsId" class="flex flex-wrap gap-2 mt-3">
+      <Badge v-if="entity.status && entity.status !== 'unknown'" :variant="entity.status as any">
         {{ entity.status }}
       </Badge>
+      <span v-if="!entity.status || entity.status === 'unknown'" class="text-xs text-light-muted dark:text-dark-muted">Listing status unavailable</span>
       <Badge v-if="entity.country">
         {{ entity.country }}
       </Badge>

@@ -158,8 +158,8 @@ async function controlBuild(page) {
         input: document.querySelector('main input, input[type="search"], input')?.value ?? '',
         // Read from the pill, not the URL: the router updates the URL after
         // the render that applied the filter.
-        type: [...document.querySelectorAll('aside button[aria-pressed="true"]')].some((b) =>
-          b.textContent.includes('Organization'),
+        type: [...document.querySelectorAll('aside button[aria-pressed="true"]')].some((button) =>
+          button.textContent.includes('Organization'),
         )
           ? 'organization'
           : null,
@@ -180,7 +180,7 @@ async function controlBuild(page) {
       // A filter pill toggling is an attribute change; record it even when no
       // text or card changes with it.
       attributes: true,
-      attributeFilter: ['aria-pressed'],
+      attributeFilter: ['aria-pressed', 'checked'],
     })
   })
 }
@@ -288,7 +288,7 @@ async function gateTimers(page) {
     window.setTimeout = (fn, ms, ...args) => {
       if (!window.__gate) return outerSet(fn, ms, ...args)
       const id = ++fake
-      window.__gated.push({ id, run: () => fn(...args) })
+      window.__gated.push({ id, delay: ms, run: () => fn(...args) })
       return id
     }
     window.clearTimeout = (id) => {
@@ -522,9 +522,10 @@ test.describe('search partial results while the index builds', () => {
     await page.getByPlaceholder(/Name, alias/).fill('filler')
     const firstStep = await stepUntilCards(page)
     expect(firstStep).toBeGreaterThan(0)
-    // The one held timer is the next mounting step.
-    const held = await page.evaluate(() => window.__gated.map((t) => t.id))
-    expect(held, 'more cards are waiting to mount').toHaveLength(1)
+    // Target the zero-delay mounting step, excluding Unhead's independent
+    // 10ms document-title update now triggered by query navigation.
+    const held = await page.evaluate(() => window.__gated.filter(t => t.delay === 0).map(t => t.id))
+    expect(held, 'exactly one card-mounting step is pending').toHaveLength(1)
 
     // No filler row is an organization: nothing may mount once the filter is on.
     await page.locator('aside').getByRole('button', { name: /Organization/ }).first().click()

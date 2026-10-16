@@ -86,9 +86,9 @@ test('the progress banner is gated on the partial state and is not a live region
   assert.match(tag, /v-if="showPartial"/)
   assert.ok(!/aria-live|role=/.test(tag), 'the banner must not be a second live region')
   assert.equal(
-    (page.match(/aria-live=/g) || []).length,
+    (page.replace(/<SideDrawer\b[\s\S]*?<\/SideDrawer>/g, '').match(/aria-live=/g) || []).length,
     1,
-    'resultAnnouncement must stay the page\'s one live region',
+    'resultAnnouncement must stay the page\'s one live region outside the modal',
   )
 })
 

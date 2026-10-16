@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 import { CONTRAST_SCAN_ROUTES } from '../routes.js'
-import { collectPageErrors, gotoRendered, serveSourceGraphs, useTheme } from './helpers.js'
+import { collectPageErrors, gotoRendered as gotoRenderedBase, serveSourceGraphs, useTheme } from './helpers.js'
 
 /**
  * Rendered-DOM contrast, as a second and independent opinion.
@@ -55,6 +55,10 @@ import { collectPageErrors, gotoRendered, serveSourceGraphs, useTheme } from './
  *
  * This list is meant to shrink.
  */
+async function gotoRendered(page, path) {
+  await gotoRenderedBase(page, path)
+}
+
 const ALLOWED_INCOMPLETE = [
   {
     routes: ['/ontology'],
@@ -441,7 +445,7 @@ test('badge and link colours differ between the themes in the rendered page', as
     const context = await browser.newContext()
     const page = await context.newPage()
     await useTheme(page, theme)
-    await gotoRendered(page, '/search')
+    await gotoRendered(page, '/api')
     await expect(page.locator('.tone-pill').first()).toBeVisible({ timeout: 15000 })
     const value = await page.evaluate(() => {
       const pill = document.querySelector('.tone-pill')

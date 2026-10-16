@@ -50,7 +50,7 @@ const pages = [
     routeId: 'sourceId',
     kind: 'legal-instrument',
     rawPrimaryFetch: /fetch\(`\/api\/v1\/node\/legal-instrument\/\$\{id\}\.jsonld`\)/,
-    resets: [/instrument\.value = null/, /relatedGroups\.value = \[\]/, /relatedEntries\.value = \[\]/],
+    resets: [/instrument\.value = null/, /relatedGroups\.value = \[\]/, /relationshipFailures\.value = 0/],
   },
   {
     name: 'OrganizationPage',
@@ -84,16 +84,16 @@ for (const { name, routeId, kind, rawPrimaryFetch, resets } of pages) {
 
     assert.match(source, /createLatestLoadGuard\(\)/)
     assert.match(source, /const isCurrent = loadGuard\.begin\(\)/)
-    assert.match(source, /onUnmounted\(loadGuard\.invalidate\)/)
+    assert.match(source, /onUnmounted\((?:loadGuard\.invalidate|\(\) => \{ loadGuard\.invalidate\(\))/)
     assert.match(source, /if \(!isCurrent\(\)\) return/)
-    assert.match(source, /if \(isCurrent\(\)\) loading\.value = false/)
+    assert.match(source, /if \(isCurrent\(\)\) (?:\{ )?loading\.value = false/)
   })
 
   test(`${name} fetches the same validated node path its download exposes`, () => {
     const source = readFileSync(join(root, `src/views/${name}.vue`), 'utf8')
 
     assert.match(source, new RegExp(`nodeDocumentPath\\(\\s*['"]${kind}['"]`))
-    assert.match(source, /fetch\(\w+Href\)/)
+    assert.match(source, /fetch\((?:\w+Href|href)\)/)
     assert.doesNotMatch(source, rawPrimaryFetch)
   })
 }

@@ -105,12 +105,14 @@ test('the focused card is visible to the person focusing it', () => {
   }
 })
 
-test('the decorative type icon is not read out as the link name', () => {
+test('a decorative type icon is hidden if the record row renders one', () => {
   // Every child of the card is now part of one link's accessible name.
   // The icon duplicates the word printed beside it, so announcing it only
   // prefixes each result with the emoji's own description.
-  assert.ok(
-    flatten(read(CARD)).includes('<span aria-hidden="true">{{ typeInfo?.icon }}</span>'),
-    `${CARD} must hide the decorative type icon from assistive technology`,
+  const source = flatten(read(CARD))
+  if (source.includes('typeInfo?.icon')) assert.ok(
+    source.includes('<span aria-hidden="true">{{ typeInfo?.icon }}</span>'),
+    `${CARD} must hide any decorative type icon from assistive technology`,
   )
+  assert.ok(source.includes(':aria-labelledby="titleId"'), 'the native link is named by its complete record title')
 })

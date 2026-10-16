@@ -30,7 +30,7 @@ for (const theme of ['light', 'dark']) {
     expect(index).toBeGreaterThanOrEqual(0)
     const code = page.locator('pre').nth(index)
     // Tab must reach the scroll area from the Copy button before it.
-    await code.locator('..').getByRole('button', { name: 'Copy', exact: true }).focus()
+    await code.locator('..').getByRole('button', { name: /^Copy / }).focus()
     await page.keyboard.press('Tab')
     await expect(code).toBeFocused()
     await page.keyboard.press('ArrowRight')

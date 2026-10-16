@@ -45,13 +45,15 @@ const selectFilter = (code: string | null) => {
 </script>
 
 <template>
-  <div class="flex flex-wrap gap-2">
+  <div class="flex flex-wrap gap-2" role="group" aria-label="Filter by source">
     <button
+      type="button"
       v-for="option in filterOptions"
       :key="option.code ?? 'all'"
+      :aria-pressed="modelValue === option.code"
       @click="selectFilter(option.code)"
       :class="[
-        'inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all',
+        'inline-flex min-h-10 items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors',
         modelValue === option.code
           ? 'tone-tile shadow-sm'
           : 'bg-light-bg dark:bg-dark-bg text-light-muted dark:text-dark-muted hover:bg-light-border dark:hover:bg-dark-border'
@@ -62,6 +64,7 @@ const selectFilter = (code: string | null) => {
            ink via currentColor. Unselected: the seed colour, lightened or
            darkened per theme so it stays visible on either background. -->
       <span
+        aria-hidden="true"
         v-if="option.code !== null"
         class="w-2 h-2 rounded-full"
         :class="modelValue === option.code ? 'bg-current' : 'tone-ink bg-current'"

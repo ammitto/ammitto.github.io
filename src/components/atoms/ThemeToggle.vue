@@ -11,23 +11,26 @@ const toggle = () => {
   isDark.value = !isDark.value
   if (isDark.value) {
     document.documentElement.classList.add('dark')
-    localStorage.setItem('theme', 'dark')
   } else {
     document.documentElement.classList.remove('dark')
-    localStorage.setItem('theme', 'light')
   }
+  // The control still works when the browser blocks persistent storage.
+  try { localStorage.setItem('theme', isDark.value ? 'dark' : 'light') } catch { /* Keep the in-page preference. */ }
 }
 </script>
 
 <template>
   <button
+    type="button"
     @click="toggle"
-    class="p-2 rounded-lg hover:bg-light-surface dark:hover:bg-dark-surface transition-colors"
+    class="w-11 h-11 inline-flex shrink-0 items-center justify-center rounded-lg hover:bg-light-surface dark:hover:bg-dark-surface text-light-text dark:text-dark-text transition-colors"
     :aria-label="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
   >
     <svg
       v-if="isDark"
       class="w-5 h-5 text-yellow-500"
+      aria-hidden="true"
+      focusable="false"
       fill="currentColor"
       viewBox="0 0 20 20"
     >
@@ -39,7 +42,9 @@ const toggle = () => {
     </svg>
     <svg
       v-else
-      class="w-5 h-5 text-light-text dark:text-dark-text"
+      class="w-5 h-5"
+      aria-hidden="true"
+      focusable="false"
       fill="currentColor"
       viewBox="0 0 20 20"
     >

@@ -130,7 +130,7 @@ test.describe('clearing on the phone search page', () => {
     await expect(close).toBeFocused()
     const inDrawer = () => page.evaluate(() =>
       Boolean(document.activeElement?.closest('[role="dialog"]')))
-    const count = await drawer.locator('button:not([disabled])').count()
+    const count = await drawer.locator('button:not([disabled]), input:not([disabled]), summary').evaluateAll(elements => elements.filter(element => element.getClientRects().length > 0).length)
     for (let i = 0; i < count + 2; i++) {
       await page.keyboard.press('Tab')
       expect(await inDrawer(), `Tab ${i + 1} left the drawer`).toBe(true)
@@ -179,7 +179,7 @@ test.describe('clearing on the phone search page', () => {
     await page.setViewportSize(PHONE)
     await page.goto('/', { waitUntil: 'domcontentloaded' })
     await hydrated(page)
-    const input = page.getByPlaceholder(/Search by name, country/)
+    const input = page.getByRole('searchbox', { name: 'Name or alias', exact: true })
     await input.fill('smith')
     await clearSearch(page).click()
     await expect(input).toHaveValue('')
@@ -194,10 +194,11 @@ test.describe('clearing on the phone search page', () => {
       await page.setViewportSize(PHONE)
       await page.goto(path, { waitUntil: 'domcontentloaded' })
       await hydrated(page)
-      const input = page.getByRole('textbox', { name: 'Search sanctions data', exact: true })
+      const accessibleName = path === '/' ? 'Name or alias' : 'Search sanctions data'
+      const input = page.getByRole('searchbox', { name: accessibleName, exact: true })
       await expect(input).toBeVisible()
       await input.fill('smith')
-      await expect(input).toHaveAccessibleName('Search sanctions data')
+      await expect(input).toHaveAccessibleName(accessibleName)
       const exposed = await input.evaluate((el) =>
         [...el.parentElement.querySelectorAll('svg')]
           .filter((svg) => !svg.closest('[aria-hidden="true"]')).length)
