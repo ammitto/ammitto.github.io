@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import EntityCard from '@/components/molecules/EntityCard.vue'
-import { useSanctionsData } from '@/composables/useSanctionsData'
+import { useSanctionsData, type SanctionEntity } from '@/composables/useSanctionsData'
 import { entityTypes } from '@/config'
+import { extractRef } from '@/utils/entityUrls'
 
 const {
   entities,
@@ -47,8 +49,13 @@ const typeCount = (code: string): number =>
  */
 const isPartial = computed(() => !loading.value && failedSources.value.length > 0)
 
-const selectedType = ref<string | null>(null)
-const page = ref(1)
+const route = useRoute()
+const router = useRouter()
+const selectedType = computed(() => entityTypes.find(type => type.code === route.query.type)?.code || null)
+const page = computed(() => {
+  const value = Number(route.query.page)
+  return Number.isSafeInteger(value) && value > 0 ? value : 1
+})
 const pageSize = 20
 
 onMounted(() => {
@@ -73,25 +80,22 @@ const hasMore = computed(() => {
 })
 
 const loadMore = () => {
-  page.value++
+  void router.replace({ query: { ...route.query, page: String(page.value + 1) } })
 }
 
 const setFilter = (type: string | null) => {
-  selectedType.value = type
-  page.value = 1
+  void router.push({ query: { ...route.query, type: type || undefined, page: undefined } })
 }
 
-const entityAdapter = (entity: any) => {
-  // Extract ref from full URI (e.g., "https://www.ammitto.org/entity/cn/CN-ACT1" -> "cn/CN-ACT1")
-  const ref = entity.id.replace('https://www.ammitto.org/entity/', '')
-
+const entityAdapter = (entity: SanctionEntity) => {
   return {
     id: entity.id,
-    ref,
-    names: entity.names.map((n: any) => n.fullName),
+    ref: extractRef(entity.id),
+    names: entity.names.map(n => n.fullName),
     entityType: entity.entityType,
     source: entity.source,
-    status: 'active' as const,
+    // Aggregate entities do not carry the status of their sanction entries.
+    status: 'unknown',
     country: entity.country,
   }
 }
@@ -112,11 +116,13 @@ const entityAdapter = (entity: any) => {
         Browse Entities
       </h1>
       <p class="text-light-muted dark:text-dark-muted mb-8 max-w-3xl">
-        Browse all sanctioned individuals, organizations, vessels, and aircraft.
+        Explore published individuals, organizations, vessels, and aircraft by type.
+        Open a record to inspect its listings and source evidence.
       </p>
 
-      <div class="flex flex-wrap gap-3 mb-8">
+      <div class="flex flex-wrap gap-2 mb-8" role="group" aria-label="Entity type">
         <button
+          type="button" :aria-pressed="selectedType === null"
           @click="setFilter(null)"
           class="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
           :class="selectedType === null
@@ -126,6 +132,7 @@ const entityAdapter = (entity: any) => {
           All<span v-if="totalEntities"> ({{ totalEntities.toLocaleString() }})</span>
         </button>
         <button
+          type="button" :aria-pressed="selectedType === type.code"
           v-for="type in entityTypes"
           :key="type.code"
           @click="setFilter(type.code)"
@@ -134,7 +141,7 @@ const entityAdapter = (entity: any) => {
             ? 'bg-brand-primary text-white'
             : 'bg-light-surface dark:bg-dark-surface text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text'"
         >
-          {{ type.icon }} {{ type.name }}<span v-if="typeCount(type.code)"> ({{ typeCount(type.code).toLocaleString() }})</span>
+          <span aria-hidden="true">{{ type.icon }}</span> {{ type.name }}<span v-if="typeCount(type.code)"> ({{ typeCount(type.code).toLocaleString() }})</span>
         </button>
       </div>
 
@@ -144,8 +151,8 @@ const entityAdapter = (entity: any) => {
       </div>
 
       <template v-else>
-        <div class="mb-4 text-sm text-light-muted dark:text-dark-muted">
-          Showing {{ paginatedEntities.length.toLocaleString() }} of {{ filteredEntities.length.toLocaleString() }} entities
+        <div role="status" class="mb-4 text-sm text-light-muted dark:text-dark-muted">
+          Showing {{ paginatedEntities.length.toLocaleString() }} of {{ filteredEntities.length.toLocaleString() }} loaded entities<span v-if="loading"> · Loading more sources…</span>
         </div>
 
         <!--
@@ -165,6 +172,9 @@ const entityAdapter = (entity: any) => {
           {{ entities.length.toLocaleString() }} entities shown. Reload to try again.
         </p>
 
+        <p v-if="filteredEntities.length === 0" class="py-8 text-light-muted dark:text-dark-muted">
+          {{ loading ? 'Loading records for this type…' : 'No records of this type are available in the loaded sources.' }}
+        </p>
         <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <EntityCard
             v-for="entity in paginatedEntities"

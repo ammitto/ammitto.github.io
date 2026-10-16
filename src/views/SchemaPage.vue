@@ -105,8 +105,15 @@ const entityTypeDescriptions = [
 </script>
 
 <template>
-  <div class="min-h-screen">
+  <div class="docs-page min-h-screen">
     <div class="container-wide py-12">
+      <nav aria-label="Developer documentation" class="mb-7 flex flex-wrap gap-x-5 gap-y-2 text-sm">
+        <RouterLink to="/api" class="text-brand-link underline underline-offset-4">API</RouterLink>
+        <RouterLink to="/schema" aria-current="page" class="text-brand-link underline underline-offset-4">Data schema</RouterLink>
+        <RouterLink to="/ontology" class="text-brand-link underline underline-offset-4">Ontology</RouterLink>
+        <RouterLink to="/ruby" class="text-brand-link underline underline-offset-4">Ruby gem</RouterLink>
+        <RouterLink to="/download" class="text-brand-link underline underline-offset-4">Downloads</RouterLink>
+      </nav>
       <h1 class="text-4xl font-bold mb-4 text-light-text dark:text-dark-text">
         Data Schema
       </h1>
@@ -115,8 +122,17 @@ const entityTypeDescriptions = [
         and easy integration with modern applications.
       </p>
 
+      <nav aria-label="On this page" class="mb-10 border-y border-light-border dark:border-dark-border py-4">
+        <p class="mb-2 text-sm font-semibold text-light-text dark:text-dark-text">On this page</p>
+        <ul class="flex flex-wrap gap-x-5 gap-y-2 text-sm">
+          <li><a href="#entity-types" class="text-brand-link underline underline-offset-4">Entity Types</a></li>
+          <li><a href="#full-schema" class="text-brand-link underline underline-offset-4">Full Schema</a></li>
+          <li><a href="#field-descriptions" class="text-brand-link underline underline-offset-4">Field Descriptions</a></li>
+        </ul>
+      </nav>
+
       <section class="mb-12">
-        <h2 class="text-2xl font-semibold mb-4 text-light-text dark:text-dark-text">
+        <h2 id="entity-types" class="text-2xl font-semibold mb-4 text-light-text dark:text-dark-text">
           Entity Types
         </h2>
         <div class="grid md:grid-cols-2 gap-4">
@@ -139,7 +155,7 @@ const entityTypeDescriptions = [
       </section>
 
       <section class="mb-12">
-        <h2 class="text-2xl font-semibold mb-4 text-light-text dark:text-dark-text">
+        <h2 id="full-schema" class="text-2xl font-semibold mb-4 text-light-text dark:text-dark-text">
           Full Schema
         </h2>
         <CodeBlock
@@ -150,16 +166,16 @@ const entityTypeDescriptions = [
       </section>
 
       <section class="mb-12">
-        <h2 class="text-2xl font-semibold mb-4 text-light-text dark:text-dark-text">
+        <h2 id="field-descriptions" class="text-2xl font-semibold mb-4 text-light-text dark:text-dark-text">
           Field Descriptions
         </h2>
-        <div class="glass-card overflow-hidden">
-          <table class="w-full">
+        <div class="glass-card overflow-x-auto" role="region" aria-labelledby="field-descriptions" tabindex="0">
+          <table class="w-full min-w-[36rem]">
             <thead>
               <tr class="border-b border-light-border dark:border-dark-border">
-                <th class="text-left p-4 font-semibold">Field</th>
-                <th class="text-left p-4 font-semibold">Type</th>
-                <th class="text-left p-4 font-semibold">Description</th>
+                <th scope="col" class="text-left p-4 font-semibold">Field</th>
+                <th scope="col" class="text-left p-4 font-semibold">Type</th>
+                <th scope="col" class="text-left p-4 font-semibold">Description</th>
               </tr>
             </thead>
             <tbody class="text-light-muted dark:text-dark-muted">
@@ -238,3 +254,9 @@ const entityTypeDescriptions = [
     </div>
   </div>
 </template>
+
+<style scoped>
+/* The global 5rem scroll padding clears the header; add room at the heading. */
+.docs-page h2[id] { scroll-margin-top: 1rem; }
+.docs-page nav [aria-current="page"] { font-weight: 700; }
+</style>

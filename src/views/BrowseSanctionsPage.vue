@@ -23,10 +23,11 @@ onMounted(() => {
       </div>
 
       <h1 class="text-4xl font-bold mb-4 text-light-text dark:text-dark-text">
-        Browse Sanctions
+        Sanctions by source
       </h1>
       <p class="text-light-muted dark:text-dark-muted mb-8 max-w-3xl">
-        Sanction entries and measures from all data sources.
+        Compare published entity and listing totals, then search the records from a source.
+        A sanction entry records a listing; its details are available on the linked entity page.
       </p>
 
       <div class="glass-card p-8 text-center mb-8">
@@ -35,9 +36,9 @@ onMounted(() => {
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
           </svg>
         </div>
-        <h3 class="font-semibold text-lg mb-2 text-light-text dark:text-dark-text">
+        <h2 class="font-semibold text-lg mb-2 text-light-text dark:text-dark-text">
           Sanctions Summary
-        </h3>
+        </h2>
         <p class="text-light-muted dark:text-dark-muted mb-4">
           Total entries: {{ stats?.total_entries?.toLocaleString() || '—' }}
         </p>
@@ -46,7 +47,8 @@ onMounted(() => {
         </RouterLink>
       </div>
 
-      <div class="grid md:grid-cols-2 gap-6">
+      <h2 class="text-2xl font-semibold mb-5 text-light-text dark:text-dark-text">Source coverage</h2>
+      <div class="grid md:grid-cols-2 gap-5">
         <div v-for="source in sources" :key="source.code" class="glass-card p-6">
           <div class="flex items-center gap-3 mb-4">
             <div
@@ -69,23 +71,25 @@ onMounted(() => {
             <div>
               <span class="text-light-muted dark:text-dark-muted">Entities:</span>
               <span class="font-medium ml-1 text-light-text dark:text-dark-text">
-                {{ stats?.sources?.[source.code]?.entities?.toLocaleString() || '0' }}
+                {{ stats?.sources?.[source.code]?.entities?.toLocaleString() ?? '—' }}
               </span>
             </div>
             <div>
               <span class="text-light-muted dark:text-dark-muted">Entries:</span>
               <span class="font-medium ml-1 text-light-text dark:text-dark-text">
-                {{ stats?.sources?.[source.code]?.entries?.toLocaleString() || '0' }}
+                {{ stats?.sources?.[source.code]?.entries?.toLocaleString() ?? '—' }}
               </span>
             </div>
           </div>
 
           <RouterLink
+            v-if="stats?.sources?.[source.code]"
             :to="{ name: 'search', query: { source: source.code } }"
-            class="text-brand-link hover:underline text-sm font-medium"
+            class="text-brand-link underline underline-offset-4 text-sm font-medium"
           >
             View entities →
           </RouterLink>
+          <p v-else class="text-sm text-light-muted dark:text-dark-muted">{{ stats ? 'Not yet published in this dataset.' : 'Publication information is not available yet.' }}</p>
         </div>
       </div>
     </div>

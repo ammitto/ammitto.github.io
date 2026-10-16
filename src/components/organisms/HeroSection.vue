@@ -92,12 +92,10 @@ onMounted(async () => {
           </Badge>
         </div>
 
-        <form @submit.prevent="handleSearch" class="max-w-xl mx-auto mb-12">
-          <SearchInput
-            v-model="searchQuery"
-            placeholder="Search by name, country, or identifier..."
-            size="lg"
-          />
+        <form @submit.prevent="handleSearch" class="max-w-xl mx-auto mb-12" role="search" aria-label="Search sanctions records">
+          <label for="home-search" class="sr-only">Name or alias</label>
+          <SearchInput v-model="searchQuery" id="home-search" label="Name or alias" placeholder="Search by name or alias..." size="lg" />
+          <button type="submit" class="btn-primary mt-3">Search</button>
         </form>
 
         <!--

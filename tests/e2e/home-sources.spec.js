@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright'
 import { test, expect } from '@playwright/test'
 import { collectPageErrors, gotoRendered, useTheme } from './helpers.js'
 
@@ -98,5 +99,14 @@ for (const { name, stats, expected } of summaryCases) {
 
     const summary = page.locator('p', { hasText: 'official source' })
     await expect(summary).toHaveText(expected, { useInnerText: true })
+  })
+}
+
+for (const theme of ['light', 'dark']) {
+  test(`home inline links are distinguishable from surrounding text (${theme})`, async ({ page }) => {
+    await useTheme(page, theme)
+    await gotoRendered(page, '/')
+    const result = await new AxeBuilder({ page }).withRules(['link-in-text-block']).analyze()
+    expect(result.violations).toEqual([])
   })
 }

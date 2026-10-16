@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatCivilDate } from '@/utils/civilDate.js'
 import { onMounted, onUnmounted, ref, computed } from 'vue'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
 import Badge from '@/components/atoms/Badge.vue'
@@ -62,15 +63,7 @@ const getGroupRef = (id: string): string => {
   return id.replace('https://www.ammitto.org/group/', '')
 }
 
-const formatDate = (dateStr?: string): string => {
-  if (!dateStr) return ''
-  try {
-    const date = new Date(dateStr)
-    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
-  } catch {
-    return dateStr
-  }
-}
+const formatDate = (dateStr?: string): string => formatCivilDate(dateStr, 'short')
 
 // Handle filter change and update URL
 const handleFilterChange = (source: string | null) => {

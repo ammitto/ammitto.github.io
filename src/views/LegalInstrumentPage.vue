@@ -1,13 +1,16 @@
 <script setup lang="ts">
+import { formatCivilDate } from '@/utils/civilDate.js'
 import { ref, computed, watch, onUnmounted } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
 import Badge from '@/components/atoms/Badge.vue'
 import SourceDocuments from '@/components/molecules/SourceDocuments.vue'
 import { getLanguageName } from '@/utils/language'
-import { normalizeNode } from '@/utils/normalizeNode'
+import { normalizeNode, toNodeIri } from '@/utils/normalizeNode'
 import { nodeDocumentPath, nodeDocumentLabel } from '@/utils/nodeDocuments'
 import { createLatestLoadGuard } from '@/utils/latestLoad'
 import { safeExternalUrl } from '@/utils/externalUrl'
+import { mapWithPool } from '@/utils/entryFetchPool'
+import { legalBasisIris } from '@/utils/legalBasisAdapters'
 
 const route = useRoute()
 
@@ -68,6 +71,7 @@ interface LegalInstrument {
 
 interface SanctionGroup {
   id: string
+  entry_ids?: string[]
   announcement_title?: string
   entity_count?: number
   effective_date?: string
@@ -76,6 +80,7 @@ interface SanctionGroup {
 
 interface SanctionEntry {
   id: string
+  legal_bases?: unknown
   entity_id?: string
   legal_citations?: Array<{
     legal_instrument_id?: string
@@ -85,11 +90,14 @@ interface SanctionEntry {
 
 const instrument = ref<LegalInstrument | null>(null)
 const relatedGroups = ref<SanctionGroup[]>([])
-const relatedEntries = ref<SanctionEntry[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
+const relationshipsLoading = ref(false)
+const relationshipFailures = ref(0)
+const relationshipGuard = createLatestLoadGuard()
+let currentPage = () => false
 const loadGuard = createLatestLoadGuard()
-onUnmounted(loadGuard.invalidate)
+onUnmounted(() => { loadGuard.invalidate(); relationshipGuard.invalidate() })
 
 const sourceId = computed(() => {
   const id = route.params.id as string
@@ -121,19 +129,7 @@ const chineseTitle = computed(() => {
 })
 
 // Format date for display
-const formatDate = (dateStr?: string): string => {
-  if (!dateStr) return ''
-  try {
-    const date = new Date(dateStr)
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    })
-  } catch {
-    return dateStr
-  }
-}
+const formatDate = (dateStr?: string): string => formatCivilDate(dateStr)
 
 // Get language display name (imported from shared utility)
 // getLanguageName is imported from '@/utils/language'
@@ -162,72 +158,72 @@ const getGroupRef = (groupId: string): string => {
   return groupId.replace('https://www.ammitto.org/group/', '')
 }
 
-// Load related sanction groups that cite this instrument
-const loadRelatedSanctions = async (instrumentId: string, isCurrent: () => boolean) => {
+// Scan in bounded phases so nested pools cannot multiply concurrency.
+// Primary legal text is already visible while these optional links resolve.
+const loadRelatedSanctions = async (instrumentId: string, pageIsCurrent: () => boolean) => {
+  const latestRelationships = relationshipGuard.begin()
+  const isCurrent = () => pageIsCurrent() && latestRelationships()
+  relatedGroups.value = []
+  relationshipFailures.value = 0
+  relationshipsLoading.value = true
   try {
-    // Load group index
-    const groupIndexResponse = await fetch(`${import.meta.env.BASE_URL || '/'}api/v1/node/group/index.jsonld`)
+    const response = await fetch(`${import.meta.env.BASE_URL || '/'}api/v1/node/group/index.jsonld`)
     if (!isCurrent()) return
-    if (!groupIndexResponse.ok) return
-
-    const groupIndex = await groupIndexResponse.json()
+    if (!response.ok) throw new Error('Group index unavailable')
+    const index = await response.json()
     if (!isCurrent()) return
-    const groupNodes = groupIndex.nodes || []
-
-    // Check each group for entries that cite this instrument
-    for (const groupNode of groupNodes) {
-      if (!isCurrent()) return
-      const groupRef = groupNode['@id'].replace('https://www.ammitto.org/group/', '')
-      const groupResponse = await fetch(`${import.meta.env.BASE_URL || '/'}api/v1/node/group/${groupRef}.jsonld`)
-      if (!isCurrent()) return
-      if (!groupResponse.ok) continue
-
-      const groupData = await groupResponse.json()
-      if (!isCurrent()) return
-      if (!groupData.entry_ids) continue
-
-      // Check entries in this group
-      for (const entryId of groupData.entry_ids) {
-        if (!isCurrent()) return
-        const entryRef = entryId.replace('https://www.ammitto.org/', 'api/v1/node/') + '.jsonld'
-        const entryResponse = await fetch(`${import.meta.env.BASE_URL || '/'}${entryRef}`)
-        if (!isCurrent()) return
-        if (!entryResponse.ok) continue
-
-        // Entry nodes arrive in the producer's JSON-LD vocabulary
-        const entryData = normalizeNode<SanctionEntry>(await entryResponse.json())
-        if (!isCurrent()) return
-        if (entryData?.legal_citations) {
-          const citesThisInstrument = entryData.legal_citations.some(
-            (citation: { legal_instrument_id?: string }) =>
-              citation.legal_instrument_id === instrumentId ||
-              citation.legal_instrument_id?.includes(instrumentId.split('/').pop() || '')
-          )
-          if (citesThisInstrument) {
-            relatedGroups.value.push(groupData)
-            relatedEntries.value.push(entryData)
-          }
-        }
-      }
-    }
-
-    // Deduplicate groups
-    const seenGroupIds = new Set()
-    relatedGroups.value = relatedGroups.value.filter(group => {
-      if (seenGroupIds.has(group.id)) return false
-      seenGroupIds.add(group.id)
-      return true
+    if (!Array.isArray(index.nodes)) throw new Error('Group index unavailable')
+    const groups = await mapWithPool(index.nodes as Array<{ '@id'?: string }>, async node => {
+      if (!isCurrent()) return null
+      try {
+        const iri = toNodeIri(node['@id'], 'group')
+        if (!iri) return null
+        const href = nodeDocumentPath('group', getGroupRef(iri), import.meta.env.BASE_URL || '/')
+        if (!href) return null
+        const response = await fetch(href)
+        if (!response.ok) return null
+        return await response.json() as SanctionGroup
+      } catch { return null }
     })
-  } catch (e) {
-    if (isCurrent()) console.error('Failed to load related sanctions:', e)
+    if (!isCurrent()) return
+    relationshipFailures.value = index.nodes.length - groups.length
+    const jobs = groups.flatMap(group => (Array.isArray(group.entry_ids) ? group.entry_ids : []).map(id => ({ id, group })))
+    const matches = await mapWithPool(jobs, async ({ id, group }) => {
+      if (!isCurrent()) return null
+      try {
+        const iri = toNodeIri(id, 'entry')
+        if (!iri) throw new Error('Unresolvable listing')
+        const response = await fetch(`${import.meta.env.BASE_URL || '/'}api/v1/node/${iri.replace('https://www.ammitto.org/', '')}.jsonld`)
+        if (!response.ok) throw new Error('Listing unavailable')
+        const entry = normalizeNode<SanctionEntry>(await response.json())
+        if (!entry) throw new Error('Listing unavailable')
+        const cited = entry.legal_citations?.some(citation => toNodeIri(citation.legal_instrument_id, 'legal-instrument') === instrumentId)
+        return cited || legalBasisIris([entry]).includes(instrumentId) ? group : null
+      } catch {
+        if (isCurrent()) relationshipFailures.value += 1
+        return null
+      }
+    })
+    if (!isCurrent()) return
+    relatedGroups.value = [...new Map(matches.map(group => [group.id, group])).values()]
+  } catch {
+    if (isCurrent()) relationshipFailures.value += 1
+  } finally {
+    if (isCurrent()) relationshipsLoading.value = false
   }
 }
+const retryRelationships = () => {
+  if (instrument.value) void loadRelatedSanctions(instrument.value['@id'], currentPage)
+}
 
-watch(sourceId, async (id) => {
+const loadInstrument = async (id: string) => {
   const isCurrent = loadGuard.begin()
+  currentPage = isCurrent
+  relationshipGuard.invalidate()
+  relationshipsLoading.value = false
+  relationshipFailures.value = 0
   instrument.value = null
   relatedGroups.value = []
-  relatedEntries.value = []
   loading.value = true
   error.value = null
 
@@ -248,11 +244,8 @@ watch(sourceId, async (id) => {
       const data: LegalInstrument = await response.json()
       if (!isCurrent()) return
       instrument.value = data
-      // Load related sanctions
-      if (data) {
-        await loadRelatedSanctions(data['@id'], isCurrent)
-        if (!isCurrent()) return
-      }
+      loading.value = false
+      if (data) void loadRelatedSanctions(data['@id'], isCurrent)
     } else {
       error.value = 'Legal instrument not found'
     }
@@ -263,7 +256,8 @@ watch(sourceId, async (id) => {
   } finally {
     if (isCurrent()) loading.value = false
   }
-}, { immediate: true })
+}
+watch(sourceId, loadInstrument, { immediate: true })
 
 // The node the route watcher fetches, offered to the reader. The path comes from
 // `nodeDocumentPath` rather than being spelled out again here, which is what
@@ -304,6 +298,7 @@ const documents = computed(() => {
       <div v-else-if="error" class="text-center py-12">
         <h1 class="text-2xl font-bold text-light-fg dark:text-dark-fg mb-4">Error</h1>
         <p class="text-light-muted dark:text-dark-muted">{{ error }}</p>
+        <button type="button" class="mt-4 text-brand-link underline" @click="loadInstrument(sourceId)">Retry legal instrument</button>
       </div>
 
       <!-- Instrument content -->
@@ -443,6 +438,13 @@ const documents = computed(() => {
           <code class="block p-4 bg-light-bg dark:bg-dark-bg rounded text-sm text-light-muted dark:text-dark-muted break-all">
             {{ instrument['@id'] }}
           </code>
+        </div>
+
+        <div role="status" class="text-sm text-light-muted dark:text-dark-muted">
+          <p v-if="relationshipsLoading">Finding related sanction groups… The legal text is ready to read.</p>
+          <p v-else-if="relationshipFailures">Related sanctions are incomplete: {{ relationshipFailures }} {{ relationshipFailures === 1 ? 'record' : 'records' }} could not be loaded.</p>
+          <p v-else-if="relatedGroups.length === 0">No related sanction groups were found in the published group records.</p>
+          <button v-if="!relationshipsLoading && relationshipFailures" type="button" class="mt-2 text-brand-link underline" @click="retryRelationships">Retry related sanctions</button>
         </div>
 
         <!-- Related Sanction Groups -->

@@ -102,7 +102,7 @@ test('mobile resize measures one-column cards, avoids overlap, and query changes
     return boxes.every((box, i) => i === 0 || box.top >= boxes[i - 1].bottom + 15)
   })).toBe(true)
 
-  const input = page.getByRole('textbox', { name: 'Search sanctions data' })
+  const input = page.getByRole('searchbox', { name: 'Search sanctions data' })
   await input.fill('Needle003')
   await expect(page.getByTestId('search-count')).toContainText('1 result')
   await expect(page.getByTestId('search-results').locator('> a')).toHaveCount(1)

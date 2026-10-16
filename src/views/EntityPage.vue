@@ -1,5 +1,9 @@
 <script setup lang="ts">
-import { onMounted, computed, watch, reactive } from 'vue'
+import { computed, watch, reactive, ref, onUnmounted } from 'vue'
+import { createLatestLoadGuard } from '@/utils/latestLoad'
+import { mapWithPool } from '@/utils/entryFetchPool'
+import { searchReturnPath, readSearchReturn } from '@/utils/searchReturn.js'
+import { useHead } from '@unhead/vue'
 import { useRoute } from 'vue-router'
 import Badge from '@/components/atoms/Badge.vue'
 import { useEntityData } from '@/composables/useEntityData'
@@ -12,7 +16,7 @@ import {
   extractRef,
 } from '@/utils/entityUrls'
 import { publishesAggregate } from '@/utils/sourceCatalog'
-import { nodeDocumentLabel } from '@/utils/nodeDocuments'
+import { nodeDocumentLabel, nodeDocumentPath } from '@/utils/nodeDocuments'
 import { safeExternalUrl } from '@/utils/externalUrl'
 import { primaryNameOf } from '@/utils/entityNames'
 
@@ -21,6 +25,11 @@ const {
   entity,
   entityLoading,
   entityError,
+  entriesLoading,
+  legalBasesLoading,
+  entryFailures,
+  legalBasisFailures,
+  retryEvidence,
   loadEntity,
   source,
   sourceReference,
@@ -50,75 +59,46 @@ const {
 const documentTypes = reactive<Record<string, { identifier: string; name: Array<{ value: string; lang: string }> }>>({})
 const organizations = reactive<Record<string, { identifier: string; name: Array<{ value: string; lang: string }> }>>({})
 
-// Load document types and organizations when entries are loaded
+// Labels are optional; their requests cannot overwrite a newer record.
+const labelGuard = createLatestLoadGuard()
+const labelFailures = ref(0)
+const labelsLoading = ref(false)
+onUnmounted(labelGuard.invalidate)
 const loadRelatedData = async () => {
-  if (entries.value.length === 0) {
-    console.log('No entries to load related data from')
-    return
-  }
-
+  const isCurrent = labelGuard.begin()
+  labelFailures.value = 0
   const docTypeIds = new Set<string>()
   const orgIds = new Set<string>()
-
   for (const entry of entries.value) {
-    console.log('Entry announcement:', entry.announcement)
-    if (entry.announcement?.document_type) {
-      docTypeIds.add(entry.announcement.document_type)
-    }
-    if (entry.announcement?.authority) {
-      orgIds.add(entry.announcement.authority)
-    }
-    if (entry.announcement?.signatory) {
-      orgIds.add(entry.announcement.signatory)
-    }
-    if (entry.announcement?.publisher) {
-      orgIds.add(entry.announcement.publisher)
-    }
+    const ann = entry.announcement
+    if (ann?.document_type) docTypeIds.add(ann.document_type)
+    for (const id of [ann?.authority, ann?.signatory, ann?.publisher]) if (id) orgIds.add(id)
   }
-
-  console.log('Document type IDs:', [...docTypeIds])
-  console.log('Organization IDs:', [...orgIds])
-
-  // Fetch document types
-  for (const id of docTypeIds) {
-    if (!documentTypes[id]) {
-      try {
-        const url = `/api/v1/node/document-type/${id}.jsonld`
-        console.log('Fetching document type:', url)
-        const response = await fetch(url)
-        if (response.ok) {
-          const data = await response.json()
-          console.log('Got document type data:', data)
-          documentTypes[id] = data
-        } else {
-          console.log('Failed to fetch document type:', response.status)
-        }
-      } catch (e) {
-        console.error('Error fetching document type:', e)
-      }
-    }
-  }
-
-  // Fetch organizations
-  for (const id of orgIds) {
-    if (!organizations[id]) {
-      try {
-        const url = `/api/v1/node/organization/${id}.jsonld`
-        console.log('Fetching organization:', url)
-        const response = await fetch(url)
-        if (response.ok) {
-          const data = await response.json()
-          console.log('Got organization data:', data)
-          organizations[id] = data
-        } else {
-          console.log('Failed to fetch organization:', response.status)
-        }
-      } catch (e) {
-        console.error('Error fetching organization:', e)
-      }
-    }
-  }
+  const requests = [
+    ...[...docTypeIds].map(id => ({ id, kind: 'document-type', cache: documentTypes })),
+    ...[...orgIds].map(id => ({ id, kind: 'organization', cache: organizations })),
+  ]
+  labelsLoading.value = requests.some(({ id, cache }) => !cache[id])
+  await mapWithPool(requests, async ({ id, kind, cache }) => {
+    if (!isCurrent() || cache[id]) return null
+    try {
+      const href = nodeDocumentPath(kind as 'document-type' | 'organization', id, import.meta.env.BASE_URL || '/')
+      if (!href) throw new Error('Unresolvable reference')
+      const response = await fetch(href)
+      if (!isCurrent()) return null
+      if (!response.ok) throw new Error('Reference label unavailable')
+      const data = await response.json()
+      if (!data || !Array.isArray(data.name) || data.name.length === 0 || !data.name.every((name: unknown) =>
+        typeof name === 'object' && name !== null && 'value' in name && typeof name.value === 'string'
+        && name.value.trim() && 'lang' in name && typeof name.lang === 'string',
+      )) throw new Error('Invalid reference label')
+      if (isCurrent()) cache[id] = data
+    } catch { if (isCurrent()) labelFailures.value += 1 }
+    return null
+  })
+  if (isCurrent()) labelsLoading.value = false
 }
+watch(entries, loadRelatedData)
 
 // Get display name for document type
 const getDocumentTypeName = (id: string): string => {
@@ -126,7 +106,7 @@ const getDocumentTypeName = (id: string): string => {
   if (!docType?.name) return id
   const enName = docType.name.find((n: { value: string; lang: string }) => n.lang === 'en')
   const zhName = docType.name.find((n: { value: string; lang: string }) => n.lang === 'zh')
-  return enName?.value || zhName?.value || id
+  return enName?.value || zhName?.value || docType.name[0]?.value || id
 }
 
 // Get display name for organization
@@ -135,17 +115,26 @@ const getOrganizationName = (id: string): string => {
   if (!org?.name) return id
   const enName = org.name.find((n: { value: string; lang: string }) => n.lang === 'en')
   const zhName = org.name.find((n: { value: string; lang: string }) => n.lang === 'zh')
-  return enName?.value || zhName?.value || id
+  return enName?.value || zhName?.value || org.name[0]?.value || id
 }
 
 const entityId = computed(() => route.params.id as string)
 
-// Watch for route changes
-watch(entityId, (newId) => {
-  if (newId) {
-    loadEntity(newId)
-  }
-}, { immediate: false })
+const returnPath = computed(() => searchReturnPath(entityId.value))
+const hasSearchReturn = computed(() => !!readSearchReturn(entityId.value))
+watch(entityId, id => { if (id) void loadEntity(id) }, { immediate: true })
+
+// Only use a language tag explicitly supplied by the source. A writing
+// system is not a language (Latin script does not imply English).
+const languageTag = (value?: string): string | undefined => {
+  if (!value) return undefined
+  try { return Intl.getCanonicalLocales(value)[0] } catch { return undefined }
+}
+const primaryNameLanguage = computed(() => {
+  const primary = entity.value?.names?.find(name => name.full_name === primaryNameOf(entity.value?.names))
+  return languageTag(primary?.language || primary?.lang)
+})
+useHead(() => ({ title: entity.value ? `${primaryNameOf(entity.value.names) ?? 'Entity'} — Ammitto` : 'Entity record — Ammitto' }))
 
 // `getEntityNodePath` is the call `loadFullEntity` makes to fetch this
 // record, so the link and the fetch cannot describe different paths.
@@ -239,7 +228,7 @@ const getScriptName = (script?: string): string => {
 const namesByScript = computed(() => {
   if (!entity.value?.names) return []
 
-  const grouped: Record<string, { script: string; scriptName: string; names: Array<{ fullName: string; isPrimary: boolean }> }> = {}
+  const grouped: Record<string, { script: string; scriptName: string; names: Array<{ fullName: string; isPrimary: boolean; language?: string }> }> = {}
 
   for (const name of entity.value.names) {
     const script = name.script || 'Unknown'
@@ -252,7 +241,8 @@ const namesByScript = computed(() => {
     }
     grouped[script].names.push({
       fullName: name.full_name,
-      isPrimary: name.is_primary
+      isPrimary: name.is_primary,
+      language: languageTag(name.language || name.lang)
     })
   }
 
@@ -266,24 +256,19 @@ const namesByScript = computed(() => {
   })
 })
 
-onMounted(async () => {
-  await loadEntity(entityId.value)
-  // Load related data after entity is loaded
-  await loadRelatedData()
-})
 </script>
 
 <template>
   <div class="min-h-screen">
     <div class="container-wide py-8">
       <RouterLink
-        to="/search"
+        :to="returnPath"
         class="inline-flex items-center gap-2 text-light-muted dark:text-dark-muted hover:text-brand-link mb-6"
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
         </svg>
-        Back to Search
+        {{ hasSearchReturn ? 'Back to results' : 'Search records' }}
       </RouterLink>
 
       <div v-if="entityLoading" class="glass-card p-8 text-center">
@@ -291,34 +276,24 @@ onMounted(async () => {
         <p class="mt-4 text-light-muted dark:text-dark-muted">Loading entity...</p>
       </div>
 
-      <div v-else-if="entityError" class="glass-card p-8 text-center">
+      <div v-else-if="entityError" role="alert" class="glass-card p-8 text-center">
         <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-status-delisted/20 flex items-center justify-center">
           <svg class="w-8 h-8 text-status-delisted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
         </div>
-        <h3 class="font-semibold text-lg mb-2">Entity Not Found</h3>
+        <h3 class="font-semibold text-lg mb-2">Record unavailable</h3>
         <p class="text-light-muted dark:text-dark-muted">{{ entityError }}</p>
+        <button type="button" class="mt-4 text-brand-link underline" @click="loadEntity(entityId)">Retry record</button>
       </div>
 
-      <article v-else-if="entity" class="space-y-6">
-        <!-- Header -->
+      <article v-else-if="entity" class="space-y-6 entity-record">
+        <!-- Keep the original record card and source/type badges. -->
         <div class="glass-card p-8">
-          <div class="flex flex-wrap items-center gap-3 mb-4">
+          <div class="record-evidence flex flex-wrap items-center gap-3 mb-4">
             <Badge :variant="entityType as any">
               {{ typeInfo?.icon }} {{ typeInfo?.name }}
             </Badge>
-            <!--
-              The authority that listed this entity.
-
-              `v-if` because a badge with no text is worse than no badge: this
-              rendered as a bare grey pill between "Organization" and "active"
-              on every record, because the published nodes carry an empty
-              `sourceReferences` array and nothing else supplied the code.
-              `useEntityData` now falls back to the source segment of the route,
-              so this is normally filled; the guard covers a code the catalogue
-              does not recognise, where the label would be blank again.
-            -->
             <Badge
               v-if="sourceInfo?.name"
               variant="source"
@@ -326,24 +301,31 @@ onMounted(async () => {
             >
               {{ sourceInfo.name }}
             </Badge>
-            <Badge :variant="(entryStatus || 'active') as any">
-              {{ entryStatus || 'Active' }}
+            <Badge :variant="entryStatus as any">
+              {{ entryStatus === 'unknown' ? 'Status unavailable' : entryStatus }}
             </Badge>
           </div>
-
-          <!-- Primary Name -->
-          <h1 class="text-3xl font-bold text-light-text dark:text-dark-text mb-2">
-            {{ primaryNameOf(entity.names) ?? 'Unknown' }}
+          <h1 class="record-name text-3xl font-bold text-light-text dark:text-dark-text mb-2" :lang="primaryNameLanguage">
+            <bdi>{{ primaryNameOf(entity.names) ?? 'Unknown' }}</bdi>
           </h1>
+          <p class="text-light-muted dark:text-dark-muted font-mono text-sm break-all">{{ entity.id }}</p>
+        </div>
 
-          <!-- Entity ID -->
-          <p class="text-light-muted dark:text-dark-muted font-mono text-sm break-all">
-            {{ entity.id }}
-          </p>
+        <div id="record-evidence-status" class="record-load-status text-sm text-light-muted dark:text-dark-muted" role="status">
+          <p v-if="entriesLoading">Loading listing evidence… Status is unavailable until the listing records arrive.</p>
+          <p v-else-if="entryFailures">Listing evidence is incomplete: {{ entryFailures }} referenced {{ entryFailures === 1 ? 'record' : 'records' }} could not be loaded. Status is unavailable.</p>
+          <p v-else-if="entries.length === 0">No listing records are linked to this entity. Its listing status is unavailable.</p>
+          <p v-else-if="entryStatus === 'unknown'">The loaded listing records do not state a complete status.</p>
+          <p v-if="legalBasesLoading">Loading legal basis titles…</p>
+          <p v-else-if="legalBasisFailures">{{ legalBasisFailures }} legal basis {{ legalBasisFailures === 1 ? 'reference' : 'references' }} could not be loaded. Their identifiers are retained below.</p>
+          <p v-if="labelsLoading">Loading supporting reference labels…</p>
+          <p v-else-if="labelFailures">{{ labelFailures }} supporting reference {{ labelFailures === 1 ? 'label is' : 'labels are' }} unavailable. Their source identifiers are shown instead.</p>
+          <button v-if="!labelsLoading && labelFailures" type="button" class="mt-2 text-brand-link underline" @click="loadRelatedData">Retry reference labels</button>
+          <button v-if="!entriesLoading && !legalBasesLoading && (entryFailures || legalBasisFailures)" type="button" class="mt-2 text-brand-link underline" @click="retryEvidence">Retry listing evidence</button>
         </div>
 
         <!-- Names by Script -->
-        <div v-if="namesByScript.length > 0" class="glass-card p-8">
+        <div v-if="namesByScript.length > 0" id="record-names" class="glass-card p-8">
           <h2 class="text-xl font-semibold mb-4 text-light-text dark:text-dark-text">
             Names
           </h2>
@@ -361,9 +343,8 @@ onMounted(async () => {
                   :key="name.fullName"
                   class="text-light-text dark:text-dark-text"
                 >
-                  <span v-if="name.isPrimary" class="font-semibold">{{ name.fullName }}</span>
-                  <span v-else class="text-light-muted dark:text-dark-muted">{{ name.fullName }}</span>
-                  <Badge v-if="name.isPrimary" variant="active" class="ml-2 text-xs">Primary</Badge>
+                  <bdi :lang="name.language" :class="name.isPrimary ? 'font-semibold' : 'text-light-muted dark:text-dark-muted'">{{ name.fullName }}</bdi>
+                  <Badge v-if="name.isPrimary" variant="default" class="ml-2 text-xs">Primary name</Badge>
                 </li>
               </ul>
             </div>
@@ -371,7 +352,7 @@ onMounted(async () => {
         </div>
 
         <!-- Basic Details -->
-        <div class="glass-card p-8">
+        <div id="record-identity" class="glass-card p-8">
           <h2 class="text-xl font-semibold mb-4 text-light-text dark:text-dark-text">
             Details
           </h2>
@@ -445,7 +426,7 @@ onMounted(async () => {
         </div>
 
         <!-- Sanctions Information (from entries) -->
-        <div v-if="effects.length > 0 || periodRows.length > 0 || listTypes.length > 0 || regimes.length > 0 || legalBases.length > 0" class="glass-card p-8">
+        <div v-if="effects.length > 0 || periodRows.length > 0 || listTypes.length > 0 || regimes.length > 0 || legalBases.length > 0" id="record-evidence" class="glass-card p-8">
           <h2 class="text-xl font-semibold mb-4 text-light-text dark:text-dark-text">
             Sanctions Information
           </h2>
@@ -525,7 +506,7 @@ onMounted(async () => {
                     <div v-if="Array.isArray(effect.description) && effect.description.length > 0" class="space-y-1">
                       <div v-for="(desc, didx) in effect.description" :key="didx" class="text-sm">
                         <span class="text-light-muted dark:text-dark-muted text-xs uppercase mr-1">{{ desc.lang }}:</span>
-                        <span :class="{ 'font-medium': desc.is_primary }">{{ desc.value }}</span>
+                        <span :lang="languageTag(desc.lang)" :class="{ 'font-medium': desc.is_primary }">{{ desc.value }}</span>
                       </div>
                     </div>
                     <!-- Fallback for simple description string -->
@@ -554,7 +535,7 @@ onMounted(async () => {
               <div v-if="Array.isArray(reason.description) && reason.description.length > 0" class="space-y-1">
                 <div v-for="(desc, didx) in reason.description" :key="didx" class="text-sm">
                   <span class="text-light-muted dark:text-dark-muted text-xs uppercase mr-1">{{ desc.lang }}:</span>
-                  <span :class="{ 'font-medium': desc.is_primary }">{{ desc.value }}</span>
+                  <span :lang="languageTag(desc.lang)" :class="{ 'font-medium': desc.is_primary }">{{ desc.value }}</span>
                 </div>
               </div>
               <div v-else-if="reason.description" class="text-sm">
@@ -688,7 +669,7 @@ onMounted(async () => {
                 <summary class="cursor-pointer text-sm text-brand-link hover:underline">
                   View Full Text
                 </summary>
-                <p class="mt-2 text-sm text-light-muted dark:text-dark-muted whitespace-pre-wrap bg-light-surface/50 dark:bg-dark-surface/50 p-3 rounded-lg">{{ announcement.content }}</p>
+                <p :lang="languageTag(announcement.language)" class="mt-2 text-sm text-light-muted dark:text-dark-muted whitespace-pre-wrap break-words bg-light-surface/50 dark:bg-dark-surface/50 p-3 rounded-lg">{{ announcement.content }}</p>
               </details>
             </div>
           </div>
@@ -743,7 +724,7 @@ onMounted(async () => {
           <h2 class="text-xl font-semibold mb-4 text-light-text dark:text-dark-text">
             Identifications
           </h2>
-          <div class="overflow-x-auto">
+          <div class="overflow-x-auto" tabindex="0" role="region" aria-label="Identification documents">
             <table class="w-full text-sm">
               <thead>
                 <tr class="border-b border-light-border dark:border-dark-border">
@@ -814,20 +795,20 @@ onMounted(async () => {
           reader unable to tell which of the two they are reading, which is
           the whole reason for showing them apart.
         -->
-        <div v-if="remarks || entryRemarks.length > 0" class="glass-card p-8">
+        <div v-if="remarks || entryRemarks.length > 0" id="record-remarks" class="glass-card p-8">
           <h2 class="text-xl font-semibold mb-4 text-light-text dark:text-dark-text">
             Remarks
           </h2>
           <div v-if="remarks" class="mb-4 last:mb-0">
             <h3 class="text-sm text-light-muted dark:text-dark-muted mb-1">About this entity</h3>
-            <p class="text-light-muted dark:text-dark-muted whitespace-pre-wrap">{{ remarks }}</p>
+            <p class="text-light-muted dark:text-dark-muted whitespace-pre-wrap break-words">{{ remarks }}</p>
           </div>
           <div v-if="entryRemarks.length > 0">
             <h3 class="text-sm text-light-muted dark:text-dark-muted mb-1">About this listing</h3>
             <p
               v-for="note in entryRemarks"
               :key="note"
-              class="text-light-muted dark:text-dark-muted whitespace-pre-wrap"
+              class="text-light-muted dark:text-dark-muted whitespace-pre-wrap break-words"
             >{{ note }}</p>
           </div>
         </div>
@@ -840,21 +821,26 @@ onMounted(async () => {
           <div class="mt-4 space-y-4">
             <div>
               <h4 class="text-xs uppercase text-light-muted dark:text-dark-muted mb-2">Entity</h4>
-              <pre class="text-xs overflow-x-auto text-light-muted dark:text-dark-muted bg-light-surface/50 dark:bg-dark-surface/50 p-4 rounded-lg">{{ JSON.stringify(entity, null, 2) }}</pre>
+              <pre tabindex="0" class="text-xs overflow-x-auto text-light-muted dark:text-dark-muted bg-light-surface/50 dark:bg-dark-surface/50 p-4 rounded-lg">{{ JSON.stringify(entity, null, 2) }}</pre>
             </div>
             <div v-if="entries.length > 0">
               <h4 class="text-xs uppercase text-light-muted dark:text-dark-muted mb-2">Entries ({{ entries.length }})</h4>
-              <pre class="text-xs overflow-x-auto text-light-muted dark:text-dark-muted bg-light-surface/50 dark:bg-dark-surface/50 p-4 rounded-lg">{{ JSON.stringify(entries, null, 2) }}</pre>
+              <pre tabindex="0" class="text-xs overflow-x-auto text-light-muted dark:text-dark-muted bg-light-surface/50 dark:bg-dark-surface/50 p-4 rounded-lg">{{ JSON.stringify(entries, null, 2) }}</pre>
             </div>
           </div>
         </details>
 
-        <SourceFreshness v-if="source === 'cn'" />
-        <SourceDocuments
-          subject="this entity"
-          :documents="documents"
-        />
+        <section id="record-sources" aria-label="Source data" class="space-y-4">
+          <SourceFreshness v-if="source === 'cn'" />
+          <SourceDocuments subject="this entity" :documents="documents" />
+        </section>
       </article>
     </div>
   </div>
 </template>
+
+<style scoped>
+.entity-record > * { min-width: 0; }
+.entity-record :is(p, dd, li, h1, h2, h3) { overflow-wrap: anywhere; }
+.record-load-status:empty { display: none; }
+</style>

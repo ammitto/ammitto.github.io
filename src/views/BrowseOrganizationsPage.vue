@@ -153,15 +153,15 @@ onMounted(async () => {
       <div class="flex items-start justify-between gap-4 mb-6">
         <div>
           <h1 class="text-3xl font-bold text-light-fg dark:text-dark-fg mb-2">
-            Organizations
+            Issuing bodies
           </h1>
           <p class="text-light-muted dark:text-dark-muted">
-            Government bodies, ministries, and agencies involved in sanctions.
+            Government bodies, ministries, and agencies that issue sanctions or related documents.
           </p>
         </div>
         <div class="text-right shrink-0">
           <div class="text-2xl font-bold text-light-fg dark:text-dark-fg">{{ organizations.length }}</div>
-          <div class="text-sm text-light-muted dark:text-dark-muted">organizations</div>
+          <div class="text-sm text-light-muted dark:text-dark-muted">loaded bodies</div>
         </div>
       </div>
 
@@ -194,7 +194,7 @@ onMounted(async () => {
 
       <!-- Empty state -->
       <div v-else-if="organizations.length === 0" class="text-center py-12">
-        <p class="text-light-muted dark:text-dark-muted">No organizations found.</p>
+        <p class="text-light-muted dark:text-dark-muted">No issuing bodies found.</p>
       </div>
 
       <!-- Organizations list by type -->
@@ -210,42 +210,37 @@ onMounted(async () => {
             </span>
           </h2>
           <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <RouterLink
+            <article
               v-for="org in groupedOrganizations[type]"
               :key="org['@id']"
-              :to="`/organization/${org.identifier}`"
               class="block min-w-0 bg-white dark:bg-dark-card rounded-lg shadow-sm border border-light-border dark:border-dark-border p-6 hover:border-brand-primary/50 transition-all"
             >
               <div class="flex items-start gap-3">
-                <div class="w-10 h-10 rounded-lg flex items-center justify-center text-xl bg-lime-100 dark:bg-lime-900/30 shrink-0">
+                <div aria-hidden="true" class="w-10 h-10 rounded-lg flex items-center justify-center text-xl bg-lime-100 dark:bg-lime-900/30 shrink-0">
                   🏛️
                 </div>
                 <div class="flex-1 min-w-0">
                   <h3 class="font-semibold text-light-fg dark:text-dark-fg group-hover:text-brand-link transition-colors">
-                    {{ getDisplayName(org) }}
+                    <RouterLink :to="`/organization/${org.identifier}`" class="text-brand-link underline underline-offset-4">{{ getDisplayName(org) }}</RouterLink>
                   </h3>
                   <p v-if="getChineseName(org)" class="text-sm text-light-muted dark:text-dark-muted">
                     {{ getChineseName(org) }}
                   </p>
-                  <p class="text-xs text-light-muted dark:text-dark-muted mt-1 font-mono truncate">
+                  <p class="text-xs text-light-muted dark:text-dark-muted mt-2 font-mono break-all">
                     {{ org.identifier }}
                   </p>
                   <a
                     v-if="safeExternalUrl(org.url)"
                     :href="safeExternalUrl(org.url) as string"
                     target="_blank"
-                    rel="noopener"
-                    class="text-xs text-brand-link hover:underline mt-1 inline-block"
-                    @click.stop
+                    rel="noopener noreferrer"
+                    class="text-sm text-brand-link underline underline-offset-4 mt-3 inline-block"
                   >
-                    Visit website →
+                    Official website <span class="sr-only">for {{ getDisplayName(org) }} (opens in a new tab)</span><span aria-hidden="true">↗</span>
                   </a>
                 </div>
-                <svg class="w-5 h-5 text-light-muted dark:text-dark-muted shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                </svg>
               </div>
-            </RouterLink>
+            </article>
           </div>
         </section>
       </div>

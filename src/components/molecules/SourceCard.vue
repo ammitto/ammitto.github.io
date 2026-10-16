@@ -5,6 +5,7 @@ import { safeExternalUrl } from '@/utils/externalUrl'
 import SourceFreshness from './SourceFreshness.vue'
 
 const props = defineProps<{
+  sourceCode: string
   name: string
   fullName: string
   description: string
@@ -41,7 +42,7 @@ const formattedCount = computed(() => {
 </script>
 
 <template>
-  <article class="glass-card p-6 hover:border-opacity-100 transition-all group">
+  <article class="glass-card p-6 hover:border-opacity-100 transition-all group flex flex-col min-w-0">
     <div class="flex items-start justify-between mb-4">
       <div class="flex items-center gap-3">
         <div
@@ -54,7 +55,7 @@ const formattedCount = computed(() => {
           <h3 class="font-semibold text-lg text-light-text dark:text-dark-text">
             {{ name }}
           </h3>
-          <p class="text-sm text-light-muted dark:text-dark-muted">
+          <p class="text-sm text-light-muted dark:text-dark-muted mt-1">
             {{ authority }}
           </p>
         </div>
@@ -66,7 +67,7 @@ const formattedCount = computed(() => {
     </p>
     <SourceFreshness v-if="country === 'CN'" />
 
-    <div class="flex items-center justify-between">
+    <div class="mt-auto flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
       <div class="flex gap-4 text-sm">
         <div>
           <span class="text-light-muted dark:text-dark-muted">Entities:</span>
@@ -75,15 +76,20 @@ const formattedCount = computed(() => {
           </span>
         </div>
       </div>
-      <a
+      <RouterLink
+        v-if="countsKnown && !pending"
+        :to="{ name: 'search', query: { source: sourceCode } }"
+        class="text-brand-link underline underline-offset-4 text-sm font-semibold"
+      >Search records <span class="sr-only">from {{ name }}</span></RouterLink>
+    </div>
+    <a
         v-if="safeExternalUrl(url)"
         :href="safeExternalUrl(url) as string"
         target="_blank"
         rel="noopener noreferrer"
-        class="text-brand-link hover:underline text-sm font-medium"
+        class="text-brand-link underline underline-offset-4 text-sm mt-4 self-start"
       >
-        View Source →
+        Official source <span class="sr-only">for {{ name }} (opens in a new tab)</span><span aria-hidden="true">↗</span>
       </a>
-    </div>
   </article>
 </template>

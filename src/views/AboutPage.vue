@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { useHead } from '@unhead/vue'
-import { useScrollAnimation } from '@/composables/useScrollAnimation'
 
 useHead({
   title: 'About - Ammitto',
@@ -9,7 +8,6 @@ useHead({
   ],
 })
 
-useScrollAnimation()
 </script>
 
 <template>
@@ -21,13 +19,52 @@ useScrollAnimation()
         </h1>
 
         <div class="prose-custom">
+          <p class="lead">
+            Ammitto brings published sanctions records into a common structure so that people
+            can search names, compare identifying details and follow the source evidence.
+          </p>
+          <p>
+            Start with <RouterLink to="/search">Search</RouterLink> or
+            <RouterLink to="/browse">Browse data</RouterLink>. Developers can use the
+            <RouterLink to="/api">API</RouterLink>, <RouterLink to="/ruby">Ruby gem</RouterLink>
+            or <RouterLink to="/download">downloadable files</RouterLink>.
+            Questions and contributions are welcome in the
+            <a href="https://github.com/ammitto/ammitto.github.io" target="_blank" rel="noopener noreferrer">GitHub repository<span class="sr-only"> (opens in a new tab)</span></a>.
+          </p>
+
+          <h2 id="coverage">Coverage and source dates</h2>
+          <p>
+            The <RouterLink to="/sources">source catalogue</RouterLink> identifies the authorities
+            and lists covered by Ammitto, their published coverage and any data that is not yet available.
+            Records retain their source context and available references.
+          </p>
+          <p>
+            A build date describes the published copy. Each source is collected separately and can
+            be older than that date. Consult the source information for recorded collection dates
+            and distinguish unavailable dates from known ones.
+          </p>
+
+          <nav aria-label="On this page" class="my-7 border-y border-light-border dark:border-dark-border py-4">
+            <p class="!mb-2 text-sm font-semibold">About the project</p>
+            <ul class="!mb-0 !list-none flex flex-wrap gap-x-6 gap-y-1 text-sm">
+              <li><a href="#perspective">Perspective</a></li>
+              <li><a href="#name">Name</a></li>
+              <li><a href="#logo">Logo</a></li>
+              <li><a href="#role">Our role</a></li>
+              <li><a href="#license">License</a></li>
+              <li><a href="#technology">Technology</a></li>
+              <li><a href="#contact">Contact</a></li>
+            </ul>
+          </nav>
+
+          <h2 id="perspective">Project perspective</h2>
           <p class="lead text-xl text-light-muted dark:text-dark-muted">
             Ammitto is a free, open-source platform providing unified access to global sanctions data.
             But it's more than a database — it's a response to the fractured, arbitrary, and often
             hypocritical system of international sanctions.
           </p>
 
-          <h2>The Name: Ammitto</h2>
+          <h2 id="name">The Name: Ammitto</h2>
 
           <p>
             Our name comes from the Latin verb <em>amittere</em> — "to lose" or "to send away."
@@ -55,7 +92,7 @@ useScrollAnimation()
             sanctions do — cause loss — while sounding authoritative and international.
           </p>
 
-          <h2>Our Logo: Three Eyes</h2>
+          <h2 id="logo">Our Logo: Three Eyes</h2>
 
           <p>
             Our logo depicts three stylized eyes arranged in a circular, non-hierarchical pattern.
@@ -155,7 +192,7 @@ useScrollAnimation()
             contradictions. Ammitto exists to make these contradictions visible.
           </p>
 
-          <h2>What We Do</h2>
+          <h2 id="role">What We Do</h2>
 
           <p>
             Given this reality, what is Ammitto's role? We don't endorse sanctions — but we
@@ -186,29 +223,7 @@ useScrollAnimation()
             </li>
           </ul>
 
-          <h2>Our Data Sources</h2>
-
-          <p>
-            We aggregate sanctions data from 15 official sources worldwide:
-          </p>
-
-          <ul>
-            <li><strong>United Nations</strong> - Security Council Consolidated List</li>
-            <li><strong>European Union</strong> - Sanctions Map & Vessels List</li>
-            <li><strong>United States</strong> - OFAC SDN and Consolidated Lists</li>
-            <li><strong>United Kingdom</strong> - UK Sanctions List</li>
-            <li><strong>Australia</strong> - DFAT Consolidated List</li>
-            <li><strong>Canada</strong> - SEMA and Special Economic Measures</li>
-            <li><strong>Switzerland</strong> - SECO Sanctions List</li>
-            <li><strong>China</strong> - MOFCOM and MFA Sanctions</li>
-            <li><strong>Russia</strong> - MID Unfriendly Countries List</li>
-            <li><strong>Turkey</strong> - Ministry of Foreign Affairs</li>
-            <li><strong>Japan</strong> - METI End User List</li>
-            <li><strong>New Zealand</strong> - MFAT Sanctions Register</li>
-            <li><strong>World Bank</strong> - Debarment List</li>
-          </ul>
-
-          <h2>Truly Free and Open</h2>
+          <h2 id="license">Truly Free and Open</h2>
 
           <p>
             Unlike many "open" data services, Ammitto is released under
@@ -222,7 +237,7 @@ useScrollAnimation()
             actors suffer most. We level the playing field.
           </p>
 
-          <h2>Technology</h2>
+          <h2 id="technology">Technology</h2>
 
           <p>
             Ammitto is built with modern web technologies:
@@ -236,11 +251,11 @@ useScrollAnimation()
             <li><strong>Ruby Gem:</strong> Official gem for easy integration</li>
           </ul>
 
-          <h2>Contact</h2>
+          <h2 id="contact">Contact</h2>
 
           <p>
             Ammitto is an open-source project. For questions, suggestions, or contributions,
-            please visit our GitHub repository.
+            please visit our <a href="https://github.com/ammitto/ammitto.github.io" target="_blank" rel="noopener noreferrer">GitHub repository<span class="sr-only"> (opens in a new tab)</span></a>.
           </p>
         </div>
       </div>

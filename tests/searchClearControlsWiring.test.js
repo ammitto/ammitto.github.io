@@ -100,7 +100,8 @@ test('the query is no longer listed as a filter under the search box', () => {
 
 test('the address carries the query trimmed, so a blank query leaves no q', () => {
   const flat = flatten(read(PAGE))
-  assert.match(flat, /const q = searchQuery\.value\.trim\(\) if \(q\) query\.q = q/)
+  assert.ok(flat.includes('searchText = searchQuery.value'), 'default URL query comes from the input')
+  assert.match(flat, /const q = searchText\.trim\(\) if \(q\) query\.q = q/)
   assert.ok(!flat.includes('query.q = searchQuery.value'), 'q must not be written untrimmed')
 })
 

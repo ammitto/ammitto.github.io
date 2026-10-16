@@ -33,7 +33,8 @@ const CONSUMERS = [
     file: 'src/composables/useEntityData.ts',
     why: 'resolving each cited instrument and exposing the rows',
     requires: [
-      'await loadLegalBases()',
+      'const bases = legalBasisIris(loaded)',
+      'await mapWithPool(bases, iri => isCurrent() ? fetchLegalBasisNode(iri) : Promise.resolve(null))',
       'legalBasisIris(entries.value)',
       'legalBasisRows(legalBasisIris(entries.value), legalBasisNodes.value)',
       'legalInstrumentNodeUrl(iri)',
@@ -78,7 +79,7 @@ test('the sanctions block opens for an entity whose only extra fact is its legal
   // of the guard would resolve the instrument and then render no card.
   const flat = flatten(read('src/views/EntityPage.vue'))
   assert.ok(
-    flat.includes('|| legalBases.length > 0" class="glass-card p-8"'),
+    /<div v-if="[^"]*\|\| legalBases\.length > 0" id="record-evidence" class="glass-card p-8">/.test(flat),
     'the Sanctions Information card must render when only the legal basis is known',
   )
 })

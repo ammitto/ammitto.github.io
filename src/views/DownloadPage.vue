@@ -191,6 +191,12 @@ onMounted(async () => {
   <div class="download-page min-h-screen">
     <div class="container-wide py-12">
       <header class="mb-10">
+        <nav aria-label="Developer documentation" class="mb-7 flex flex-wrap gap-x-5 gap-y-2 text-sm text-brand-link">
+          <RouterLink to="/api" class="underline underline-offset-4">API documentation</RouterLink>
+          <RouterLink to="/schema" class="underline underline-offset-4">Data schema</RouterLink>
+          <RouterLink to="/ontology" class="underline underline-offset-4">Ontology</RouterLink>
+          <RouterLink to="/ruby" class="underline underline-offset-4">Ruby gem</RouterLink>
+        </nav>
         <h1 class="text-4xl font-bold mb-4 text-light-text dark:text-dark-text">
           Download the data
         </h1>
@@ -198,6 +204,10 @@ onMounted(async () => {
           Choose the complete knowledge graph or download the lighter aggregate
           for one source.
         </p>
+        <nav aria-label="Download options" class="mt-5 flex flex-wrap gap-5 text-sm text-brand-link">
+          <a href="#complete-downloads" class="underline underline-offset-4">Complete dataset</a>
+          <a href="#source-downloads" class="underline underline-offset-4">Download by source</a>
+        </nav>
       </header>
 
       <section
@@ -355,3 +365,7 @@ onMounted(async () => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.download-page h2 { scroll-margin-top: 1rem; }
+</style>
