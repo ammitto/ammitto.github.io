@@ -7,18 +7,18 @@ const uri = name => `https://www.ammitto.org/ontology/${name}`
 const classes = [
   { '@id': uri('Entity'), label: 'Entity' },
   { '@id': uri('PersonEntity'), label: 'Person', subClassOf: uri('Entity') },
-  { '@id': uri('Name'), label: 'Name' },
+  { '@id': uri('NameVariant'), label: 'Name Variant' },
 ]
 const property = (name, domain, range, label = name) => ({ '@id': uri(name), domain, range, label })
 
 test('uses only declared classes, retains isolated classes and never creates literal or dangling nodes', () => {
   const result = buildOntologyGraph(classes, [
-    property('names', uri('Entity'), uri('Name')),
+    property('names', uri('Entity'), uri('NameVariant')),
     property('age', uri('Entity'), 'http://www.w3.org/2001/XMLSchema#integer'),
     property('missing', uri('Entity'), uri('Missing')),
     property('missingDomain', uri('Missing'), uri('Entity')),
   ])
-  assert.deepEqual(result.nodes.map(node => node.classId), ['Entity', 'PersonEntity', 'Name'])
+  assert.deepEqual(result.nodes.map(node => node.classId), ['Entity', 'PersonEntity', 'NameVariant'])
   assert.equal(result.links.length, 2)
   assert.deepEqual(buildOntologyGraph(classes, []).nodes, result.nodes)
 })
@@ -32,21 +32,21 @@ test('preserves direction and keeps inheritance distinct from properties with th
 })
 
 test('combines parallel properties without losing their labels or duplicating repeated records', () => {
-  const names = property('names', uri('Entity'), uri('Name'), 'Names')
-  const { links } = buildOntologyGraph(classes, [names, names, property('aliases', uri('Entity'), uri('Name'), 'Aliases')])
+  const names = property('names', uri('Entity'), uri('NameVariant'), 'Names')
+  const { links } = buildOntologyGraph(classes, [names, names, property('aliases', uri('Entity'), uri('NameVariant'), 'Aliases')])
   assert.equal(links.filter(link => link.kind === 'property').length, 1)
   assert.deepEqual(links.find(link => link.kind === 'property').labels, ['Names', 'Aliases'])
 })
 
 test('does not conflate external class URIs with a matching local suffix', () => {
-  const { links } = buildOntologyGraph(classes, [property('foreign', uri('Entity'), 'https://other.example/Name')])
+  const { links } = buildOntologyGraph(classes, [property('foreign', uri('Entity'), 'https://other.example/NameVariant')])
   assert.equal(links.length, 1)
   assert.equal(links[0].kind, 'inheritance')
 })
 
 test('does not mutate API inputs and returns independent link records', () => {
   const original = JSON.stringify(classes)
-  const props = [property('names', uri('Entity'), uri('Name'))]
+  const props = [property('names', uri('Entity'), uri('NameVariant'))]
   const first = buildOntologyGraph(classes, props)
   first.links[0].source = 'changed by a simulation'
   first.links[1].labels.push('changed')
@@ -63,7 +63,9 @@ test('the committed schema yields exactly its classes and class-valued declared 
   const result = buildOntologyGraph(schema, properties)
   const ids = new Set(schema.map(cls => cls['@id']))
   assert.deepEqual(new Set(result.nodes.map(node => node.id)), ids)
-  assert.ok(result.links.some(link => link.source === uri('Entity') && link.target === uri('SanctionEntry') && link.labels.includes('Has Sanction Entry')))
+  for (const type of ['PersonEntity', 'OrganizationEntity', 'VesselEntity', 'AircraftEntity']) {
+    assert.ok(result.links.some(link => link.source === uri(type) && link.target === uri('SanctionEntry') && link.labels.includes('Has Sanction Entry')))
+  }
   assert.ok(!result.nodes.some(node => node.classId === 'Registration'))
   assert.ok(result.links.every(link => ids.has(link.source) && ids.has(link.target)))
   assert.deepEqual(buildOntologyGraph([], properties), { nodes: [], links: [] })
@@ -79,4 +81,27 @@ test('keeps different explicit domains when the producer repeats a property ID',
   assert.equal(links.length, 2)
   assert.deepEqual(new Set(links.map(link => link.source)), new Set([uri('Entry'), uri('List')]))
   assert.ok(links.every(link => link.target === uri('Authority')))
+})
+
+test('shared fields retain each declared class relationship without asserting multiple RDFS domains', () => {
+  const address = { '@id': uri('Address'), label: 'Address' }
+  const field = property('addresses', undefined, uri('Address'), 'Addresses')
+  const owners = ['PersonEntity', 'OrganizationEntity'].map(name => ({
+    '@id': uri(name), label: name, properties: [uri('addresses')],
+  }))
+  const { links } = buildOntologyGraph([...owners, address], [field])
+  assert.deepEqual(new Set(links.map(link => link.source)), new Set(owners.map(cls => cls['@id'])))
+  assert.ok(links.every(link => link.target === address['@id']))
+  assert.deepEqual(buildOntologyGraph([...owners, address], [{ ...field, range: undefined }]).links, [])
+})
+
+test('class usage metadata preserves distinct ranges and cardinality for the same property', () => {
+  const classes = ['SanctionEntry', 'OfficialAnnouncement', 'Authority'].map(name => ({ '@id': uri(name), label: name }))
+  const { links } = buildOntologyGraph(classes, [{ '@id': uri('authority'), label: 'Authority', usages: [
+    { class: uri('SanctionEntry'), range: uri('Authority'), isArray: false },
+    { class: uri('OfficialAnnouncement'), range: 'http://www.w3.org/2001/XMLSchema#string', isArray: false },
+  ] }])
+  assert.equal(links.length, 1)
+  assert.equal(links[0].source, uri('SanctionEntry'))
+  assert.equal(links[0].target, uri('Authority'))
 })

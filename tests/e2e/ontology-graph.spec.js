@@ -105,13 +105,13 @@ test('mobile dark reduced-motion graph stays settled, selectable and within the 
   await expectNoHorizontalOverflow(page, '/ontology graph at 320px')
 })
 
-test('the actual ontology page preserves both explicit domains of a repeated property ID', async ({ page }) => {
+test('the actual ontology page preserves shared canonical field relationships', async ({ page }) => {
   await gotoRendered(page, '/ontology')
   await graphReady(page)
-  await page.getByRole('button', { name: 'View Authority class', exact: true }).click()
+  await page.getByRole('button', { name: 'View Address class', exact: true }).click()
   const relationships = page.locator('.ontology-graph').getByRole('listitem')
-  await expect(relationships.filter({ hasText: /^Sanction Entry → Authority → Authority$/ })).toBeVisible()
-  await expect(relationships.filter({ hasText: /^Sanctions List → Authority → Authority$/ })).toBeVisible()
+  await expect(relationships.filter({ hasText: /^Person Entity → Addresses → Address$/ })).toBeVisible()
+  await expect(relationships.filter({ hasText: /^Organization Entity → Addresses → Address$/ })).toBeVisible()
 })
 
 test('Tab and Shift+Tab reveal the whole focused node after canvas pan and zoom', async ({ page }) => {

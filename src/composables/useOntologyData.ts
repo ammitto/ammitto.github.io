@@ -23,6 +23,7 @@ export interface OntologyProperty {
   domain?: string
   range?: string
   isArray?: boolean
+  usages?: { class: string; range?: string; isArray: boolean }[]
 }
 
 /**
@@ -182,7 +183,11 @@ function getPropertiesForClass(classId: string): OntologyProperty[] {
       const propId = propUri.split('/').pop() || propUri
       return properties.value.get(propId)
     })
-    .filter(Boolean) as OntologyProperty[]
+    .filter(Boolean)
+    .map((property) => {
+      const usage = property!.usages?.find(item => item.class === cls['@id'])
+      return usage ? { ...property!, domain: usage.class, range: usage.range, isArray: usage.isArray } : property!
+    }) as OntologyProperty[]
 }
 
 /**
