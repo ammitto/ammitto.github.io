@@ -74,7 +74,7 @@ test('keyboard can select a node, pan, zoom and reset without losing the chosen 
   await expect(page.getByRole('heading', { name: 'Entity', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Zoom in', exact: true }).click()
   await expect(page.getByRole('button', { name: 'View Entity class', exact: true })).toHaveAttribute('aria-pressed', 'true')
-  await page.getByRole('button', { name: 'Reset view', exact: true }).click()
+  await page.getByRole('button', { name: 'Fit to view', exact: true }).click()
   await expect(page.locator('.graph-viewport')).toHaveAttribute('transform', initial)
 })
 
@@ -148,4 +148,40 @@ test('Tab and Shift+Tab reveal the whole focused node after canvas pan and zoom'
   await page.keyboard.press('Shift+Tab')
   await expect(entity).toBeFocused()
   await expectFocusedNodeVisible()
+})
+
+test('graph controls stack inside the canvas and help is keyboard dismissible', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 800 })
+  await gotoRendered(page, '/ontology')
+  await graphReady(page)
+  const help = page.getByRole('button', { name: 'Graph help', exact: true })
+  const instructions = page.locator('#ontology-graph-help')
+  await expect(help).toHaveAttribute('aria-expanded', 'false')
+  await expect(instructions).toBeHidden()
+  await help.focus()
+  await page.keyboard.press('Enter')
+  await expect(help).toHaveAttribute('aria-expanded', 'true')
+  await expect(instructions).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(instructions).toBeHidden()
+  await expect(help).toBeFocused()
+  await page.keyboard.press('Space')
+  await expect(instructions).toBeVisible()
+  await page.keyboard.press('Tab')
+  await expect(instructions).toBeHidden()
+  const geometry = await page.locator('.graph-controls button').evaluateAll(buttons => buttons.map(button => {
+    const bounds = button.getBoundingClientRect()
+    const canvas = button.closest('.graph-canvas').getBoundingClientRect()
+    return { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height,
+      inside: bounds.left >= canvas.left && bounds.right <= canvas.right && bounds.top >= canvas.top && bounds.bottom <= canvas.bottom }
+  }))
+  expect(geometry).toHaveLength(3)
+  for (let index = 0; index < geometry.length; index++) {
+    expect(geometry[index].inside).toBe(true)
+    expect(geometry[index].width).toBeGreaterThanOrEqual(44)
+    expect(geometry[index].height).toBeGreaterThanOrEqual(44)
+    expect(geometry[index].x).toBe(geometry[0].x)
+    if (index) expect(geometry[index].y).toBeGreaterThanOrEqual(geometry[index - 1].y + geometry[index - 1].height)
+  }
+  await expectNoHorizontalOverflow(page, '/ontology vertical controls at 320px')
 })

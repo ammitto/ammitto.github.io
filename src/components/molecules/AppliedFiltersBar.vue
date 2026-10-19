@@ -158,7 +158,7 @@ async function clear() {
     :class="{ 'lg:hidden': chips.length === 0 }"
     data-testid="applied-filters-bar"
   >
-    <div class="flex items-center gap-2 min-h-[48px]">
+    <div class="flex items-center gap-2 min-h-[48px] py-2 lg:py-0">
       <ul
         v-if="chips.length"
         ref="list"
@@ -250,7 +250,7 @@ async function clear() {
 
 <style>
 /*
- * Below `lg` two things are pinned at the top (header 65px, this bar 49px), so
+ * Below `lg` two things are pinned at the top (header 65px, this bar at least 61px), so
  * keyboard focus scrolled into view must stop below both or it lands hidden
  * behind them (WCAG 2.4.11).
  */

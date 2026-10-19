@@ -74,3 +74,51 @@ test('download page shows verified sizes and real download links', async ({ page
 
   expect(errors).toEqual([])
 })
+
+test('source download sizes fall back to verified response headers when the catalogue omits aggregates', async ({ page }) => {
+  await page.route('**/api/v1/index.jsonld', route => route.fulfill({ json: { entries: [] } }))
+  const methods = []
+  await page.route('**/api/v1/sources/*.jsonld', route => {
+    methods.push(route.request().method())
+    return route.fulfill({ status: 200, headers: { 'Content-Type': 'application/ld+json', 'Content-Length': '123456' }, body: '' })
+  })
+  await gotoRendered(page, '/download')
+  await expect(page.locator('a[download]')).toHaveCount(16)
+  await expect(page.locator('a[download="cn.jsonld"]')).toContainText('123,456 bytes')
+  await expect(page.locator('a[download="cn.jsonld"]')).toContainText('verified from current file headers')
+  expect(methods).toHaveLength(publishedSources.length)
+  expect(methods.every(method => method === 'HEAD')).toBe(true)
+})
+
+test('unverifiable source response headers keep download links unavailable', async ({ page }) => {
+  await page.route('**/api/v1/index.jsonld', route => route.fulfill({ status: 503, body: '' }))
+  await page.route('**/api/v1/sources/*.jsonld', route => {
+    const code = route.request().url().split('/').pop().replace('.jsonld', '')
+    const headers = { 'Content-Type': 'application/ld+json', 'Content-Length': '123456' }
+    if (code === 'cn') headers['Content-Type'] = 'text/html'
+    if (code === 'au') headers['Content-Encoding'] = 'gzip'
+    if (code === 'ca') delete headers['Content-Length']
+    return route.fulfill({ status: 200, headers, body: '' })
+  })
+  await gotoRendered(page, '/download')
+  await expect(page.locator('a[download="ch.jsonld"]')).toBeVisible()
+  for (const code of ['cn', 'au', 'ca']) await expect(page.locator(`a[download="${code}.jsonld"]`)).toHaveCount(0)
+  await expect(page.locator('a[download]')).toHaveCount(13)
+})
+
+test('compressed HEAD responses use a one-byte range to verify the complete source size', async ({ page }) => {
+  await page.route('**/api/v1/index.jsonld', route => route.fulfill({ json: { entries: [] } }))
+  const ranges = []
+  await page.route('**/api/v1/sources/*.jsonld', route => {
+    if (route.request().method() === 'HEAD') return route.fulfill({ status: 200,
+      headers: { 'Content-Type': 'application/ld+json', 'Content-Length': '123', 'Content-Encoding': 'gzip' }, body: '' })
+    ranges.push(route.request().headers().range)
+    return route.fulfill({ status: 206, headers: { 'Content-Type': 'application/ld+json',
+      'Content-Length': '1', 'Content-Range': 'bytes 0-0/987654' }, body: '{' })
+  })
+  await gotoRendered(page, '/download')
+  await expect(page.locator('a[download]')).toHaveCount(16)
+  await expect(page.locator('a[download="cn.jsonld"]')).toContainText('987,654 bytes')
+  expect(ranges).toHaveLength(publishedSources.length)
+  expect(ranges.every(range => range === 'bytes=0-0')).toBe(true)
+})

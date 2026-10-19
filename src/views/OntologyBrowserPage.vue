@@ -177,22 +177,15 @@ function isExpanded(nodeName: string): boolean {
 
 <template>
   <div class="ontology-browser min-h-screen bg-light-bg dark:bg-dark-bg">
-    <!-- Header -->
-    <header class="bg-light-surface dark:bg-dark-surface shadow-sm">
-      <div class="max-w-7xl mx-auto px-4 py-6">
+    <div class="container-wide py-8">
+      <div class="mb-8">
         <h1 class="text-3xl font-bold text-light-text dark:text-dark-text">
           Ontology Browser
         </h1>
         <p class="mt-2 max-w-3xl text-light-muted dark:text-dark-muted">
           Explore the classes, properties, and relationships in the Ammitto data model.
         </p>
-        <nav aria-label="Developer documentation" class="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm text-brand-link">
-          <RouterLink to="/api" class="underline underline-offset-4">API documentation</RouterLink>
-          <RouterLink to="/schema" class="underline underline-offset-4">Data schema</RouterLink>
-          <RouterLink to="/ruby" class="underline underline-offset-4">Ruby gem</RouterLink>
-        </nav>
       </div>
-    </header>
 
     <!-- Loading state -->
     <!-- The server defers this request; only a recorded failure is an error. -->
@@ -202,7 +195,7 @@ function isExpanded(nodeName: string): boolean {
     </div>
 
     <!-- Main content -->
-    <div v-else-if="isLoaded" class="max-w-7xl mx-auto px-4 py-8">
+    <div v-else-if="isLoaded">
       <OntologyGraph
         :classes="graphClasses"
         :properties="graphProperties"
@@ -538,9 +531,10 @@ function isExpanded(nodeName: string): boolean {
     </div>
 
     <!-- Error state -->
-    <div v-else-if="error" class="max-w-7xl mx-auto px-4 py-8 text-center">
+    <div v-else-if="error" class="py-8 text-center">
       <p role="alert" class="mb-4">Ontology data could not be loaded.</p>
       <button type="button" class="btn-secondary" @click="loadOntology">Retry ontology</button>
+    </div>
     </div>
   </div>
 </template>

@@ -546,6 +546,7 @@ const paginatedEntities = computed(() => {
   })
 })
 
+const loadMoreButton = ref<HTMLButtonElement | null>(null)
 const resultGrid = ref<{ restoreResult: (ref: string, offsetTop: number) => Promise<void> } | null>(null)
 let returnRestored = false
 watch([isLoaded, loading], async ([loaded, busy]) => {
@@ -945,6 +946,7 @@ function focusAfterBarEmptied() {
             v-if="paginatedEntities.length > 0"
             :entities="paginatedEntities"
             :virtualize="!showPartial"
+            :navigation-end="loadMoreButton"
             :reset-key="JSON.stringify([debouncedQuery, filters, showPartial])"
           />
 
@@ -1000,6 +1002,7 @@ function focusAfterBarEmptied() {
           <!-- Load More -->
           <div v-if="hasMoreResults" class="mt-8 text-center">
             <button
+              ref="loadMoreButton"
               @click="loadMore"
               class="btn-secondary"
             >

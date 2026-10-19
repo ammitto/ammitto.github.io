@@ -5,16 +5,18 @@ import type { searchRowToCard } from '@/utils/birthAdapters'
 import { gridOffsets, gridRows, rowAt } from '@/utils/virtualGrid'
 
 type Card = ReturnType<typeof searchRowToCard>
-const props = defineProps<{ entities: Card[]; virtualize: boolean; resetKey: string }>()
+const props = defineProps<{ entities: Card[]; virtualize: boolean; resetKey: string; navigationEnd?: HTMLElement | null }>()
 const grid = ref<HTMLElement | null>(null)
 const controls = ref<HTMLElement | null>(null)
 const ready = ref(false)
 const columns = ref(1)
 const desktop = ref(false)
+const headerOffset = ref(65)
 const viewportTop = ref(0)
 const viewportHeight = ref(800)
 const beforeResults = ref(false)
-const lastFullyVisible = ref(false)
+const navigationEndVisible = ref(false)
+const focusTransfers = ref(0)
 const focusedId = ref<string | null>(null)
 const lastNavigatedIndex = ref(-1)
 const showAll = ref(false)
@@ -32,18 +34,22 @@ const rendered = computed(() => !virtual.value
     const first = row * columns.value
     return props.entities.slice(first, first + columns.value).map((entity, i) => ({ entity, index: first + i }))
   }))
-const visibleRow = computed(() => rowAt(offsets.value, viewportTop.value + 1))
+const visibleRow = computed(() => {
+  const row = rowAt(offsets.value, viewportTop.value + 1)
+  // Offsets include the 16px gap following a row. A gap at the top of the
+  // reading area does not make the preceding, fully obscured row visible.
+  return Math.min(Math.max(0, offsets.value.length - 2),
+    viewportTop.value >= offsets.value[row + 1] - 16 ? row + 1 : row)
+})
 const lastVisibleRow = computed(() => rowAt(offsets.value, viewportTop.value + viewportHeight.value - 1))
-const firstVisible = computed(() => Math.min(props.entities.length, visibleRow.value * columns.value + 1))
-const lastVisible = computed(() => Math.min(props.entities.length, (lastVisibleRow.value + 1) * columns.value))
+const firstVisible = ref(0)
+const lastVisible = ref(0)
 const desktopRow = computed(() => lastNavigatedIndex.value < 0
   ? visibleRow.value : Math.floor(lastNavigatedIndex.value / columns.value))
-const previousDisabled = computed(() => (desktop.value ? desktopRow.value : visibleRow.value) === 0)
-const nextDisabled = computed(() => desktop.value && lastNavigatedIndex.value >= 0
+const previousDisabled = computed(() => focusTransfers.value > 0 || (desktop.value ? desktopRow.value : visibleRow.value) === 0)
+const nextDisabled = computed(() => focusTransfers.value > 0 || (desktop.value && lastNavigatedIndex.value >= 0
   ? desktopRow.value >= offsets.value.length - 2
-  : !props.entities.length || (!beforeResults.value && (
-  visibleRow.value >= offsets.value.length - 2
-  || (lastNavigatedIndex.value === props.entities.length - 1 && lastFullyVisible.value))))
+  : !props.entities.length || (!beforeResults.value && navigationEndVisible.value)))
 
 function cardStyle(index: number) {
   if (!virtual.value) return undefined
@@ -65,7 +71,9 @@ function readingViewport() {
   const mobile = window.matchMedia('(max-width: 1023px)').matches
   const filters = document.querySelector('[data-testid="applied-filters-bar"]')?.getBoundingClientRect()
   const filtersBottom = mobile && filters && filters.top <= header + 2 ? filters.bottom : 0
-  return { top: Math.max(header, anchor, filtersBottom), bottom: mobile && toolbar ? toolbar.top : window.innerHeight }
+  const counterBottom = !mobile && toolbar && toolbar.top <= header + 1 ? toolbar.bottom : 0
+  headerOffset.value = header
+  return { top: Math.max(header, anchor, filtersBottom, counterBottom), bottom: mobile && toolbar ? toolbar.top : window.innerHeight }
 }
 function updateViewport() {
   frame = 0
@@ -76,9 +84,24 @@ function updateViewport() {
   beforeResults.value = bounds.top >= view.bottom
   viewportTop.value = Math.max(0, view.top - bounds.top)
   viewportHeight.value = Math.max(1, view.bottom - Math.max(bounds.top, view.top))
-  const last = grid.value.querySelector<HTMLElement>(`[data-result-index="${props.entities.length - 1}"]`)
-  const rect = last?.getBoundingClientRect()
-  lastFullyVisible.value = !!rect && rect.top >= view.top - 1 && rect.bottom <= view.bottom + 1
+  // Virtual cards in the same row can have different heights. Row estimates
+  // position the virtual window; only actual card bounds describe visibility.
+  let first = Infinity
+  let lastIndex = -1
+  grid.value.querySelectorAll<HTMLElement>('[data-result-index]').forEach(card => {
+    const rect = card.getBoundingClientRect()
+    if (rect.width > 0 && rect.height > 0 && rect.bottom > view.top && rect.top < view.bottom
+      && rect.right > 0 && rect.left < window.innerWidth) {
+      const index = Number(card.dataset.resultIndex)
+      first = Math.min(first, index)
+      lastIndex = Math.max(lastIndex, index)
+    }
+  })
+  firstVisible.value = Number.isFinite(first) ? first + 1 : 0
+  lastVisible.value = lastIndex + 1
+  const end = (props.navigationEnd ?? grid.value).getBoundingClientRect()
+  navigationEndVisible.value = end.bottom <= view.bottom + 1 && end.bottom > view.top
+    && (!props.navigationEnd || end.top >= view.top - 1)
 }
 function scheduleViewport() { if (!frame) frame = requestAnimationFrame(updateViewport) }
 let observer: ResizeObserver | undefined
@@ -95,15 +118,15 @@ function onFocus(event: FocusEvent) {
   focusedId.value = card ? props.entities[index]?.id ?? null : null
   if (desktop.value && card && props.entities[index]) lastNavigatedIndex.value = index
 }
-let focusTransfers = 0
 function onBlur(event: FocusEvent) {
-  if (focusTransfers === 0 && !grid.value?.contains(event.relatedTarget as Node | null)) focusedId.value = null
+  if (focusTransfers.value === 0 && !grid.value?.contains(event.relatedTarget as Node | null)) focusedId.value = null
 }
-async function focusResult(index: number, offsetTop?: number) {
+async function focusResult(index: number, offsetTop?: number, boundToResults = false) {
   if (index < 0 || index >= props.entities.length) return
   // Retiring the old focused virtual row emits focusout before the new row
   // can receive focus. Keep the destination mounted during that transfer.
-  focusTransfers++
+  const continueWithinCard = boundToResults && index === lastNavigatedIndex.value
+  focusTransfers.value++
   try {
     focusedId.value = props.entities[index].id
     lastNavigatedIndex.value = index
@@ -111,7 +134,23 @@ async function focusResult(index: number, offsetTop?: number) {
     const card = grid.value?.querySelector<HTMLElement>(`[data-result-index="${index}"]`)
     if (!card) return
     card.focus({ preventScroll: true })
-    card.scrollIntoView({ block: 'start', behavior: 'instant' })
+    if (continueWithinCard) {
+      const view = readingViewport()
+      window.scrollBy({ top: Math.max(1, view.bottom - view.top - 32), behavior: 'instant' })
+    } else {
+      card.scrollIntoView({ block: 'start', behavior: 'instant' })
+    }
+    if (boundToResults) {
+      // Next moves through results, not into the footer. Limit only this
+      // automatic scroll; the reader can still scroll past Load More normally.
+      for (let attempt = 0; attempt < 3; attempt++) {
+        await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+        const end = (props.navigationEnd ?? grid.value)?.getBoundingClientRect().bottom
+        if (end === undefined) break
+        const limit = Math.max(0, window.scrollY + end - readingViewport().bottom + 8)
+        if (window.scrollY > limit) window.scrollTo({ top: limit, behavior: 'instant' })
+      }
+    }
     // A few frames let ResizeObserver replace estimated row heights. Restore the
     // record's viewport anchor, rather than a stale pixel in an estimated list.
     if (offsetTop !== undefined) {
@@ -122,7 +161,7 @@ async function focusResult(index: number, offsetTop?: number) {
       }
     }
     updateViewport()
-  } finally { focusTransfers-- }
+  } finally { focusTransfers.value-- }
 }
 async function restoreResult(ref: string, offsetTop: number) {
   await nextTick()
@@ -141,8 +180,8 @@ function onKeydown(event: KeyboardEvent) {
 function movePage(direction: -1 | 1) {
   updateViewport()
   if (desktop.value && lastNavigatedIndex.value >= 0) {
-    // Returning to this static toolbar changes the viewport, not the reader's
-    // place. Continue from the last focused result using a full reading page.
+    // Keep the last focused result as the cursor when continuing through
+    // the list, using a full reading page for each step.
     const row = desktopRow.value
     const pageHeight = Math.max(1, window.innerHeight - readingViewport().top)
     const destination = rowAt(offsets.value, offsets.value[row] + direction * pageHeight)
@@ -156,7 +195,7 @@ function movePage(direction: -1 | 1) {
   const targetRow = direction > 0
     ? (beforeResults.value ? 0 : last > first ? last : first + 1)
     : first - Math.max(1, last - first)
-  void focusResult(Math.max(0, Math.min(props.entities.length - 1, targetRow * columns.value)))
+  void focusResult(Math.max(0, Math.min(props.entities.length - 1, targetRow * columns.value)), undefined, direction > 0)
 }
 watch(() => props.resetKey, () => { focusedId.value = null; lastNavigatedIndex.value = -1; measurements.value = new Map(); scheduleViewport() })
 watch(() => props.entities.length, scheduleViewport)
@@ -196,11 +235,11 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="result-list-region">
+  <div class="result-list-region" :aria-busy="focusTransfers > 0" :style="{ '--result-header-offset': `${headerOffset}px` }">
     <nav v-if="virtualize && entities.length" ref="controls" class="result-navigation border-light-border dark:border-dark-border bg-white dark:bg-dark-bg" aria-label="Move through loaded results">
       <button type="button" class="btn-secondary result-previous" :disabled="previousDisabled" @click="movePage(-1)">Previous<span class="sr-only"> results</span></button>
       <p class="result-range text-light-muted dark:text-dark-muted">
-        <strong class="text-light-text dark:text-dark-text">{{ firstVisible }}–{{ lastVisible }} of {{ entities.length }} loaded</strong>
+        <strong class="text-light-text dark:text-dark-text">Visible results: {{ firstVisible }}–{{ lastVisible }} of {{ entities.length }}</strong>
         <span class="hidden sm:inline">Use Tab to read each record</span>
       </p>
       <button type="button" class="btn-secondary result-next" :disabled="nextDisabled" @click="movePage(1)">Next<span class="sr-only"> results</span></button>
@@ -222,6 +261,11 @@ onBeforeUnmount(() => {
 /* Offset records below both sticky bars without making the toolbar itself
    fall outside the document's padded scroll viewport. */
 .result-list-region :deep([data-result-index]) { scroll-margin-top:80px; }
+@media(min-width:1024px) {
+  .result-navigation { position:sticky; top:var(--result-header-offset, 65px); z-index:25; padding:.5rem 0; }
+  .result-list-region :deep([data-result-index]) { scroll-margin-top:calc(var(--result-header-offset, 65px) + 4rem); }
+  .result-navigation button { display:none; }
+}
 @media(max-width:1023px) {
   .result-list-region :deep([data-result-index]) { scroll-margin-top:63px; scroll-margin-bottom:80px; }
   .result-navigation { z-index:25; margin-bottom:0; border-top:2px solid #0066cc; position:fixed; top:auto; bottom:0; left:0; right:0; padding:.65rem .8rem calc(.65rem + env(safe-area-inset-bottom)); border-width:1px 0 0; }
