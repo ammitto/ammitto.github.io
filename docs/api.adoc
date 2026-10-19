@@ -110,3 +110,19 @@ The localhost URL illustrates a separately configured store, not a service
 started by the commands above. Importing RDF does not change the static API.
 Refresh a local graph from a single publication when the catalogue's
 `generated` timestamp changes; mixing old and new downloads can break joins.
+
+== Ontology reference and examples
+
+The ontology catalogue is derived from the canonical output schemas. Class field
+lists describe the JSON fields published by the serializer, including
+`NameVariant`, `Identification`, `identifications` and `imoNumber`. The examples
+use the same serializer and entity validation as published records; their IDs
+identify illustrative records.
+
+Ontology metadata uses an inline RDF/RDFS context. Browser vocabulary IRIs keep
+their established `/ontology/` identifiers and declare correspondence to the
+expanded JSON-LD publication terms. Shared fields can have several owning
+classes; a missing global domain or range means no single safe RDFS assertion
+is available. This does not change existing sanctions record identifiers or
+their JSON-LD context. The class graph uses declared class fields to retain
+shared relationships.

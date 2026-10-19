@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 
 const props = withDefaults(defineProps<{
   modelValue?: string
+  id?: string
   placeholder?: string
   // The field's accessible name. A placeholder is not a label: it disappears
   // once text is typed and some screen readers do not announce it.
@@ -25,7 +26,7 @@ const internalValue = computed({
 
 const sizeClasses = computed(() => {
   const sizes = {
-    sm: 'text-sm py-2 pl-10',
+    sm: 'text-base py-2 pl-10',
     md: 'text-base py-3 pl-12',
     lg: 'text-lg py-4 pl-14',
   }
@@ -40,6 +41,7 @@ const hasText = computed(() => internalValue.value.trim() !== '')
 // never runs under the clear button or the spinner.
 const rightPadding = computed(() => {
   if (hasText.value) return props.loading ? 'pr-20' : 'pr-14'
+  if (props.loading) return 'pr-12'
   return props.size === 'lg' ? 'pr-6' : 'pr-4'
 })
 
@@ -69,9 +71,9 @@ defineExpose({ focus })
 </script>
 
 <template>
-  <div class="relative">
+  <div class="relative min-w-0">
     <svg
-      class="absolute top-1/2 -translate-y-1/2 text-light-muted dark:text-dark-muted"
+      class="pointer-events-none absolute top-1/2 -translate-y-1/2 text-light-muted dark:text-dark-muted"
       :class="iconSize"
       fill="none"
       stroke="currentColor"
@@ -88,13 +90,17 @@ defineExpose({ focus })
     <input
       ref="inputRef"
       v-model="internalValue"
-      type="text"
+      :id="id"
+      type="search"
+      enterkeyhint="search"
+      autocomplete="off"
+      :spellcheck="false"
       :placeholder="placeholder"
       :aria-label="label"
       :class="[
-        'w-full rounded-xl border bg-white dark:bg-dark-surface border-light-border dark:border-dark-border',
-        'focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 focus:outline-none',
-        'transition-all text-light-text dark:text-dark-text',
+        'w-full min-h-11 rounded-xl border bg-white dark:bg-dark-surface border-light-border dark:border-dark-border',
+        'focus:border-brand-link focus:ring-2 focus:ring-brand-link focus:outline-none',
+        'transition-colors text-light-text dark:text-dark-text',
         'placeholder:text-light-muted dark:placeholder:text-dark-muted',
         sizeClasses,
         rightPadding,
@@ -158,3 +164,9 @@ defineExpose({ focus })
     </span>
   </div>
 </template>
+
+<style scoped>
+input[type='search']::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+}
+</style>

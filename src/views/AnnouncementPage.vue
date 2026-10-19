@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatCivilDate } from '@/utils/civilDate.js'
 import { ref, computed, reactive, watch, onUnmounted } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
 import Badge from '@/components/atoms/Badge.vue'
@@ -6,11 +7,12 @@ import EntityCard from '@/components/molecules/EntityCard.vue'
 import SourceDocuments from '@/components/molecules/SourceDocuments.vue'
 import { sources } from '@/config'
 import { getLanguageName } from '@/utils/language'
-import { normalizeNode } from '@/utils/normalizeNode'
+import { normalizeNode, toNodeIri } from '@/utils/normalizeNode'
 import { nodeDocumentPath, nodeDocumentLabel } from '@/utils/nodeDocuments'
 import { createLatestLoadGuard } from '@/utils/latestLoad'
 import { safeExternalUrl } from '@/utils/externalUrl'
 import { primaryNameOf } from '@/utils/entityNames'
+import { mapWithPool } from '@/utils/entryFetchPool'
 
 const route = useRoute()
 
@@ -66,6 +68,7 @@ interface LegalInstrument {
 
 interface Group {
   id: string
+  announcement_title?: string
   entry_ids: string[]
   entity_count: number
   effective_date?: string
@@ -77,6 +80,10 @@ const entries = ref<Entry[]>([])
 const legalInstruments = ref<Map<string, LegalInstrument>>(new Map())
 const loading = ref(true)
 const error = ref<string | null>(null)
+const relationshipsLoading = ref(false)
+const entryFailures = ref(0)
+const entityFailures = ref(0)
+const relatedFailures = ref(0)
 const loadGuard = createLatestLoadGuard()
 onUnmounted(loadGuard.invalidate)
 
@@ -129,9 +136,9 @@ const adaptEntryForCard = (entry: Entry) => {
     id: entry.entity_id,
     ref: entityRef,
     names: [getEntityPrimaryName(entry), ...getEntityAliases(entry)],
-    entityType: entry.entity?.entity_type || 'organization',
+    entityType: entry.entity?.entity_type || 'unknown',
     source: source,
-    status: entry.status || 'active',
+    status: entry.status || 'unknown',
   }
 }
 
@@ -173,168 +180,120 @@ const getOrganizationName = (id: string): string => {
 }
 
 // Format date for display
-const formatDate = (dateStr?: string): string => {
-  if (!dateStr) return ''
-  try {
-    const date = new Date(dateStr)
-    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
-  } catch {
-    return dateStr
-  }
-}
+const formatDate = (dateStr?: string): string => formatCivilDate(dateStr)
 
 // Get language display name (imported from shared utility)
 // getLanguageName is imported from '@/utils/language'
 
-// Load related data (document types and organizations)
+// Optional labels and legal titles never gate the announcement's own text.
 const loadRelatedData = async (isCurrent: () => boolean) => {
-  if (!announcement.value?.announcement) return
-
-  const ann = announcement.value.announcement
-  const idsToFetch: { docTypes: string[]; orgs: string[] } = { docTypes: [], orgs: [] }
-
-  if (ann.document_type) idsToFetch.docTypes.push(ann.document_type)
-  if (ann.authority) idsToFetch.orgs.push(ann.authority)
-  if (ann.signatory) idsToFetch.orgs.push(ann.signatory)
-  if (ann.publisher) idsToFetch.orgs.push(ann.publisher)
-
-  // Fetch document types
-  for (const id of idsToFetch.docTypes) {
-    if (!isCurrent()) return
-    if (!documentTypes[id]) {
-      try {
-        const response = await fetch(`${import.meta.env.BASE_URL || '/'}api/v1/node/document-type/${id}.jsonld`)
-        if (!isCurrent()) return
-        if (response.ok) {
-          const data = await response.json()
-          if (!isCurrent()) return
-          documentTypes[id] = data
-        }
-      } catch {
-        // Ignore errors
-      }
-    }
-  }
-
-  // Fetch organizations
-  for (const id of idsToFetch.orgs) {
-    if (!isCurrent()) return
-    if (!organizations[id]) {
-      try {
-        const response = await fetch(`${import.meta.env.BASE_URL || '/'}api/v1/node/organization/${id}.jsonld`)
-        if (!isCurrent()) return
-        if (response.ok) {
-          const data = await response.json()
-          if (!isCurrent()) return
-          organizations[id] = data
-        }
-      } catch {
-        // Ignore errors
-      }
-    }
-  }
+  const ann = announcement.value?.announcement
+  if (!ann) return
+  const requests = [
+    ...[...new Set([ann.document_type].filter((id): id is string => !!id))].map(id => ({ kind: 'document-type', id, cache: documentTypes })),
+    ...[...new Set([ann.authority, ann.signatory, ann.publisher].filter((id): id is string => !!id))].map(id => ({ kind: 'organization', id, cache: organizations })),
+  ]
+  await mapWithPool(requests, async ({ kind, id, cache }) => {
+    if (!isCurrent() || cache[id]) return null
+    try {
+      const href = nodeDocumentPath(kind as 'document-type' | 'organization', id, import.meta.env.BASE_URL || '/')
+      if (!href) throw new Error('Unresolvable reference')
+      const response = await fetch(href)
+      if (!response.ok) throw new Error('Label unavailable')
+      const data = await response.json()
+      if (isCurrent()) cache[id] = data
+    } catch { if (isCurrent()) relatedFailures.value += 1 }
+    return null
+  })
 }
 
-watch(sourceId, async (id) => {
+const loadAnnouncement = async (id: string) => {
   const isCurrent = loadGuard.begin()
   announcement.value = null
   group.value = null
   entries.value = []
   legalInstruments.value = new Map()
   loading.value = true
+  relationshipsLoading.value = false
+  entryFailures.value = 0
+  entityFailures.value = 0
+  relatedFailures.value = 0
   error.value = null
   const [source, docId] = id.split('/')
-
   try {
-    const documentId = source && docId ? `${source}/${docId}` : ''
-    const groupHref = nodeDocumentPath(
-      'group',
-      documentId,
-      import.meta.env.BASE_URL || '/',
-    )
-    if (!groupHref) {
-      error.value = 'Announcement not found'
-      return
-    }
-
-    // Load the group for this announcement
-    const groupResponse = await fetch(groupHref)
+    const href = nodeDocumentPath('group', source && docId ? `${source}/${docId}` : '', import.meta.env.BASE_URL || '/')
+    if (!href) throw new Error('Announcement not found')
+    const response = await fetch(href)
     if (!isCurrent()) return
-    if (groupResponse.ok) {
-      const groupData = await groupResponse.json()
-      if (!isCurrent()) return
-      group.value = groupData
-
-      // Load all entries in the group
-      if (groupData?.entry_ids) {
-        for (const entryId of groupData.entry_ids) {
-          const entryPath = entryId.replace('https://www.ammitto.org/', 'api/v1/node/')
-          const entryResponse = await fetch(`${import.meta.env.BASE_URL || '/'}${entryPath}.jsonld`)
-          if (!isCurrent()) return
-          if (entryResponse.ok) {
-            // Entry and entity nodes arrive in the producer's JSON-LD vocabulary
-            const entryData = normalizeNode<Entry>(await entryResponse.json())
-            if (!isCurrent()) return
-            if (!entryData) continue
-
-            // Load entity data for this entry
-            if (entryData.entity_id) {
-              const entityRef = entryData.entity_id.replace('https://www.ammitto.org/entity/', '')
-              const entityResponse = await fetch(`${import.meta.env.BASE_URL || '/'}api/v1/node/entity/${entityRef}.jsonld`)
-              if (!isCurrent()) return
-              if (entityResponse.ok) {
-                const entityData = normalizeNode<Entity>(await entityResponse.json())
-                if (!isCurrent()) return
-                entryData.entity = entityData ?? undefined
-              }
-            }
-
-            entries.value.push(entryData)
-
-            // Use first entry's announcement as the main announcement
-            if (!announcement.value && entryData.announcement) {
-              announcement.value = entryData as Entry
-            }
-
-            // Load legal instruments
-            if (entryData.legal_citations) {
-              for (const citation of entryData.legal_citations) {
-                if (citation.legal_instrument_id && !legalInstruments.value.has(citation.legal_instrument_id)) {
-                  const instrumentRef = citation.legal_instrument_id
-                    .replace('https://www.ammitto.org/legal-instrument/', '')
-                    .replace('https://www.ammitto.org/instrument/', '')
-                  try {
-                    const instrumentResponse = await fetch(`${import.meta.env.BASE_URL || '/'}api/v1/node/legal-instrument/${instrumentRef}.jsonld`)
-                    if (!isCurrent()) return
-                    if (instrumentResponse.ok) {
-                      const instrumentData = await instrumentResponse.json()
-                      if (!isCurrent()) return
-                      legalInstruments.value.set(citation.legal_instrument_id, instrumentData)
-                    }
-                  } catch {
-                    // Instrument file doesn't exist, skip it
-                  }
-                }
-              }
-            }
-          }
+    if (!response.ok) throw new Error('Announcement unavailable. Try again.')
+    const data: Group = await response.json()
+    if (!isCurrent()) return
+    group.value = data
+    loading.value = false
+    relationshipsLoading.value = true
+    const references = Array.isArray(data.entry_ids) ? data.entry_ids : []
+    let primaryIndex = Infinity
+    const loaded = await mapWithPool(references, async (raw, index) => {
+      if (!isCurrent()) return null
+      const iri = toNodeIri(raw, 'entry')
+      if (!iri) return null
+      try {
+        const response = await fetch(`${import.meta.env.BASE_URL || '/'}api/v1/node/${iri.replace('https://www.ammitto.org/', '')}.jsonld`)
+        if (!response.ok || !isCurrent()) return null
+        const entry = normalizeNode<Entry>(await response.json())
+        if (!isCurrent()) return null
+        // Publish text before identity/title requests. Prefer source order
+        // even when a later entry arrives before the first one.
+        if (entry?.announcement && index < primaryIndex) {
+          primaryIndex = index
+          announcement.value = entry
         }
-      }
-
-      // Load related data (document types and organizations)
-      await loadRelatedData(isCurrent)
-      if (!isCurrent()) return
-    } else {
-      error.value = 'Announcement not found'
-    }
+        return entry
+      } catch { return null }
+    })
+    if (!isCurrent()) return
+    entries.value = loaded
+    entryFailures.value = references.length - loaded.length
+    const identities = new Map<string, Entity>()
+    const entityIds = [...new Set(loaded.map(entry => entry.entity_id))]
+    await mapWithPool(entityIds, async id => {
+      if (!isCurrent()) return null
+      const iri = toNodeIri(id, 'entity')
+      try {
+        if (!iri) throw new Error('Unresolvable identity')
+        const response = await fetch(`${import.meta.env.BASE_URL || '/'}api/v1/node/${iri.replace('https://www.ammitto.org/', '')}.jsonld`)
+        if (!response.ok) throw new Error('Identity unavailable')
+        const identity = normalizeNode<Entity>(await response.json())
+        if (!identity) throw new Error('Identity unavailable')
+        identities.set(id, identity)
+      } catch { /* Count missing identities after the pool settles. */ }
+      return null
+    })
+    if (!isCurrent()) return
+    entries.value = loaded.map(entry => ({ ...entry, entity: identities.get(entry.entity_id) }))
+    entityFailures.value = entityIds.length - identities.size
+    const citations = [...new Set(loaded.flatMap(entry => (entry.legal_citations || []).map(citation => citation.legal_instrument_id)).filter((iri): iri is string => !!iri))]
+    await mapWithPool(citations, async iri => {
+      if (!isCurrent()) return null
+      try {
+        const ref = iri.replace(/^https:\/\/www\.ammitto\.org\/(?:legal-instrument|instrument)\//, '')
+        const href = nodeDocumentPath('legal-instrument', ref, import.meta.env.BASE_URL || '/')
+        if (!href) throw new Error('Unresolvable instrument')
+        const response = await fetch(href)
+        if (!response.ok) throw new Error('Instrument unavailable')
+        const instrument = await response.json()
+        if (isCurrent()) legalInstruments.value.set(iri, instrument)
+      } catch { if (isCurrent()) relatedFailures.value += 1 }
+      return null
+    })
+    if (isCurrent()) await loadRelatedData(isCurrent)
   } catch (e) {
-    if (isCurrent()) {
-      error.value = e instanceof Error ? e.message : 'Failed to load'
-    }
+    if (isCurrent()) error.value = e instanceof Error ? e.message : 'Announcement unavailable. Try again.'
   } finally {
-    if (isCurrent()) loading.value = false
+    if (isCurrent()) { loading.value = false; relationshipsLoading.value = false }
   }
-}, { immediate: true })
+}
+watch(sourceId, loadAnnouncement, { immediate: true })
 
 // The group node this page renders, offered to the reader. There is no
 // `node/announcement/` kind — an announcement is a field on each entry, and
@@ -372,9 +331,10 @@ const documents = computed(() => {
         <p class="mt-4 text-light-muted dark:text-dark-muted">Loading announcement...</p>
       </div>
 
-      <div v-else-if="error" class="glass-card p-8 text-center">
+      <div v-else-if="error" role="alert" class="glass-card p-8 text-center">
         <h3 class="font-semibold text-lg mb-2">Error</h3>
         <p class="text-light-muted dark:text-dark-muted">{{ error }}</p>
+        <button type="button" class="mt-4 text-brand-link underline" @click="loadAnnouncement(sourceId)">Retry announcement</button>
       </div>
 
       <article v-else class="space-y-6">
@@ -385,7 +345,7 @@ const documents = computed(() => {
           </Badge>
 
           <h1 class="text-2xl font-bold text-light-fg dark:text-dark-fg mb-4">
-            {{ announcement?.announcement?.title || `Announcement ${sourceId}` }}
+            {{ announcement?.announcement?.title || group?.announcement_title || `Announcement ${sourceId}` }}
           </h1>
 
           <dl class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
@@ -469,12 +429,19 @@ const documents = computed(() => {
           </a>
         </div>
 
+        <div role="status" class="text-sm text-light-muted dark:text-dark-muted">
+          <p v-if="relationshipsLoading">{{ announcement ? 'Loading related records…' : 'Loading announcement text and related records…' }}</p>
+          <p v-else-if="entryFailures || entityFailures || relatedFailures">This page is incomplete: {{ entryFailures }} listing {{ entryFailures === 1 ? 'record' : 'records' }}, {{ entityFailures }} {{ entityFailures === 1 ? 'identity' : 'identities' }} and {{ relatedFailures }} supporting {{ relatedFailures === 1 ? 'reference' : 'references' }} could not be loaded.</p>
+          <p v-else-if="!announcement">No announcement text is available in this group's listing records.</p>
+          <button v-if="!relationshipsLoading && (entryFailures || entityFailures || relatedFailures)" type="button" class="mt-2 text-brand-link underline" @click="loadAnnouncement(sourceId)">Retry related records</button>
+        </div>
+
         <!-- Full Text -->
         <div v-if="announcement?.announcement?.content" class="glass-card p-8">
           <h2 class="text-xl font-semibold mb-4 text-light-fg dark:text-dark-fg">
             Full Announcement Text
           </h2>
-          <p class="text-light-muted dark:text-dark-muted whitespace-pre-wrap">{{ announcement.announcement.content }}</p>
+          <p :lang="announcement.announcement.language || undefined" class="text-light-muted dark:text-dark-muted whitespace-pre-wrap break-words">{{ announcement.announcement.content }}</p>
         </div>
 
         <!-- Sanctioned Entities Grid -->

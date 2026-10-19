@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatCivilDate } from '@/utils/civilDate.js'
 import { ref, computed, watch, onUnmounted } from 'vue'
 import { safeExternalUrl } from '@/utils/externalUrl'
 import { useRoute, RouterLink } from 'vue-router'
@@ -108,15 +109,7 @@ const uniquePublishedAnnouncements = computed(() => toRows(publishedAnnouncement
 const uniqueSignedAnnouncements = computed(() => toRows(signedAnnouncements.value))
 const uniqueAuthorizedAnnouncements = computed(() => toRows(authorizedAnnouncements.value))
 
-const formatDate = (dateStr?: string): string => {
-  if (!dateStr) return ''
-  try {
-    const date = new Date(dateStr)
-    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
-  } catch {
-    return dateStr
-  }
-}
+const formatDate = (dateStr?: string): string => formatCivilDate(dateStr, 'short')
 
 // Extract group reference from group_id IRI
 const getGroupRef = (groupId?: string): string | null => {

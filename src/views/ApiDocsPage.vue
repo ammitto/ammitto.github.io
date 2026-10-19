@@ -267,8 +267,15 @@ for n in data['@graph']:
 </script>
 
 <template>
-  <div class="min-h-screen">
+  <div class="docs-page min-h-screen">
     <div class="container-wide py-12">
+      <nav aria-label="Developer documentation" class="mb-7 flex flex-wrap gap-x-5 gap-y-2 text-sm">
+        <RouterLink to="/api" aria-current="page" class="text-brand-link underline underline-offset-4">API</RouterLink>
+        <RouterLink to="/schema" class="text-brand-link underline underline-offset-4">Data schema</RouterLink>
+        <RouterLink to="/ontology" class="text-brand-link underline underline-offset-4">Ontology</RouterLink>
+        <RouterLink to="/ruby" class="text-brand-link underline underline-offset-4">Ruby gem</RouterLink>
+        <RouterLink to="/download" class="text-brand-link underline underline-offset-4">Downloads</RouterLink>
+      </nav>
       <h1 class="text-4xl font-bold mb-4 text-light-text dark:text-dark-text">
         API Documentation
       </h1>
@@ -282,8 +289,20 @@ for n in data['@graph']:
         </RouterLink>.
       </p>
 
+      <nav aria-label="On this page" class="mb-10 border-y border-light-border dark:border-dark-border py-4">
+        <p class="mb-2 text-sm font-semibold text-light-text dark:text-dark-text">On this page</p>
+        <ul class="flex flex-wrap gap-x-5 gap-y-2 text-sm">
+          <li><a href="#base-url" class="text-brand-link underline underline-offset-4">Base URL</a></li>
+          <li><a href="#contract-heading" class="text-brand-link underline underline-offset-4">OpenAPI contract</a></li>
+          <li><a href="#endpoints" class="text-brand-link underline underline-offset-4">Endpoints</a></li>
+          <li><a href="#code-examples" class="text-brand-link underline underline-offset-4">Code Examples</a></li>
+          <li><a href="#sparql-heading" class="text-brand-link underline underline-offset-4">SPARQL: query a local dataset</a></li>
+          <li><a href="#caching" class="text-brand-link underline underline-offset-4">Caching and bulk access</a></li>
+        </ul>
+      </nav>
+
       <section class="mb-12">
-        <h2 class="text-2xl font-semibold mb-4 text-light-text dark:text-dark-text">
+        <h2 id="base-url" class="text-2xl font-semibold mb-4 text-light-text dark:text-dark-text">
           Base URL
         </h2>
         <CodeBlock
@@ -302,7 +321,7 @@ for n in data['@graph']:
       </section>
 
       <section class="mb-12">
-        <h2 class="text-2xl font-semibold mb-4 text-light-text dark:text-dark-text">
+        <h2 id="endpoints" class="text-2xl font-semibold mb-4 text-light-text dark:text-dark-text">
           Endpoints
         </h2>
         <div class="space-y-6">
@@ -327,13 +346,13 @@ for n in data['@graph']:
             <CodeBlock
               :code="endpoint.example"
               language="bash"
-              title="Example Request"
+              :title="`Request: ${endpoint.path}`"
             />
             <div class="mt-4">
               <CodeBlock
                 :code="endpoint.response"
                 language="json"
-                title="Response excerpt (values vary by publication)"
+                :title="`Response excerpt: ${endpoint.path} (values vary by publication)`"
               />
             </div>
           </div>
@@ -341,32 +360,32 @@ for n in data['@graph']:
       </section>
 
       <section class="mb-12">
-        <h2 class="text-2xl font-semibold mb-4 text-light-text dark:text-dark-text">
+        <h2 id="code-examples" class="text-2xl font-semibold mb-4 text-light-text dark:text-dark-text">
           Code Examples
         </h2>
 
         <div class="space-y-6">
           <div>
             <h3 class="text-lg font-medium mb-3 text-light-text dark:text-dark-text">JavaScript</h3>
-            <CodeBlock :code="codeExamples.javascript" language="javascript" />
+            <CodeBlock :code="codeExamples.javascript" title="JavaScript catalogue example" language="javascript" />
           </div>
 
           <div>
             <h3 class="text-lg font-medium mb-3 text-light-text dark:text-dark-text">Search one source locally</h3>
-            <CodeBlock :code="codeExamples.search" language="javascript" />
+            <CodeBlock :code="codeExamples.search" title="Search one source locally" language="javascript" />
           </div>
           <div>
             <h3 class="text-lg font-medium mb-3 text-light-text dark:text-dark-text">Follow a sanction-entry reference</h3>
-            <CodeBlock :code="codeExamples.entries" language="javascript" />
+            <CodeBlock :code="codeExamples.entries" title="Follow a sanction-entry reference" language="javascript" />
           </div>
           <div>
             <h3 class="text-lg font-medium mb-3 text-light-text dark:text-dark-text">Ruby</h3>
-            <CodeBlock :code="codeExamples.ruby" language="ruby" />
+            <CodeBlock :code="codeExamples.ruby" title="Ruby client example" language="ruby" />
           </div>
 
           <div>
             <h3 class="text-lg font-medium mb-3 text-light-text dark:text-dark-text">Python</h3>
-            <CodeBlock :code="codeExamples.python" language="python" />
+            <CodeBlock :code="codeExamples.python" title="Python client example" language="python" />
           </div>
         </div>
       </section>
@@ -384,12 +403,12 @@ for n in data['@graph']:
         </p>
         <CodeBlock :code="`curl --fail --location --compressed ${baseUrl}/sources/cn.ttl -o cn.ttl
 curl --fail --location https://www.ammitto.org/queries/active-cn-entries.rq -o active-cn-entries.rq
-sparql execute --dataset cn.ttl --format json active-cn-entries.rq`" language="bash" />
+sparql execute --dataset cn.ttl --format json active-cn-entries.rq`" title="Download and query CN data locally" language="bash" />
         <h3 class="text-lg font-medium my-4 text-light-text dark:text-dark-text">Active CN entries with primary names</h3>
-        <CodeBlock :code="activeEntriesQuery" language="sparql" />
+        <CodeBlock :code="activeEntriesQuery" title="Active CN entries with primary names" language="sparql" />
         <a :href="`${publicBase}queries/active-cn-entries.rq`" download class="text-brand-link underline">Download active-entry query</a>
         <h3 class="text-lg font-medium my-4 text-light-text dark:text-dark-text">Count distinct entities by type</h3>
-        <CodeBlock :code="entitiesByTypeQuery" language="sparql" />
+        <CodeBlock :code="entitiesByTypeQuery" title="Count distinct entities by type" language="sparql" />
         <a :href="`${publicBase}queries/entities-by-type.rq`" download class="text-brand-link underline">Download entity-count query</a>
         <p class="text-light-muted dark:text-dark-muted mt-4">
           Counts cover only the loaded dataset. For a store you operate, import Turtle into its default graph and use its query interface.
@@ -400,7 +419,7 @@ sparql execute --dataset cn.ttl --format json active-cn-entries.rq`" language="b
       </section>
 
       <section class="mb-12">
-        <h2 class="text-2xl font-semibold mb-4 text-light-text dark:text-dark-text">
+        <h2 id="caching" class="text-2xl font-semibold mb-4 text-light-text dark:text-dark-text">
           Caching and bulk access
         </h2>
         <p class="text-light-muted dark:text-dark-muted">
@@ -410,3 +429,9 @@ sparql execute --dataset cn.ttl --format json active-cn-entries.rq`" language="b
     </div>
   </div>
 </template>
+
+<style scoped>
+/* The global 5rem scroll padding clears the header; add room at the heading. */
+.docs-page h2[id] { scroll-margin-top: 1rem; }
+.docs-page nav [aria-current="page"] { font-weight: 700; }
+</style>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, shallowRef, computed, onMounted, onBeforeUnmount, watch, nextTick, toRaw } from 'vue'
-import { useRoute, useRouter, type LocationQueryValue } from 'vue-router'
+import { useRoute, useRouter, onBeforeRouteLeave, type LocationQueryValue } from 'vue-router'
 import SearchInput from '@/components/atoms/SearchInput.vue'
 import VirtualEntityGrid from '@/components/organisms/VirtualEntityGrid.vue'
 import SearchFilters from '@/components/organisms/SearchFilters.vue'
@@ -19,6 +19,7 @@ import {
 import { searchRowToCard } from '@/utils/birthAdapters'
 import { countOf } from '@/utils/indexMetadata'
 import { appendNewMatches } from '@/utils/progressiveResults'
+import { readSearchReturn, storeSearchReturn } from '@/utils/searchReturn'
 
 // Initialize scroll animations
 useScrollAnimation()
@@ -84,54 +85,66 @@ const queryList = (
       .filter((v) => v !== ''),
   )]
 
-// Load data on mount
-onMounted(async () => {
-  // Initialize from URL params
+// Route changes (header Search, bookmarks and browser history) are inputs,
+// just like the controls. Applying a route is atomic so its own assignments
+// cannot write stale local filters back over that route.
+let applyingRoute = false
+const queryForControls = (searchText = searchQuery.value) => {
+  const query: Record<string, string | string[]> = {}
+  const q = searchText.trim()
+  if (q) query.q = q
+  if (filters.value.sources.length) query.source = filters.value.sources
+  if (filters.value.entityTypes.length) query.type = filters.value.entityTypes
+  if (filters.value.listTypes.length) query.list = filters.value.listTypes
+  if (filters.value.statuses.length) query.status = filters.value.statuses
+  return query
+}
+function applyRouteQuery() {
   const { q, source, type, list, status } = route.query
-  const [firstQuery] = queryList(q)
-  if (firstQuery) searchQuery.value = firstQuery
-  // Parse unconditionally: null/empty scalar forms (?source) must also
-  // reach the filters so the watcher below canonicalizes them away.
-  // Normalize legacy hyphenated codes (eu-vessels -> eu_vessels) so old
-  // bookmarks keep filtering; de-duplicate after normalization so mixed
-  // legacy/canonical forms collapse to one entry.
-  filters.value.sources = [...new Set(
-    queryList(source).map(normalizeSourceCode),
-  )]
-  filters.value.entityTypes = queryList(type)
-  // No legacy-spelling map here, unlike sources: `?list=` ships with this
-  // change, so no bookmark can carry an older form of these codes.
-  filters.value.listTypes = queryList(list)
-  filters.value.statuses = queryList(status)
+  const query = queryList(q)[0] ?? ''
+  const nextFilters = {
+    sources: [...new Set(queryList(source).map(normalizeSourceCode))],
+    entityTypes: queryList(type),
+    listTypes: queryList(list),
+    statuses: queryList(status),
+  }
+  if (query !== searchQuery.value.trim() || JSON.stringify(nextFilters) !== JSON.stringify(filters.value)) {
+    applyingRoute = true
+    searchQuery.value = query
+    debouncedQuery.value = query
+    filters.value = nextFilters
+    loadedCount.value = PAGE_SIZE
+    applyingRoute = false
+  }
+  const canonical = queryForControls()
+  if (router.resolve({ path: route.path, query: canonical }).fullPath !== route.fullPath) {
+    void router.replace({ path: route.path, query: canonical })
+  }
+}
+watch(() => route.query, applyRouteQuery, { immediate: true, flush: 'sync' })
 
-  // Load search index and facets
+onMounted(async () => {
   await Promise.all([loadSearchIndex(), loadFacets()])
 })
 
-// Debounce search query
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 watch(searchQuery, (newQuery) => {
   if (debounceTimer) clearTimeout(debounceTimer)
+  if (applyingRoute) return
   debounceTimer = setTimeout(() => {
     debouncedQuery.value = newQuery
-    loadedCount.value = PAGE_SIZE // Reset pagination on new search
+    loadedCount.value = PAGE_SIZE
   }, 150)
-})
+}, { flush: 'sync' })
 
-// Update URL when filters change
 watch([searchQuery, filters], () => {
-  loadedCount.value = PAGE_SIZE // Reset pagination when filters change
-  const query: Record<string, string | string[]> = {}
-  // Trimmed as on load, so a blank query (which shows no clear button) leaves
-  // no `q` in the URL either, and the address matches what a reload restores.
-  const q = searchQuery.value.trim()
-  if (q) query.q = q
-  if (filters.value.sources.length > 0) query.source = filters.value.sources
-  if (filters.value.entityTypes.length > 0) query.type = filters.value.entityTypes
-  if (filters.value.listTypes.length > 0) query.list = filters.value.listTypes
-  if (filters.value.statuses.length > 0) query.status = filters.value.statuses
-  router.replace({ query })
-}, { deep: true })
+  if (applyingRoute) return
+  loadedCount.value = PAGE_SIZE
+  const query = queryForControls()
+  if (router.resolve({ path: route.path, query }).fullPath !== route.fullPath) {
+    void router.replace({ path: route.path, query })
+  }
+}, { deep: true, flush: 'sync' })
 
 // Transform SearchEntity format for EntityCard
 const entityAdapter = (entity: SearchEntity) => searchRowToCard(entity)
@@ -533,6 +546,33 @@ const paginatedEntities = computed(() => {
   })
 })
 
+const loadMoreButton = ref<HTMLButtonElement | null>(null)
+const resultGrid = ref<{ restoreResult: (ref: string, offsetTop: number) => Promise<void> } | null>(null)
+let returnRestored = false
+watch([isLoaded, loading], async ([loaded, busy]) => {
+  if (!loaded || busy || returnRestored || typeof window === 'undefined') return
+  returnRestored = true
+  const context = readSearchReturn()
+  const history = window.history.state
+  const fromRecord = [history?.back, history?.forward].some((path) => typeof path === 'string' && path.startsWith('/entity/'))
+  if (!context || context.path !== route.fullPath || !fromRecord) return
+  loadedCount.value = context.loadedCount
+  await nextTick()
+  await resultGrid.value?.restoreResult(context.entityRef, context.offsetTop)
+}, { immediate: true })
+
+onBeforeRouteLeave((to) => {
+  if (to.name !== 'entity' || typeof window === 'undefined') return
+  const entityRef = String(to.params.id ?? '')
+  const cards = document.querySelectorAll<HTMLElement>('[data-entity-ref]')
+  const card = [...cards].find((element) => element.dataset.entityRef === entityRef)
+  // A click can precede the input debounce. Return to the query represented
+  // by the visible record, retaining its current facet filters.
+  const path = router.resolve({ path: route.path, query: queryForControls(debouncedQuery.value) }).fullPath
+  storeSearchReturn({ path, loadedCount: loadedCount.value, scrollY: window.scrollY,
+    offsetTop: card?.getBoundingClientRect().top ?? 140, entityRef })
+})
+
 const hasMoreResults = computed(() => {
   return loadedCount.value < filteredEntities.value.length
 })
@@ -707,16 +747,13 @@ function clearFacetFilters() {
   filters.value = { sources: [], entityTypes: [], listTypes: [], statuses: [] }
 }
 
-// The last chip is gone. Below `lg` the Filters button is beside it in the bar;
-// from `lg` up that button is hidden, so focus goes to the first filter pill in
-// the sidebar, where filters are set, passing over the panel's "Clear all",
-// which has nothing left to clear.
+// Return keyboard focus to the visible filter control after the last chip goes.
 function focusAfterBarEmptied() {
   if (filtersButton.value && filtersButton.value.offsetParent !== null) {
     filtersButton.value.focus()
     return
   }
-  sidebar.value?.querySelector<HTMLElement>('button[aria-pressed]')?.focus()
+  sidebar.value?.querySelector<HTMLElement>('button[aria-pressed]:not(:disabled)')?.focus()
 }
 </script>
 
@@ -791,7 +828,7 @@ function focusAfterBarEmptied() {
         <!-- Filters Sidebar -->
         <!-- Below `lg` the same panel opens in the drawer instead (see the end). -->
         <aside ref="sidebar" class="hidden lg:block lg:w-72 flex-shrink-0">
-          <div class="sticky top-24">
+          <div class="sticky top-24 max-h-[calc(100dvh-7rem)] overflow-y-auto overscroll-contain pr-2">
             <SearchFilters
               :filters="filters"
               :counts="counts"
@@ -905,9 +942,11 @@ function focusAfterBarEmptied() {
 
           <!-- Results Grid -->
           <VirtualEntityGrid
+            ref="resultGrid"
             v-if="paginatedEntities.length > 0"
             :entities="paginatedEntities"
             :virtualize="!showPartial"
+            :navigation-end="loadMoreButton"
             :reset-key="JSON.stringify([debouncedQuery, filters, showPartial])"
           />
 
@@ -963,6 +1002,7 @@ function focusAfterBarEmptied() {
           <!-- Load More -->
           <div v-if="hasMoreResults" class="mt-8 text-center">
             <button
+              ref="loadMoreButton"
               @click="loadMore"
               class="btn-secondary"
             >
@@ -1065,6 +1105,7 @@ function focusAfterBarEmptied() {
           Clear all
         </button>
       </template>
+      <p class="sr-only" role="status" aria-live="polite" aria-atomic="true">{{ resultAnnouncement }}</p>
       <SearchFilters
         embedded
         :filters="filters"

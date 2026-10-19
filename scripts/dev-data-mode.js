@@ -66,7 +66,7 @@ export const TEMPLATED_PATHS = {
   'ontology/examples/*.jsonld': 'per-class example, loaded on demand',
   'context.jsonld': 'named only in the ApiDocsPage and SchemaPage examples; nothing fetches it',
   '': 'the bare api/v1/ prefix, used to recognise API links',
-  'node/': 'prefix that an IRI is rewritten onto; .jsonld is appended later',
+  'node/*.jsonld': 'validated per-record IRI rewritten to its node document',
   'search-index/': 'prefix the manifest-named shard files are fetched under; the manifest is required, so a tree without shards is judged by it',
 }
 

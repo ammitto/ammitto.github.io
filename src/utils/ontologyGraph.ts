@@ -3,6 +3,7 @@ export interface GraphClass {
   '@id': string
   label: string
   subClassOf?: string
+  properties?: string[]
 }
 
 export interface GraphProperty {
@@ -10,6 +11,7 @@ export interface GraphProperty {
   label: string
   domain?: string
   range?: string
+  usages?: { class: string; range?: string; isArray: boolean }[]
 }
 
 export interface OntologyGraphNode {
@@ -53,6 +55,20 @@ export function buildOntologyGraph(classes: readonly GraphClass[], properties: r
   }
 
   for (const cls of classes) add(cls['@id'], cls.subClassOf, 'inheritance', 'subclass of')
-  for (const prop of properties) add(prop.domain, prop.range, 'property', prop.label || prop['@id'])
+  for (const prop of properties) {
+    const label = prop.label || prop['@id']
+    if (prop.usages?.length) {
+      for (const usage of prop.usages) add(usage.class, usage.range, 'property', label)
+    } else if (prop.domain) {
+      add(prop.domain, prop.range, 'property', label)
+    } else {
+      // Shared fields have no global RDFS domain: multiple domains would imply
+      // an intersection. The canonical class field lists still describe each
+      // individual relationship in this schema diagram.
+      for (const cls of classes) {
+        if (cls.properties?.includes(prop['@id'])) add(cls['@id'], prop.range, 'property', label)
+      }
+    }
+  }
   return { nodes, links: [...links.values()] }
 }

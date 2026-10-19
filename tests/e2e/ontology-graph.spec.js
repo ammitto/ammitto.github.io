@@ -1,5 +1,9 @@
 import { test, expect } from '@playwright/test'
-import { collectPageErrors, expectNoHorizontalOverflow, gotoRendered, useTheme } from './helpers.js'
+import { collectPageErrors, expectNoHorizontalOverflow, gotoRendered as gotoRenderedBase, useTheme } from './helpers.js'
+
+async function gotoRendered(page, path) {
+  await gotoRenderedBase(page, path)
+}
 
 async function graphReady(page) {
   await expect(page.getByRole('group', { name: 'Ontology class graph', exact: true })).toHaveAttribute('data-ready', 'true')
@@ -25,7 +29,7 @@ test('search does not load the graph chunk; opening the ontology loads it on dem
   expect(graphRequests.some(url => /\.js(?:\?|$)/.test(url))).toBe(true)
 })
 
-test('graph node and native selector share class details with the preserved hierarchy and tabs', async ({ page }) => {
+test('graph nodes and hierarchy share class details with the preserved hierarchy and tabs', async ({ page }) => {
   const errors = collectPageErrors(page)
   const requests = []
   page.on('request', request => requests.push(request.url()))
@@ -38,14 +42,15 @@ test('graph node and native selector share class details with the preserved hier
   await page.getByRole('button', { name: 'View Person Entity class', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Person Entity', exact: true })).toBeVisible()
   await expect(page.locator('.hierarchy-select[aria-current="true"] .hierarchy-label')).toHaveText('Person')
-  await expect(page.getByLabel('Select a class', { exact: true })).toHaveValue('PersonEntity')
+  await expect(page.getByRole('combobox')).toHaveCount(0)
   await expect(page.getByRole('listitem').filter({ hasText: /^Person Entity → subclass of → Entity$/ })).toBeVisible()
 
-  await page.getByLabel('Select a class', { exact: true }).selectOption('Authority')
+  await page.getByRole('button', { name: 'Authority', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Authority', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'View Authority class', exact: true })).toHaveAttribute('aria-pressed', 'true')
-  await page.getByRole('button', { name: 'Properties', exact: true }).click()
-  await expect(page.getByPlaceholder('Search properties...')).toBeVisible()
+  await page.getByRole('tab', { name: 'Properties', exact: true }).click()
+  await expect(page.getByRole('searchbox', { name: 'Search properties', exact: true })).toBeVisible()
+  await page.getByRole('tab', { name: 'Classes', exact: true }).click()
   await page.getByRole('button', { name: 'View Entity class', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Entity', exact: true })).toBeVisible()
   expect(requests.filter(url => /\/all\.jsonld(?:\?|$)|\/sources\/[^/]+\.jsonld/.test(url))).toEqual([])
@@ -69,7 +74,7 @@ test('keyboard can select a node, pan, zoom and reset without losing the chosen 
   await expect(page.getByRole('heading', { name: 'Entity', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Zoom in', exact: true }).click()
   await expect(page.getByRole('button', { name: 'View Entity class', exact: true })).toHaveAttribute('aria-pressed', 'true')
-  await page.getByRole('button', { name: 'Reset view', exact: true }).click()
+  await page.getByRole('button', { name: 'Fit to view', exact: true }).click()
   await expect(page.locator('.graph-viewport')).toHaveAttribute('transform', initial)
 })
 
@@ -94,26 +99,26 @@ test('mobile dark reduced-motion graph stays settled, selectable and within the 
   expect(colors.text).toBe(colors.expectedText)
   expect(colors.node).toBe(colors.expectedSurface)
   const positions = await page.locator('.graph-node').evaluateAll(nodes => nodes.map(node => node.getAttribute('transform')))
-  await page.getByLabel('Select a class', { exact: true }).selectOption('VesselEntity')
+  await page.getByRole('button', { name: 'View Vessel Entity class', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Vessel Entity', exact: true })).toBeVisible()
   expect(await page.locator('.graph-node').evaluateAll(nodes => nodes.map(node => node.getAttribute('transform')))).toEqual(positions)
   await expectNoHorizontalOverflow(page, '/ontology graph at 320px')
 })
 
-test('the actual ontology page preserves both explicit domains of a repeated property ID', async ({ page }) => {
+test('the actual ontology page preserves shared canonical field relationships', async ({ page }) => {
   await gotoRendered(page, '/ontology')
   await graphReady(page)
-  await page.getByLabel('Select a class', { exact: true }).selectOption('Authority')
+  await page.getByRole('button', { name: 'View Address class', exact: true }).click()
   const relationships = page.locator('.ontology-graph').getByRole('listitem')
-  await expect(relationships.filter({ hasText: /^Sanction Entry → Authority → Authority$/ })).toBeVisible()
-  await expect(relationships.filter({ hasText: /^Sanctions List → Authority → Authority$/ })).toBeVisible()
+  await expect(relationships.filter({ hasText: /^Person Entity → Addresses → Address$/ })).toBeVisible()
+  await expect(relationships.filter({ hasText: /^Organization Entity → Addresses → Address$/ })).toBeVisible()
 })
 
 test('Tab and Shift+Tab reveal the whole focused node after canvas pan and zoom', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 })
   await gotoRendered(page, '/ontology')
   const graph = await graphReady(page)
-  await page.getByLabel('Select a class', { exact: true }).selectOption('Entity')
+  await page.getByRole('button', { name: 'View Entity class', exact: true }).click()
   await tabTo(page, 'svg[aria-label="Ontology class graph"]')
   await page.keyboard.press('+')
   const zoom = await graph.getAttribute('data-scale')
@@ -143,4 +148,40 @@ test('Tab and Shift+Tab reveal the whole focused node after canvas pan and zoom'
   await page.keyboard.press('Shift+Tab')
   await expect(entity).toBeFocused()
   await expectFocusedNodeVisible()
+})
+
+test('graph controls stack inside the canvas and help is keyboard dismissible', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 800 })
+  await gotoRendered(page, '/ontology')
+  await graphReady(page)
+  const help = page.getByRole('button', { name: 'Graph help', exact: true })
+  const instructions = page.locator('#ontology-graph-help')
+  await expect(help).toHaveAttribute('aria-expanded', 'false')
+  await expect(instructions).toBeHidden()
+  await help.focus()
+  await page.keyboard.press('Enter')
+  await expect(help).toHaveAttribute('aria-expanded', 'true')
+  await expect(instructions).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(instructions).toBeHidden()
+  await expect(help).toBeFocused()
+  await page.keyboard.press('Space')
+  await expect(instructions).toBeVisible()
+  await page.keyboard.press('Tab')
+  await expect(instructions).toBeHidden()
+  const geometry = await page.locator('.graph-controls button').evaluateAll(buttons => buttons.map(button => {
+    const bounds = button.getBoundingClientRect()
+    const canvas = button.closest('.graph-canvas').getBoundingClientRect()
+    return { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height,
+      inside: bounds.left >= canvas.left && bounds.right <= canvas.right && bounds.top >= canvas.top && bounds.bottom <= canvas.bottom }
+  }))
+  expect(geometry).toHaveLength(3)
+  for (let index = 0; index < geometry.length; index++) {
+    expect(geometry[index].inside).toBe(true)
+    expect(geometry[index].width).toBeGreaterThanOrEqual(44)
+    expect(geometry[index].height).toBeGreaterThanOrEqual(44)
+    expect(geometry[index].x).toBe(geometry[0].x)
+    if (index) expect(geometry[index].y).toBeGreaterThanOrEqual(geometry[index - 1].y + geometry[index - 1].height)
+  }
+  await expectNoHorizontalOverflow(page, '/ontology vertical controls at 320px')
 })

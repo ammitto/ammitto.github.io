@@ -156,6 +156,44 @@ function matchesFile(entry: CatalogueEntry, file: DownloadFile): boolean {
   })
 }
 
+async function verifySourceSize(file: DownloadFile): Promise<void> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 10000)
+  try {
+    const response = await fetch(file.href, { method: 'HEAD', signal: controller.signal })
+    const type = response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase()
+    const encoding = response.headers.get('content-encoding')?.toLowerCase()
+    const length = response.headers.get('content-length')
+    const bytes = length && /^\d+$/.test(length) ? Number(length) : NaN
+    // A SPA fallback or compressed transfer length cannot verify file size.
+    if (response.ok && (type === 'application/ld+json' || type === 'application/json')
+      && (!encoding || encoding === 'identity') && Number.isSafeInteger(bytes) && bytes > 0) {
+      sizes.value[file.href] = { bytes, exact: true, asOf: 'verified from current file headers' }
+    } else if (response.ok && (type === 'application/ld+json' || type === 'application/json')) {
+      // Browsers negotiate compression on HEAD. A one-byte range response
+      // reports the complete uncompressed file size without fetching the graph.
+      const range = await fetch(file.href, { headers: { Range: 'bytes=0-0' }, signal: controller.signal })
+      try {
+        const rangeType = range.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase()
+        const rangeEncoding = range.headers.get('content-encoding')?.toLowerCase()
+        const match = /^bytes 0-0\/(\d+)$/i.exec(range.headers.get('content-range') || '')
+        const total = match ? Number(match[1]) : NaN
+        if (range.status === 206 && range.headers.get('content-length') === '1'
+          && (rangeType === 'application/ld+json' || rangeType === 'application/json')
+          && (!rangeEncoding || rangeEncoding === 'identity') && Number.isSafeInteger(total) && total > 0) {
+          sizes.value[file.href] = { bytes: total, exact: true, asOf: 'verified from current file headers' }
+        }
+      } finally {
+        await range.body?.cancel()
+      }
+    }
+  } catch {
+    // Keep the existing unavailable state when this file cannot be verified.
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
 onMounted(async () => {
   try {
     const response = await fetch(`${API_BASE}/index.jsonld`)
@@ -179,9 +217,10 @@ onMounted(async () => {
       }
     }
   } catch {
-    // Full-file fallback measurements remain visible. Source links stay
-    // unavailable because their size could not be verified.
+    // Full-file fallback measurements remain visible if the catalogue fails.
   } finally {
+    // Published catalogues may omit source aggregates that are available.
+    await Promise.all(sourceDownloads.filter(file => !sizes.value[file.href]).map(verifySourceSize))
     catalogueLoading.value = false
   }
 })
@@ -191,6 +230,12 @@ onMounted(async () => {
   <div class="download-page min-h-screen">
     <div class="container-wide py-12">
       <header class="mb-10">
+        <nav aria-label="Developer documentation" class="mb-7 flex flex-wrap gap-x-5 gap-y-2 text-sm text-brand-link">
+          <RouterLink to="/api" class="underline underline-offset-4">API documentation</RouterLink>
+          <RouterLink to="/schema" class="underline underline-offset-4">Data schema</RouterLink>
+          <RouterLink to="/ontology" class="underline underline-offset-4">Ontology</RouterLink>
+          <RouterLink to="/ruby" class="underline underline-offset-4">Ruby gem</RouterLink>
+        </nav>
         <h1 class="text-4xl font-bold mb-4 text-light-text dark:text-dark-text">
           Download the data
         </h1>
@@ -198,6 +243,10 @@ onMounted(async () => {
           Choose the complete knowledge graph or download the lighter aggregate
           for one source.
         </p>
+        <nav aria-label="Download options" class="mt-5 flex flex-wrap gap-5 text-sm text-brand-link">
+          <a href="#complete-downloads" class="underline underline-offset-4">Complete dataset</a>
+          <a href="#source-downloads" class="underline underline-offset-4">Download by source</a>
+        </nav>
       </header>
 
       <section
@@ -355,3 +404,7 @@ onMounted(async () => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.download-page h2 { scroll-margin-top: 1rem; }
+</style>

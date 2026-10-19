@@ -223,7 +223,8 @@ test('a zero result is not announced before the index has loaded', () => {
   assert.match(block, /listsCovered\.value/, 'announcement must name the scope')
   assert.match(block, /asOf\.value/, 'announcement must carry the date')
   assert.match(block, /nearMisses\.value/, 'announcement must offer near misses')
-  // And exactly one live region, or the same fact is announced twice.
+  // One page announcement outside the modal. The drawer has its own
+  // announcement because opening it makes the page behind it inert.
   // Counted with comments stripped: the explanatory comments in this file
   // quote `role="status"` in prose, and counting those would make the
   // assertion pass or fail on how the rationale happens to be worded.
@@ -232,8 +233,8 @@ test('a zero result is not announced before the index has loaded', () => {
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/^\s*\/\/.*$/gm, '')
   assert.equal(
-    (markup.match(/role="status"/g) || []).length,
+    (markup.replace(/<SideDrawer\b[\s\S]*?<\/SideDrawer>/g, '').match(/role="status"/g) || []).length,
     1,
-    'exactly one live region: the empty-state card must not also be one',
+    'one page live region outside the modal: the empty-state card must not also be one',
   )
 })

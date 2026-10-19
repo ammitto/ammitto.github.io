@@ -1,26 +1,28 @@
 {
-  "@context": "https://www.ammitto.org/ontology/context.jsonld",
+  "@context": "https://ammitto.org/api/v1/context.jsonld",
   "@id": "https://www.ammitto.org/entity/example/organization",
   "@type": "OrganizationEntity",
   "entityType": "organization",
   "names": [
     {
-      "@type": "Name",
+      "@type": "NameVariant",
       "fullName": "EXAMPLE CORPORATION LTD",
       "isPrimary": true
     }
   ],
+  "sourceReferences": [],
+  "linkedEntities": [],
+  "hasSanctionEntry": [
+    "https://www.ammitto.org/entry/example/organization"
+  ],
+  "identifications": [],
   "addresses": [
     {
       "@type": "Address",
       "street": "123 Example St",
       "city": "Example City",
-      "countryCode": "XX"
+      "countryIsoCode": "XX"
     }
   ],
-  "hasSanctionEntry": [
-    {
-      "@id": "https://www.ammitto.org/entry/example/organization"
-    }
-  ]
+  "beneficialOwners": []
 }

@@ -38,8 +38,8 @@ test(`${CONSUMER} loads entries through the pool`, () => {
   const source = read(CONSUMER)
 
   assert.ok(
-    flatten(source).includes('await mapWithPool(iris, fetchEntry)'),
-    `${CONSUMER} must contain \`await mapWithPool(iris, fetchEntry)\`; it owns entry loading`,
+    flatten(source).includes('await mapWithPool(iris, iri => isCurrent() ? fetchEntry(iri) : Promise.resolve(null))'),
+    `${CONSUMER} must load entries through the pool with a current-request guard`,
   )
 
   // A real import declaration, not the word in a comment.

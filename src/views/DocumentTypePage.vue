@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatCivilDate } from '@/utils/civilDate.js'
 import { ref, computed, watch, onUnmounted } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
 import SourceDocuments from '@/components/molecules/SourceDocuments.vue'
@@ -56,15 +57,7 @@ const chineseName = computed(() => {
   return zhName?.value || null
 })
 
-const formatDate = (dateStr?: string): string => {
-  if (!dateStr) return ''
-  try {
-    const date = new Date(dateStr)
-    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
-  } catch {
-    return dateStr
-  }
-}
+const formatDate = (dateStr?: string): string => formatCivilDate(dateStr, 'short')
 
 const getAnnouncementTitle = (announcement: AnnouncementSummary): string => {
   if (!announcement.title) return 'Untitled'

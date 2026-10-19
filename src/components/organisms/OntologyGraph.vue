@@ -19,6 +19,15 @@ const links = ref<LayoutLink[]>([])
 const transform = ref('')
 const scale = ref(1)
 const ready = ref(false)
+const helpOpen = ref(false)
+const helpButton = ref<HTMLButtonElement | null>(null)
+function closeHelp(event: FocusEvent) {
+  if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) helpOpen.value = false
+}
+function dismissHelp() {
+  helpOpen.value = false
+  helpButton.value?.focus()
+}
 const model = computed(() => buildOntologyGraph(props.classes, props.properties))
 const selected = computed(() => model.value.nodes.find(node => node.classId === props.selectedClass))
 const relationships = computed(() => model.value.links.filter(link => link.source === selected.value?.id || link.target === selected.value?.id))
@@ -122,20 +131,21 @@ onBeforeUnmount(() => { if (svg.value) select(svg.value).on('.zoom', null) })
 
 <template>
   <section class="ontology-graph mb-6 rounded-lg bg-light-surface dark:bg-dark-surface shadow-sm p-4" aria-labelledby="ontology-graph-title">
-    <div class="flex flex-wrap items-start justify-between gap-3">
+    <div class="relative flex items-start justify-between gap-3">
       <div>
         <h2 id="ontology-graph-title" class="text-lg font-semibold text-light-text dark:text-dark-text">Class relationships</h2>
         <p class="text-sm text-light-muted dark:text-dark-muted">{{ nodes.length }} ontology classes · select a class to view its details below.</p>
       </div>
-      <div class="graph-controls flex flex-wrap gap-2" role="group" aria-label="Graph view controls">
-        <button type="button" aria-label="Zoom out" @click="changeZoom(0.8)">Zoom out</button>
-        <button type="button" aria-label="Zoom in" @click="changeZoom(1.25)">Zoom in</button>
-        <button type="button" @click="reset">Reset view</button>
+      <div class="graph-help" @focusout="closeHelp" @keydown.esc.stop.prevent="dismissHelp">
+        <button ref="helpButton" type="button" class="graph-help-button" aria-label="Graph help" title="Graph help"
+          :aria-expanded="helpOpen" aria-controls="ontology-graph-help" @click="helpOpen = !helpOpen">
+          <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 2-2.5 2-2.5 4m0 3v.01" /></svg>
+        </button>
+        <p v-show="helpOpen" id="ontology-graph-help" class="graph-help-content text-sm text-light-text dark:text-dark-text">
+          Drag the background to pan. Focus the graph and use arrow keys to pan, + / − to zoom, or Home to fit the graph to view. Use Ctrl or Command + scroll to zoom.
+        </p>
       </div>
     </div>
-    <p id="ontology-graph-help" class="mt-3 text-sm text-light-muted dark:text-dark-muted">
-      Drag the background to pan. Focus the graph and use arrow keys to pan, + / − to zoom, or Home to reset. Use Ctrl or Command + scroll to zoom.
-    </p>
     <div class="graph-canvas mt-3 rounded-lg border border-light-border dark:border-dark-border bg-light-bg dark:bg-dark-bg">
       <svg ref="svg" class="block w-full" viewBox="0 0 1000 620" tabindex="0" role="group"
         aria-label="Ontology class graph" aria-describedby="ontology-graph-help" :data-ready="ready" :data-scale="scale" @keydown="onKey">
@@ -154,19 +164,22 @@ onBeforeUnmount(() => { if (svg.value) select(svg.value).on('.zoom', null) })
           </g>
         </g>
       </svg>
+      <div class="graph-controls" role="group" aria-label="Graph view controls">
+        <button type="button" aria-label="Zoom out" title="Zoom out" @click="changeZoom(0.8)">
+          <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24"><path d="M5 12h14" /></svg>
+        </button>
+        <button type="button" aria-label="Zoom in" title="Zoom in" @click="changeZoom(1.25)">
+          <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14" /></svg>
+        </button>
+        <button type="button" aria-label="Fit to view" title="Fit to view" @click="reset">
+          <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24"><path d="M4 4l5 5M5 9h4V5m11-1-5 5m0-4v4h4M4 20l5-5m-4 0h4v4m11 1-5-5m0 4v-4h4" /></svg>
+        </button>
+      </div>
     </div>
     <div class="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-light-muted dark:text-dark-muted" aria-label="Graph legend">
       <span>Solid arrow: subclass of</span><span>Dashed arrow: class property</span>
     </div>
-    <div class="mt-4 grid gap-4 md:grid-cols-2">
-      <div>
-        <label for="ontology-graph-class" class="block text-sm font-medium text-light-text dark:text-dark-text mb-1">Select a class</label>
-        <select id="ontology-graph-class" class="w-full rounded border border-light-border dark:border-dark-border bg-light-bg dark:bg-dark-bg p-2 text-light-text dark:text-dark-text"
-          :value="selectedClass || ''" @change="choose(($event.target as HTMLSelectElement).value)">
-          <option value="" disabled>Choose a class</option>
-          <option v-for="node in model.nodes" :key="node.id" :value="node.classId">{{ node.label }}</option>
-        </select>
-      </div>
+    <div class="mt-4">
       <div class="text-sm text-light-muted dark:text-dark-muted" aria-live="polite" aria-atomic="true">
         <p v-if="!selected">Choose a class to read its relationships.</p>
         <template v-else>
@@ -182,12 +195,18 @@ onBeforeUnmount(() => { if (svg.value) select(svg.value).on('.zoom', null) })
 </template>
 
 <style scoped>
-.graph-controls button { min-width: 2.75rem; min-height: 2.75rem; padding: 0.4rem 0.75rem; border: 1px solid rgb(var(--color-light-border)); border-radius: 0.375rem; color: rgb(var(--color-light-text)); }
-.dark .graph-controls button { border-color: rgb(var(--color-dark-border)); color: rgb(var(--color-dark-text)); }
-button:focus-visible, select:focus-visible, svg:focus-visible { outline: 3px solid rgb(var(--color-brand-link)); outline-offset: 3px; }
-.graph-canvas { overflow: hidden; }
-.graph-canvas svg { min-height: 260px; max-height: 620px; cursor: grab; touch-action: none; }
-.graph-canvas svg:active { cursor: grabbing; }
+.graph-controls { position: absolute; top: 0.5rem; right: 0.5rem; display: flex; flex-direction: column; gap: 0.25rem; }
+.graph-controls button, .graph-help-button { display: inline-flex; align-items: center; justify-content: center; width: 2.75rem; height: 2.75rem; padding: 0; background: rgb(var(--color-light-surface)); border: 1px solid rgb(var(--color-light-border)); border-radius: 0.375rem; color: rgb(var(--color-light-text)); }
+.graph-controls button svg, .graph-help-button svg { width: 1.25rem; height: 1.25rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.graph-controls button:hover, .graph-help-button:hover { border-color: rgb(var(--color-brand-link)); }
+.dark .graph-controls button, .dark .graph-help-button { background: rgb(var(--color-dark-surface)); border-color: rgb(var(--color-dark-border)); color: rgb(var(--color-dark-text)); }
+.graph-help { flex-shrink: 0; }
+.graph-help-content { position: absolute; top: calc(100% + 0.5rem); right: 0; z-index: 10; width: min(22rem, 100%); padding: 1rem; background: rgb(var(--color-light-surface)); border: 1px solid rgb(var(--color-light-border)); border-radius: 0.5rem; box-shadow: 0 4px 12px rgb(0 0 0 / 0.15); }
+.dark .graph-help-content { background: rgb(var(--color-dark-surface)); border-color: rgb(var(--color-dark-border)); }
+button:focus-visible, svg:focus-visible { outline: 3px solid rgb(var(--color-brand-link)); outline-offset: 3px; }
+.graph-canvas { position: relative; overflow: hidden; padding-right: 3.75rem; }
+.graph-canvas > svg { min-height: 260px; max-height: 620px; cursor: grab; touch-action: none; }
+.graph-canvas > svg:active { cursor: grabbing; }
 .graph-link { color: rgb(var(--color-light-muted)); }
 .graph-link line { stroke: currentColor; stroke-width: 1.4; }
 .graph-link:not(.is-inheritance) line { stroke-dasharray: 5 5; }

@@ -1,23 +1,28 @@
 {
-  "@context": "https://www.ammitto.org/ontology/context.jsonld",
+  "@context": "https://ammitto.org/api/v1/context.jsonld",
   "@id": "https://www.ammitto.org/entity/example/vessel",
   "@type": "VesselEntity",
   "entityType": "vessel",
   "names": [
     {
-      "@type": "Name",
+      "@type": "NameVariant",
       "fullName": "EXAMPLE VESSEL",
       "isPrimary": true
     }
   ],
-  "imo": "1234567",
-  "mmsi": "123456789",
-  "flag": "Example Flag State",
-  "tonnage": 50000,
-  "callSign": "ABCD1",
+  "sourceReferences": [],
+  "linkedEntities": [],
   "hasSanctionEntry": [
-    {
-      "@id": "https://www.ammitto.org/entry/example/vessel"
-    }
-  ]
+    "https://www.ammitto.org/entry/example/vessel"
+  ],
+  "imoNumber": "1234567",
+  "mmsi": "123456789",
+  "callSign": "ABCD1",
+  "flagState": "Example Flag State",
+  "tonnage": {
+    "@type": "Tonnage",
+    "grossTonnage": 50000
+  },
+  "previousNames": [],
+  "previousFlags": []
 }

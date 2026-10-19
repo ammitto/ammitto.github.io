@@ -56,14 +56,14 @@ const browseOptions = [
   },
   {
     title: 'Sanctions',
-    description: 'Browse sanction entries and measures.',
+    description: 'Compare published entity and listing totals by source.',
     icon: '📋',
     link: '/browse/sanctions',
     color: '#10b981',
   },
   {
     title: 'Actions',
-    description: 'Browse enforcement actions and updates.',
+    description: 'See action-history availability and links to current published data.',
     icon: '⚡',
     link: '/browse/actions',
     color: '#8b5cf6',

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatCivilDate } from '@/utils/civilDate.js'
 import { ref, computed, watch, onUnmounted } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
 import Badge from '@/components/atoms/Badge.vue'
@@ -6,10 +7,11 @@ import EntityCard from '@/components/molecules/EntityCard.vue'
 import SourceDocuments from '@/components/molecules/SourceDocuments.vue'
 import { sources } from '@/config'
 import { getLanguageName } from '@/utils/language'
-import { normalizeNode } from '@/utils/normalizeNode'
+import { normalizeNode, toNodeIri } from '@/utils/normalizeNode'
 import { nodeDocumentPath, nodeDocumentLabel } from '@/utils/nodeDocuments'
 import { createLatestLoadGuard } from '@/utils/latestLoad'
 import { primaryNameOf } from '@/utils/entityNames'
+import { mapWithPool } from '@/utils/entryFetchPool'
 
 const route = useRoute()
 
@@ -57,6 +59,9 @@ const entries = ref<Entry[]>([])
 const entities = ref<Map<string, Entity>>(new Map())
 const loading = ref(true)
 const error = ref<string | null>(null)
+const relationshipsLoading = ref(false)
+const entryFailures = ref(0)
+const entityFailures = ref(0)
 const loadGuard = createLatestLoadGuard()
 onUnmounted(loadGuard.invalidate)
 
@@ -82,7 +87,7 @@ const getAnnouncementRef = (announcementId: string): string => {
 
 // Get primary name from entity
 const getPrimaryName = (entity?: Entity): string =>
-  primaryNameOf(entity?.names) ?? 'Unknown'
+  primaryNameOf(entity?.names) ?? 'Identity unavailable'
 
 // Get aliases (non-primary names)
 const getAliases = (entity?: Entity): string[] => {
@@ -103,22 +108,14 @@ const adaptEntityForCard = (entry: Entry) => {
     id: entry.entity_id,
     ref: entityRef,
     names: [getPrimaryName(entity), ...getAliases(entity)],
-    entityType: entity?.entity_type || 'organization',
+    entityType: entity?.entity_type || 'unknown',
     source: source,
-    status: entry.status || 'active',
+    status: entry.status || 'unknown',
   }
 }
 
 // Format date for display
-const formatDate = (dateStr?: string): string => {
-  if (!dateStr) return ''
-  try {
-    const date = new Date(dateStr)
-    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
-  } catch {
-    return dateStr
-  }
-}
+const formatDate = (dateStr?: string): string => formatCivilDate(dateStr)
 
 // Get language from first entry's announcement
 const announcementLanguage = computed(() => {
@@ -128,73 +125,64 @@ const announcementLanguage = computed(() => {
   return null
 })
 
-watch(groupId, async (id) => {
+const loadGroup = async (id: string) => {
   const isCurrent = loadGuard.begin()
   group.value = null
   entries.value = []
   entities.value = new Map()
   loading.value = true
+  relationshipsLoading.value = false
+  entryFailures.value = 0
+  entityFailures.value = 0
   error.value = null
   const [source, docId] = id.split('/')
-
   try {
-    const documentId = source && docId ? `${source}/${docId}` : ''
-    const groupHref = nodeDocumentPath(
-      'group',
-      documentId,
-      import.meta.env.BASE_URL || '/',
-    )
-    if (!groupHref) {
-      error.value = 'Group not found'
-      return
-    }
-
-    // Load the group
-    const groupResponse = await fetch(groupHref)
+    const href = nodeDocumentPath('group', source && docId ? `${source}/${docId}` : '', import.meta.env.BASE_URL || '/')
+    if (!href) throw new Error('Group not found')
+    const response = await fetch(href)
     if (!isCurrent()) return
-    if (groupResponse.ok) {
-      const groupData = await groupResponse.json()
-      if (!isCurrent()) return
-      group.value = groupData
-
-      // Load all entries and their entities in the group
-      if (groupData?.entry_ids) {
-        for (const entryId of groupData.entry_ids) {
-          const entryPath = entryId.replace('https://www.ammitto.org/', 'api/v1/node/')
-          const entryResponse = await fetch(`${import.meta.env.BASE_URL || '/'}${entryPath}.jsonld`)
-          if (!isCurrent()) return
-          if (entryResponse.ok) {
-            // Entry and entity nodes arrive in the producer's JSON-LD vocabulary
-            const entryData = normalizeNode<Entry>(await entryResponse.json())
-            if (!isCurrent()) return
-            if (!entryData) continue
-            entries.value.push(entryData)
-
-            // Load the entity for this entry
-            if (entryData.entity_id) {
-              const entityPath = entryData.entity_id.replace('https://www.ammitto.org/', 'api/v1/node/')
-              const entityResponse = await fetch(`${import.meta.env.BASE_URL || '/'}${entityPath}.jsonld`)
-              if (!isCurrent()) return
-              if (entityResponse.ok) {
-                const entityData = normalizeNode<Entity>(await entityResponse.json())
-                if (!isCurrent()) return
-                if (entityData) entities.value.set(entryData.entity_id, entityData)
-              }
-            }
-          }
-        }
-      }
-    } else {
-      error.value = 'Group not found'
-    }
+    if (!response.ok) throw new Error('Group unavailable. Try again.')
+    const data: Group = await response.json()
+    if (!isCurrent()) return
+    group.value = data
+    loading.value = false
+    relationshipsLoading.value = true
+    const references = Array.isArray(data.entry_ids) ? data.entry_ids : []
+    const loaded = await mapWithPool(references, async raw => {
+      if (!isCurrent()) return null
+      const iri = toNodeIri(raw, 'entry')
+      if (!iri) return null
+      try {
+        const response = await fetch(`${import.meta.env.BASE_URL || '/'}api/v1/node/${iri.replace('https://www.ammitto.org/', '')}.jsonld`)
+        if (!response.ok || !isCurrent()) return null
+        return normalizeNode<Entry>(await response.json())
+      } catch { return null }
+    })
+    if (!isCurrent()) return
+    entries.value = loaded
+    entryFailures.value = references.length - loaded.length
+    const entityIds = [...new Set(loaded.map(entry => entry.entity_id))]
+    const identities = await mapWithPool(entityIds, async id => {
+      if (!isCurrent()) return null
+      const iri = toNodeIri(id, 'entity')
+      if (!iri) return null
+      try {
+        const response = await fetch(`${import.meta.env.BASE_URL || '/'}api/v1/node/${iri.replace('https://www.ammitto.org/', '')}.jsonld`)
+        if (!response.ok || !isCurrent()) return null
+        const entity = normalizeNode<Entity>(await response.json())
+        return entity ? [id, entity] as const : null
+      } catch { return null }
+    })
+    if (!isCurrent()) return
+    entities.value = new Map(identities)
+    entityFailures.value = entityIds.length - identities.length
   } catch (e) {
-    if (isCurrent()) {
-      error.value = e instanceof Error ? e.message : 'Failed to load'
-    }
+    if (isCurrent()) error.value = e instanceof Error ? e.message : 'Group unavailable. Try again.'
   } finally {
-    if (isCurrent()) loading.value = false
+    if (isCurrent()) { loading.value = false; relationshipsLoading.value = false }
   }
-}, { immediate: true })
+}
+watch(groupId, loadGroup, { immediate: true })
 
 // The node the route watcher fetches, offered to the reader. Split the route id the
 // same way the fetch splits it, so a third segment is discarded here exactly
@@ -230,9 +218,10 @@ const documents = computed(() => {
         <p class="mt-4 text-light-muted dark:text-dark-muted">Loading group...</p>
       </div>
 
-      <div v-else-if="error" class="glass-card p-8 text-center">
+      <div v-else-if="error" role="alert" class="glass-card p-8 text-center">
         <h3 class="font-semibold text-lg mb-2">Error</h3>
         <p class="text-light-muted dark:text-dark-muted">{{ error }}</p>
+        <button type="button" class="mt-4 text-brand-link underline" @click="loadGroup(groupId)">Retry group</button>
       </div>
 
       <article v-else-if="group" class="space-y-6">
@@ -275,6 +264,13 @@ const documents = computed(() => {
               </dd>
             </div>
           </dl>
+        </div>
+
+        <div role="status" class="text-sm text-light-muted dark:text-dark-muted">
+          <p v-if="relationshipsLoading">Loading listing records and identities…</p>
+          <p v-else-if="entryFailures || entityFailures">This list is incomplete: {{ entryFailures }} listing {{ entryFailures === 1 ? 'record' : 'records' }} and {{ entityFailures }} {{ entityFailures === 1 ? 'identity' : 'identities' }} could not be loaded.</p>
+          <p v-else-if="entries.length === 0">This group contains no listing records.</p>
+          <button v-if="!relationshipsLoading && (entryFailures || entityFailures)" type="button" class="mt-2 text-brand-link underline" @click="loadGroup(groupId)">Retry related records</button>
         </div>
 
         <!-- Entities Grid -->

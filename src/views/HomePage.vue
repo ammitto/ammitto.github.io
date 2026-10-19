@@ -8,7 +8,6 @@ import { useScrollAnimation } from '@/composables/useScrollAnimation'
 
 useScrollAnimation()
 
-const searchQuery = ref('')
 const entityCount = ref(0)
 const sourceCount = ref(0)
 
@@ -64,7 +63,7 @@ const features = [
   },
   {
     title: 'Free API',
-    description: 'Free API access for developers with no rate limits for reasonable usage.',
+    description: 'Free API access for developers. Cache snapshots and use downloads for repeated or high-volume queries.',
     icon: '🚀',
   },
   {
@@ -77,7 +76,7 @@ const features = [
 
 <template>
   <div>
-    <HeroSection v-model:search-query="searchQuery" />
+    <HeroSection />
 
     <section class="py-16 bg-light-surface/50 dark:bg-dark-surface/50">
       <div class="container-wide">
@@ -154,7 +153,7 @@ const features = [
           </h2>
           <p class="text-light-muted dark:text-dark-muted mb-8">
             Access our API or
-            <RouterLink to="/download" class="text-brand-link hover:underline">download the data directly</RouterLink>.
+            <RouterLink to="/download" class="text-brand-link underline underline-offset-4">download the data directly</RouterLink>.
             No API key required.
           </p>
           <div class="flex flex-wrap justify-center gap-4">

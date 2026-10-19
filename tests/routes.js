@@ -33,7 +33,7 @@ export const STATIC_ROUTES = [
   { path: '/browse/groups', contains: 'Groups' },
   { path: '/browse/announcements', contains: 'Announcements' },
   { path: '/browse/document-types', contains: 'Document' },
-  { path: '/browse/organizations', contains: 'Organizations' },
+  { path: '/browse/organizations', contains: 'Issuing bodies' },
   { path: '/ontology', contains: 'Ontology' },
   { path: '/license', contains: 'License' },
 ]
@@ -127,10 +127,10 @@ export const NARROW_VIEWPORTS = [
 /** The pages whose colours this remediation owns, for the rendered-DOM scan. */
 export const CONTRAST_SCAN_ROUTES = [
   { path: '/', requires: '.tone-pill' },
-  { path: '/search', requires: '.tone-pill' },
+  { path: '/search', requires: '[data-entity-ref]' },
   // Needs the per-source aggregate, which the committed snapshot does not
   // ship (see serveSourceGraphs in tests/e2e/helpers.js).
-  { path: '/browse/entities', requires: '.tone-pill', needsSourceGraph: true },
+  { path: '/browse/entities', requires: '[data-entity-ref]', needsSourceGraph: true },
   { path: '/browse', requires: '.tone-tile' },
   { path: '/browse/sanctions', requires: '.tone-tile' },
   { path: '/sources', requires: '.tone-tile' },
@@ -149,5 +149,5 @@ export const CONTRAST_SCAN_ROUTES = [
   { path: '/browse/groups', requires: '.tone-tile' },
   { path: '/browse/announcements', requires: '.tone-tile' },
   { path: '/about', requires: 'main' },
-  { path: '/entity/cn/1-general-dynamics', requires: '.tone-pill' },
+  { path: '/entity/cn/1-general-dynamics', requires: '.record-name' },
 ]

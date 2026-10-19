@@ -6,6 +6,7 @@ import {
   gotoRendered,
   renderedText,
   useTheme,
+  serveSourceGraphs,
 } from './helpers.js'
 
 /**
@@ -36,11 +37,14 @@ for (const theme of ['light', 'dark']) {
     for (const route of ALL_ROUTES) {
       test(`${route.path} does not scroll horizontally at ${viewport.name}px (${theme})`, async ({
         page,
+        request,
       }) => {
         const errors = collectPageErrors(page)
         await page.setViewportSize({ width: viewport.width, height: viewport.height })
         await useTheme(page, theme)
+        if (route.path === '/browse/entities') await serveSourceGraphs(page, request)
         await gotoRendered(page, route.path)
+        if (route.path === '/browse/entities') await expect(page.locator('[data-entity-ref]').first()).toBeVisible()
 
         // The route must actually have rendered its content. A page that
         // silently fell back to an empty or error state has nothing to

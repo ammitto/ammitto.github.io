@@ -53,8 +53,8 @@ onMounted(() => {
           exact disagreement this change exists to remove.
         -->
         Ammitto aggregates sanctions data from<span v-if="publishedSourceCount">&nbsp;{{ publishedSourceCount }}</span>
-        official international sources.
-        <span v-if="asOf">Data as of {{ asOf }}.</span>
+        official international {{ publishedSourceCount === 1 ? 'source' : 'sources' }}.
+        <span v-if="asOf">Dataset built {{ asOf }}.</span>
       </p>
 
       <div class="mb-8 p-4 glass-card">
@@ -68,10 +68,10 @@ onMounted(() => {
               and /search both said "14".
             -->
             <div class="text-2xl font-bold text-brand-link">
-              {{ publishedSourceCount || '—' }}
+              {{ stats ? publishedSourceCount : '—' }}
             </div>
             <div class="text-sm text-light-muted dark:text-dark-muted">
-              Data Sources
+              Publishing sources
             </div>
           </div>
           <div>
@@ -108,10 +108,16 @@ onMounted(() => {
         allowed to read as a miscount: a source with no published entities is
         marked as such on its own card.
       -->
-      <div class="grid md:grid-cols-2 gap-6">
+      <div class="mb-5 flex flex-wrap items-baseline justify-between gap-3">
+        <h2 class="text-2xl font-semibold text-light-text dark:text-dark-text">Source catalogue</h2>
+        <RouterLink to="/download" class="text-sm text-brand-link underline underline-offset-4">Download published data</RouterLink>
+      </div>
+      <p class="mb-6 max-w-3xl text-sm text-light-muted dark:text-dark-muted">The catalogue also retains sources whose data is not yet published. Each source is labelled with its current availability.</p>
+      <div class="grid md:grid-cols-2 gap-5">
         <SourceCard
           v-for="source in sources"
           :key="source.code"
+          :source-code="source.code"
           :pending="!!stats && !stats.sources?.[source.code]"
           :counts-known="!!stats"
           :name="source.name"

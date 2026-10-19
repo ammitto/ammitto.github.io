@@ -1,31 +1,38 @@
 {
-  "@context": "https://www.ammitto.org/ontology/context.jsonld",
+  "@context": "https://ammitto.org/api/v1/context.jsonld",
   "@id": "https://www.ammitto.org/entity/example/person",
   "@type": "PersonEntity",
   "entityType": "person",
   "names": [
     {
-      "@type": "Name",
+      "@type": "NameVariant",
       "fullName": "DOE, John",
       "isPrimary": true
     }
+  ],
+  "sourceReferences": [],
+  "linkedEntities": [],
+  "hasSanctionEntry": [
+    "https://www.ammitto.org/entry/example/person"
   ],
   "birthInfo": [
     {
       "@type": "BirthInfo",
       "date": "1970-01-15",
-      "countryCode": "XX"
+      "circa": false,
+      "country": "Example Country",
+      "countryIsoCode": "XX"
     }
   ],
   "nationalities": [
+    "Example Country"
+  ],
+  "identifications": [
     {
-      "@type": "Nationality",
-      "countryCode": "XX"
+      "@type": "Identification",
+      "type": "passport",
+      "number": "EXAMPLE123"
     }
   ],
-  "hasSanctionEntry": [
-    {
-      "@id": "https://www.ammitto.org/entry/example/person"
-    }
-  ]
+  "addresses": []
 }

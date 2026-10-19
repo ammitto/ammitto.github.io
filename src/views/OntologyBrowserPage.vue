@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, defineAsyncComponent } from 'vue'
+import { ref, computed, watch, onBeforeUnmount, nextTick, defineAsyncComponent } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useOntologyData, type HierarchyNode } from '@/composables/useOntologyData'
 import CodeBlock from '@/components/molecules/CodeBlock.vue'
 import { entityTypes } from '@/config'
 import { inkToneVars, NEUTRAL_SEED } from '@/config/palette'
 
 const {
-  isLoading,
   isLoaded,
+  error,
+  loadOntology,
   hierarchy,
   classes,
   properties,
@@ -23,13 +25,53 @@ const OntologyGraph = defineAsyncComponent(() => import('@/components/organisms/
 
 const graphClasses = computed(() => Array.from(classes.value.values()))
 
-// Selected item for detail view
-const selectedClass = ref<string | null>(null)
-const selectedProperty = ref<string | null>(null)
+type OntologyTab = 'classes' | 'properties' | 'examples'
+type ExampleType = 'person' | 'organization' | 'vessel'
+const route = useRoute()
+const router = useRouter()
+const tabs: OntologyTab[] = ['classes', 'properties', 'examples']
+const exampleTypes: ExampleType[] = ['person', 'organization', 'vessel']
+const queryString = (key: string) => typeof route.query[key] === 'string' ? route.query[key] as string : ''
+function updateQuery(values: Record<string, string | undefined>, replace = false) {
+  const location = { query: { ...route.query, ...values }, hash: route.hash }
+  void (replace ? router.replace(location) : router.push(location))
+}
+const selectedClass = computed(() => queryString('class') || 'Entity')
 const expandedNodes = ref<Set<string>>(new Set(['Entity']))
-const activeTab = ref<'classes' | 'properties' | 'examples'>('classes')
+const activeTab = computed<OntologyTab>(() => tabs.find(tab => tab === queryString('tab')) || 'classes')
+const propertySearch = computed({
+  get: () => queryString('property-search'),
+  set: (value: string) => updateQuery({ 'property-search': value || undefined }, true),
+})
+const filteredProperties = computed(() => {
+  const query = propertySearch.value.trim().toLocaleLowerCase()
+  return [...properties.value].filter(([id, prop]) =>
+    [id, prop.label, prop.comment, prop.domain, prop.range].some(value => value?.toLocaleLowerCase().includes(query)),
+  )
+})
 const exampleData = ref<Record<string, unknown> | null>(null)
-const exampleType = ref<'person' | 'organization' | 'vessel'>('person')
+const exampleType = computed<ExampleType>(() => exampleTypes.find(type => type === queryString('example')) || 'person')
+const exampleLoading = ref(false)
+const exampleError = ref(false)
+let exampleRequest = 0
+
+function selectTab(tab: OntologyTab) {
+  updateQuery({ tab: tab === 'classes' ? undefined : tab })
+}
+
+async function moveTab(event: KeyboardEvent, tab: OntologyTab) {
+  const index = tabs.indexOf(tab)
+  let next: OntologyTab | undefined
+  if (event.key === 'ArrowRight') next = tabs[(index + 1) % tabs.length]
+  if (event.key === 'ArrowLeft') next = tabs[(index + tabs.length - 1) % tabs.length]
+  if (event.key === 'Home') next = tabs[0]
+  if (event.key === 'End') next = tabs[tabs.length - 1]
+  if (!next) return
+  event.preventDefault()
+  await router.push({ query: { ...route.query, tab: next === 'classes' ? undefined : next }, hash: route.hash })
+  await nextTick()
+  document.getElementById(`ontology-tab-${next}`)?.focus()
+}
 
 // Get selected class details
 const selectedClassDetails = computed(() => {
@@ -59,18 +101,37 @@ function toggleNode(nodeName: string) {
 }
 
 // Select a class
-function selectClass(classId: string) {
-  selectedClass.value = classId
-  selectedProperty.value = null
-  activeTab.value = 'classes'
+async function selectClass(classId: string) {
+  await router.push({ query: { ...route.query, class: classId, tab: undefined }, hash: route.hash })
+  await nextTick()
+  if (window.matchMedia('(max-width: 1023px)').matches) {
+    const panel = document.getElementById('ontology-panel-classes')
+    panel?.scrollIntoView({ block: 'start' })
+    panel?.focus({ preventScroll: true })
+  }
 }
 
-// Load example
-async function loadExampleData(type: 'person' | 'organization' | 'vessel') {
-  exampleType.value = type
-  exampleData.value = await loadExample(type)
-  activeTab.value = 'examples'
+function selectExample(type: ExampleType) {
+  updateQuery({ example: type, tab: 'examples' })
 }
+
+async function loadExampleData() {
+  const request = ++exampleRequest
+  exampleLoading.value = true
+  exampleError.value = false
+  exampleData.value = null
+  const data = await loadExample(exampleType.value)
+  if (request !== exampleRequest) return
+  exampleData.value = data
+  exampleError.value = data === null
+  exampleLoading.value = false
+}
+
+watch([isLoaded, activeTab, exampleType], ([loaded, tab]) => {
+  ++exampleRequest
+  if (loaded && tab === 'examples') void loadExampleData()
+}, { immediate: true })
+onBeforeUnmount(() => { ++exampleRequest })
 
 // Format JSON for display
 function formatJson(data: Record<string, unknown> | null): string {
@@ -112,45 +173,39 @@ function isExpanded(nodeName: string): boolean {
   return expandedNodes.value.has(nodeName)
 }
 
-// Load example on mount if needed
-onMounted(async () => {
-  if (isLoaded.value) {
-    exampleData.value = await loadExample('person')
-  }
-})
 </script>
 
 <template>
   <div class="ontology-browser min-h-screen bg-light-bg dark:bg-dark-bg">
-    <!-- Header -->
-    <header class="bg-light-surface dark:bg-dark-surface shadow-sm">
-      <div class="max-w-7xl mx-auto px-4 py-6">
+    <div class="container-wide py-8">
+      <div class="mb-8">
         <h1 class="text-3xl font-bold text-light-text dark:text-dark-text">
           Ontology Browser
         </h1>
-        <p class="mt-2 text-light-muted dark:text-dark-muted">
-          Explore the Ammitto knowledge graph schema - classes, properties, and relationships
+        <p class="mt-2 max-w-3xl text-light-muted dark:text-dark-muted">
+          Explore the classes, properties, and relationships in the Ammitto data model.
         </p>
       </div>
-    </header>
 
     <!-- Loading state -->
-    <div v-if="isLoading" class="flex justify-center items-center py-20">
-      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+    <!-- The server defers this request; only a recorded failure is an error. -->
+    <div v-if="!isLoaded && !error" role="status" class="flex justify-center items-center gap-3 py-20">
+      <div aria-hidden="true" class="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-primary"></div>
+      <span>Loading ontology…</span>
     </div>
 
     <!-- Main content -->
-    <div v-else-if="isLoaded" class="max-w-7xl mx-auto px-4 py-8">
+    <div v-else-if="isLoaded">
       <OntologyGraph
         :classes="graphClasses"
         :properties="graphProperties"
         :selected-class="selectedClass"
         @select="selectClass"
       />
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
 
         <!-- Left panel: Class Hierarchy -->
-        <div class="lg:col-span-1">
+        <div class="min-w-0 lg:col-span-1">
           <div class="bg-light-surface dark:bg-dark-surface rounded-lg shadow-sm p-4">
             <h2 class="text-lg font-semibold text-light-text dark:text-dark-text mb-4">
               Class Hierarchy
@@ -270,13 +325,15 @@ onMounted(async () => {
         </div>
 
         <!-- Right panel: Details -->
-        <div class="lg:col-span-2">
+        <div class="min-w-0 lg:col-span-2">
           <div class="bg-light-surface dark:bg-dark-surface rounded-lg shadow-sm">
             <!-- Tabs -->
             <div class="border-b border-light-border dark:border-dark-border">
-              <nav class="flex -mb-px">
+              <nav class="flex -mb-px" role="tablist" aria-label="Ontology reference">
                 <button
-                  @click="activeTab = 'classes'"
+                  id="ontology-tab-classes" type="button" role="tab" aria-controls="ontology-panel-classes"
+                  :aria-selected="activeTab === 'classes'" :tabindex="activeTab === 'classes' ? 0 : -1"
+                  @click="selectTab('classes')" @keydown="moveTab($event, 'classes')"
                   :class="[
                     activeTab === 'classes'
                       ? 'border-blue-500 text-blue-600 dark:text-blue-400'
@@ -287,7 +344,9 @@ onMounted(async () => {
                   Classes
                 </button>
                 <button
-                  @click="activeTab = 'properties'"
+                  id="ontology-tab-properties" type="button" role="tab" aria-controls="ontology-panel-properties"
+                  :aria-selected="activeTab === 'properties'" :tabindex="activeTab === 'properties' ? 0 : -1"
+                  @click="selectTab('properties')" @keydown="moveTab($event, 'properties')"
                   :class="[
                     activeTab === 'properties'
                       ? 'border-blue-500 text-blue-600 dark:text-blue-400'
@@ -298,7 +357,9 @@ onMounted(async () => {
                   Properties
                 </button>
                 <button
-                  @click="activeTab = 'examples'"
+                  id="ontology-tab-examples" type="button" role="tab" aria-controls="ontology-panel-examples"
+                  :aria-selected="activeTab === 'examples'" :tabindex="activeTab === 'examples' ? 0 : -1"
+                  @click="selectTab('examples')" @keydown="moveTab($event, 'examples')"
                   :class="[
                     activeTab === 'examples'
                       ? 'border-blue-500 text-blue-600 dark:text-blue-400'
@@ -312,7 +373,8 @@ onMounted(async () => {
             </div>
 
             <!-- Class details -->
-            <div v-if="activeTab === 'classes' && selectedClassDetails" class="p-6">
+            <div v-show="activeTab === 'classes'" id="ontology-panel-classes" role="tabpanel" aria-labelledby="ontology-tab-classes" tabindex="0" class="p-4 sm:p-6">
+              <template v-if="selectedClassDetails">
               <h3 class="text-xl font-bold text-light-text dark:text-dark-text mb-4">
                 {{ selectedClassDetails.label }}
               </h3>
@@ -371,46 +433,51 @@ onMounted(async () => {
                   </button>
                 </div>
               </div>
+              </template>
+              <p v-else class="text-light-muted dark:text-dark-muted">Select a class from the hierarchy to view its definition and properties.</p>
             </div>
 
             <!-- Properties list -->
-            <div v-else-if="activeTab === 'properties'" class="p-6">
+            <div v-show="activeTab === 'properties'" id="ontology-panel-properties" role="tabpanel" aria-labelledby="ontology-tab-properties" tabindex="0" class="p-4 sm:p-6">
               <div class="mb-4">
+                <label for="ontology-property-search" class="block mb-2 font-medium text-light-text dark:text-dark-text">Search properties</label>
                 <input
-                  type="text"
-                  placeholder="Search properties..."
+                  id="ontology-property-search" v-model="propertySearch" type="search"
+                  placeholder="Name, description, domain, or range"
                   class="w-full px-4 py-2 border border-light-border dark:border-dark-border rounded-lg bg-light-surface dark:bg-dark-surface text-light-text dark:text-dark-text"
                 />
+                <p role="status" class="mt-2 text-sm text-light-muted dark:text-dark-muted">{{ filteredProperties.length }} of {{ properties.size }} properties</p>
               </div>
+              <p v-if="filteredProperties.length === 0" class="py-6 text-light-muted dark:text-dark-muted">No properties match “{{ propertySearch }}”. Try a different name or clear the search.</p>
               <div class="space-y-3">
-                <div
-                  v-for="[id, prop] in properties"
+                <article
+                  v-for="[id, prop] in filteredProperties"
                   :key="id"
-                  class="p-4 border border-light-border dark:border-dark-border rounded-lg hover:border-blue-300 dark:hover:border-blue-600 cursor-pointer"
-                  @click="selectedProperty = id"
+                  class="p-4 border border-light-border dark:border-dark-border rounded-lg break-words"
                 >
-                  <div class="flex items-center justify-between">
-                    <span class="font-medium text-light-text dark:text-dark-text">{{ prop.label }}</span>
-                    <span class="text-xs text-light-muted dark:text-dark-muted">{{ id }}</span>
+                  <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                    <h3 class="font-semibold text-light-text dark:text-dark-text">{{ prop.label }}</h3>
+                    <code class="text-xs text-light-muted dark:text-dark-muted">{{ id }}</code>
                   </div>
                   <p class="text-sm text-light-muted dark:text-dark-muted mt-1">{{ prop.comment }}</p>
-                  <div class="flex gap-4 mt-2 text-xs">
+                  <div class="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-sm">
                     <span v-if="prop.domain" class="text-light-muted dark:text-dark-muted">
-                      Domain: <span class="text-blue-600 dark:text-blue-400">{{ prop.domain.split('/').pop() }}</span>
+                      Domain: <span class="font-medium text-light-text dark:text-dark-text">{{ prop.domain.split('/').pop() }}</span>
                     </span>
                     <span v-if="prop.range" class="text-light-muted dark:text-dark-muted">
-                      Range: <span class="text-green-600 dark:text-green-400">{{ prop.range.split('#').pop() || prop.range.split('/').pop() }}</span>
+                      Range: <span class="font-medium text-light-text dark:text-dark-text">{{ prop.range.split(/[\/#]/).pop() }}</span>
                     </span>
                   </div>
-                </div>
+                </article>
               </div>
             </div>
 
             <!-- Examples -->
-            <div v-else-if="activeTab === 'examples'" class="p-6">
-              <div class="mb-4 flex gap-2">
+            <div v-show="activeTab === 'examples'" id="ontology-panel-examples" role="tabpanel" aria-labelledby="ontology-tab-examples" tabindex="0" class="p-4 sm:p-6">
+              <p class="mb-4 text-light-muted dark:text-dark-muted">Example JSON-LD records for the selected entity type.</p>
+              <div class="mb-4 flex flex-wrap gap-2" role="group" aria-label="Example entity type">
                 <button
-                  @click="loadExampleData('person')"
+                  type="button" :aria-pressed="exampleType === 'person'" @click="selectExample('person')"
                   :class="[
                     exampleType === 'person'
                       ? 'bg-blue-600 text-white'
@@ -421,7 +488,7 @@ onMounted(async () => {
                   Person
                 </button>
                 <button
-                  @click="loadExampleData('organization')"
+                  type="button" :aria-pressed="exampleType === 'organization'" @click="selectExample('organization')"
                   :class="[
                     exampleType === 'organization'
                       ? 'bg-blue-600 text-white'
@@ -432,7 +499,7 @@ onMounted(async () => {
                   Organization
                 </button>
                 <button
-                  @click="loadExampleData('vessel')"
+                  type="button" :aria-pressed="exampleType === 'vessel'" @click="selectExample('vessel')"
                   :class="[
                     exampleType === 'vessel'
                       ? 'bg-blue-600 text-white'
@@ -444,27 +511,30 @@ onMounted(async () => {
                 </button>
               </div>
 
-              <div v-if="exampleData">
+              <p v-if="exampleLoading" role="status" class="py-6 text-light-muted dark:text-dark-muted">Loading {{ exampleType }} example…</p>
+              <div v-else-if="exampleError" role="alert" class="py-4">
+                <p class="mb-3">The {{ exampleType }} example could not be loaded.</p>
+                <button type="button" class="btn-secondary" @click="loadExampleData">Retry example</button>
+              </div>
+              <div v-else-if="exampleData">
                 <CodeBlock
                   :code="formatJson(exampleData)"
                   language="json"
-                  title="Example JSON-LD Entity"
+                  :title="`${exampleType[0]?.toUpperCase()}${exampleType.slice(1)} JSON-LD example`"
                 />
               </div>
             </div>
 
-            <!-- No selection -->
-            <div v-else class="p-6 text-center text-light-muted dark:text-dark-muted">
-              Select a class from the hierarchy to view details
-            </div>
           </div>
         </div>
       </div>
     </div>
 
     <!-- Error state -->
-    <div v-else class="max-w-7xl mx-auto px-4 py-8 text-center">
-      <p class="text-red-600 dark:text-red-400">Failed to load ontology data</p>
+    <div v-else-if="error" class="py-8 text-center">
+      <p role="alert" class="mb-4">Ontology data could not be loaded.</p>
+      <button type="button" class="btn-secondary" @click="loadOntology">Retry ontology</button>
+    </div>
     </div>
   </div>
 </template>
@@ -475,5 +545,9 @@ onMounted(async () => {
    child. */
 .hierarchy-row {
   transition: background-color 0.15s ease;
+}
+[role="tabpanel"] { scroll-margin-top: 1rem; }
+@media (prefers-reduced-motion: reduce) {
+  .hierarchy-row { transition: none; }
 }
 </style>

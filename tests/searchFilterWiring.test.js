@@ -114,7 +114,7 @@ test('the search page carries list types through URL, counts and filtering', () 
     'listTypes: [] as string[]',
     // The round trip: out of the URL on mount, back into it on change.
     'const { q, source, type, list, status } = route.query',
-    'filters.value.listTypes = queryList(list)',
+    'listTypes: queryList(list)',
     'query.list = filters.value.listTypes',
     // Into the filtering, and into the counts the pills render.
     'listTypes: filters.value.listTypes.length > 0 ? filters.value.listTypes : undefined',

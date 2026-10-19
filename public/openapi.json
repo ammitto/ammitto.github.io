@@ -286,7 +286,7 @@
             "content": {
               "application/ld+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Graph"
+                  "$ref": "#/components/schemas/OntologyGraph"
                 }
               }
             }
@@ -343,7 +343,7 @@
             "content": {
               "application/ld+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Node"
+                  "$ref": "#/components/schemas/Entity"
                 }
               }
             }
@@ -368,7 +368,7 @@
             }
           }
         ],
-        "description": "Illustrative ontology examples are curated separately from published entity nodes and may use legacy name types."
+        "description": "Illustrative entities are serialized and validated with the same canonical contracts as published entity nodes. IDs identify examples rather than real sanctions records."
       }
     },
     "/node/{kind}/index.jsonld": {
@@ -2149,6 +2149,66 @@
           },
           "notes": {
             "type": "string"
+          }
+        }
+      },
+      "OntologyContext": {
+        "enum": [
+          {
+            "@vocab": "https://www.ammitto.org/ontology/",
+            "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+            "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
+            "owl": "http://www.w3.org/2002/07/owl#",
+            "xsd": "http://www.w3.org/2001/XMLSchema#",
+            "label": "rdfs:label",
+            "comment": "rdfs:comment",
+            "subClassOf": {
+              "@id": "rdfs:subClassOf",
+              "@type": "@id"
+            },
+            "domain": {
+              "@id": "rdfs:domain",
+              "@type": "@id"
+            },
+            "range": {
+              "@id": "rdfs:range",
+              "@type": "@id"
+            },
+            "properties": {
+              "@id": "https://www.ammitto.org/ontology/properties",
+              "@type": "@id",
+              "@container": "@set"
+            },
+            "equivalentClass": {
+              "@id": "owl:equivalentClass",
+              "@type": "@id"
+            },
+            "equivalentProperty": {
+              "@id": "owl:equivalentProperty",
+              "@type": "@id"
+            },
+            "usages": {
+              "@id": "https://www.ammitto.org/ontology/usages",
+              "@type": "@json"
+            }
+          }
+        ]
+      },
+      "OntologyGraph": {
+        "type": "object",
+        "required": [
+          "@context",
+          "@graph"
+        ],
+        "properties": {
+          "@context": {
+            "$ref": "#/components/schemas/OntologyContext"
+          },
+          "@graph": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Node"
+            }
           }
         }
       }
