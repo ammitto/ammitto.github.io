@@ -176,7 +176,7 @@
     "eu_vessels": 518,
     "jp": 3567,
     "nz": 1478,
-    "ru": 1593,
+    "ru": 2228,
     "tr": 193,
     "uk": 4444,
     "un": 707,
@@ -189,16 +189,20 @@
     "ru": {
       "date": "2026-10-20",
       "status": "publishing",
-      "floor_status": "source-occurrence/quality-derived minimum, not a completed full-corpus entity-count calibration",
-      "source_floor": 1593,
+      "floor_status": "70 percent of measured RU unique entities; full corrected-build validation still required",
+      "source_floor": 2228,
       "scope": "RU publication only. Historical measured_entity_counts, pre_dedup_transform_counts, data_repo_commits, gem_commit and total_entities_floor above remain the recorded full-corpus baseline, not current measurements.",
       "change": "Processed source-backed announcement YAML is restored in data-ru; RU is no longer exempted with --allow-empty, and its aggregate is required by the publishing-source gate.",
       "verification": "Full combined harmonization, output validation and browser checks are required in build_deploy; no local full-corpus recalibration is claimed.",
       "input_named_occurrences": 3185,
       "minimum_unique_id_ratio": 0.5,
-      "derivation": "ceil(3185 source-backed named occurrences * 0.5 core minimum unique-ID ratio) = 1593. Data CI proves the 21 processed input files and exact rows; full GHA must still transform every file, validate outputs, and satisfy all source/quality/browser gates.",
-      "core_commit": "d803a52d6fad62743bb3d554f0d4d900ea7cd805",
-      "data_commit": "43185c847e139c342432ac3f98eafae34e61a9f9"
+      "derivation": "floor(3184 measured unique RU entities * 0.70) = 2228. Historical full-corpus calibration above is unchanged. The corrected full GHA build must pass every source, output and browser gate.",
+      "core_commit": "b785112d333974e946370572e66fa159e6ba6391",
+      "data_commit": "43185c847e139c342432ac3f98eafae34e61a9f9",
+      "measured_unique_entities": 3184,
+      "measured_named_entities": 3184,
+      "measurement_run": "https://github.com/ammitto/ammitto.github.io/actions/runs/39443198548/attempts/2",
+      "measurement_scope": "RU source metrics from a completed full harmonization: 3185 input occurrences, 3184 unique entities, all named, no RU parse/transform errors or exemptions. Overall build FAILED strict output validation for an unnamed regime; these counts are not a publication-success claim."
     }
   }
 }
