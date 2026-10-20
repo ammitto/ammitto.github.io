@@ -1,22 +1,10 @@
 import { test, expect } from '@playwright/test'
+import { readFileSync } from 'node:fs'
 import { collectPageErrors, gotoRendered, useTheme } from './helpers.js'
 
-const publishedSources = [
-  'au',
-  'ca',
-  'ch',
-  'cn',
-  'eu',
-  'eu_vessels',
-  'jp',
-  'nz',
-  'tr',
-  'uk',
-  'un',
-  'un_vessels',
-  'us',
-  'wb',
-]
+const { publishing_sources: publishedSources } = JSON.parse(
+  readFileSync(new URL('../../.github/harmonize-thresholds.json', import.meta.url), 'utf8'),
+)
 
 test('download page shows verified sizes and real download links', async ({ page }) => {
   const errors = collectPageErrors(page)
@@ -52,7 +40,7 @@ test('download page shows verified sizes and real download links', async ({ page
   await expect(page.getByText(/156\.4 MB.*156,423,069 bytes/).first()).toBeVisible()
   await expect(page.getByText(/116\.0 MB.*116,000,000 bytes/).first()).toBeVisible()
 
-  await expect(page.locator('a[download]')).toHaveCount(16)
+  await expect(page.locator('a[download]')).toHaveCount(publishedSources.length + 2)
   await expect(page.locator('a[download="all.jsonld"]')).toHaveAttribute(
     'href',
     '/api/v1/all.jsonld',
@@ -65,7 +53,10 @@ test('download page shows verified sizes and real download links', async ({ page
     'href',
     '/api/v1/sources/au.jsonld',
   )
-  await expect(page.locator('a[download="ru.jsonld"]')).toHaveCount(0)
+  await expect(page.locator('a[download="ru.jsonld"]')).toHaveAttribute(
+    'href',
+    '/api/v1/sources/ru.jsonld',
+  )
 
   await gotoRendered(page, '/')
   await expect(
@@ -83,7 +74,7 @@ test('source download sizes fall back to verified response headers when the cata
     return route.fulfill({ status: 200, headers: { 'Content-Type': 'application/ld+json', 'Content-Length': '123456' }, body: '' })
   })
   await gotoRendered(page, '/download')
-  await expect(page.locator('a[download]')).toHaveCount(16)
+  await expect(page.locator('a[download]')).toHaveCount(publishedSources.length + 2)
   await expect(page.locator('a[download="cn.jsonld"]')).toContainText('123,456 bytes')
   await expect(page.locator('a[download="cn.jsonld"]')).toContainText('verified from current file headers')
   expect(methods).toHaveLength(publishedSources.length)
@@ -103,7 +94,7 @@ test('unverifiable source response headers keep download links unavailable', asy
   await gotoRendered(page, '/download')
   await expect(page.locator('a[download="ch.jsonld"]')).toBeVisible()
   for (const code of ['cn', 'au', 'ca']) await expect(page.locator(`a[download="${code}.jsonld"]`)).toHaveCount(0)
-  await expect(page.locator('a[download]')).toHaveCount(13)
+  await expect(page.locator('a[download]')).toHaveCount(publishedSources.length - 3 + 2)
 })
 
 test('compressed HEAD responses use a one-byte range to verify the complete source size', async ({ page }) => {
@@ -117,7 +108,7 @@ test('compressed HEAD responses use a one-byte range to verify the complete sour
       'Content-Length': '1', 'Content-Range': 'bytes 0-0/987654' }, body: '{' })
   })
   await gotoRendered(page, '/download')
-  await expect(page.locator('a[download]')).toHaveCount(16)
+  await expect(page.locator('a[download]')).toHaveCount(publishedSources.length + 2)
   await expect(page.locator('a[download="cn.jsonld"]')).toContainText('987,654 bytes')
   expect(ranges).toHaveLength(publishedSources.length)
   expect(ranges.every(range => range === 'bytes=0-0')).toBe(true)

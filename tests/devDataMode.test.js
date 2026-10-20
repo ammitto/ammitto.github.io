@@ -88,9 +88,17 @@ test('no required or exempted path is stale', () => {
   }
 })
 
-test('a source the site does not fetch is not required', () => {
+test('every publishing aggregate, including RU, is required', () => {
   const files = requiredApiFiles(fetchableSources())
-  assert.ok(!files.includes('sources/ru.jsonld'))
+  assert.ok(files.includes('sources/ru.jsonld'))
+  for (const source of fetchableSources()) {
+    assert.ok(files.includes(`sources/${source}.jsonld`))
+  }
+})
+
+test('a source the site does not fetch is not required', () => {
+  const files = requiredApiFiles(fetchableSources(['au', 'held'], ['held']))
+  assert.ok(!files.includes('sources/held.jsonld'))
   assert.ok(files.includes('sources/au.jsonld'))
 })
 

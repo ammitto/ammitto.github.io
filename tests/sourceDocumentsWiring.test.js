@@ -113,8 +113,8 @@ test('the link and the fetch both come from that helper', () => {
 })
 
 test('the source aggregate is offered only where one is published', () => {
-  // `sources/ru.jsonld` is a 404 and `ru` is in SOURCES_WITHOUT_AGGREGATE.
-  // Offering it would send a reader to a missing file.
+  // The publication catalogue controls aggregate availability for every source,
+  // including RU; do not bypass it when constructing an entity's download link.
   assert.match(page, /const aggregateSource = getEntitySourceCode\(ref\)/)
   assert.match(page, /publishesAggregate\(aggregateSource\)/)
   assert.match(

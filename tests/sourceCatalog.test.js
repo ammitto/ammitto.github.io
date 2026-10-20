@@ -133,7 +133,7 @@ test('publishing a held-back source needs only its removal from the set', () => 
   // Needs a held-back source to release. When there are none the contract
   // is still true and there is simply nothing to demonstrate it with, which
   // is a pass rather than a failure — and it is a state this repo is
-  // actively working towards, since ru is the last entry.
+  // able to support after every source starts publishing.
   if (NOT_SERVED.length === 0) return
 
   const [held, ...stillHeld] = NOT_SERVED

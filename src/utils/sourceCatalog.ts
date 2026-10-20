@@ -46,9 +46,7 @@ export const ALL_SOURCES: readonly string[] = [
  * about the source being unwanted: when a code starts publishing, delete
  * it from this set and nothing else has to change.
  */
-export const SOURCES_WITHOUT_AGGREGATE: readonly string[] = [
-  'ru',
-]
+export const SOURCES_WITHOUT_AGGREGATE: readonly string[] = []
 
 /**
  * Whether `source` has an aggregate to fetch.

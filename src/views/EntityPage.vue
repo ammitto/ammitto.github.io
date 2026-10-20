@@ -146,9 +146,8 @@ useHead(() => ({ title: entity.value ? `${primaryNameOf(entity.value.names) ?? '
 //
 // The aggregate is offered only when the deploy publishes one.
 // `publishesAggregate` is the same boundary the browse page uses to
-// decide whether to request it at all; `ru` is excluded there and
-// `sources/ru.jsonld` is a 404 today, so offering the link would send a
-// reader to a missing file and read as the data not existing.
+// decide whether to request it at all. Every publishing source, including
+// RU, can offer the aggregate; a future held-back source cannot.
 const documents = computed(() => {
   const ref = entityId.value
   if (!ref) return []
