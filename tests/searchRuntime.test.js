@@ -32,7 +32,8 @@ async function fixture(input = rows) {
   parts.map.forEach((data, score) => chunk('map', data, score))
   return { index, ids, files, manifest: { format: SEARCH_RUNTIME_FORMAT, engine: SEARCH_ENGINE_VERSION,
     generated, rowsDigest: sha(JSON.stringify(input)), rowCount: input.length, entityCount: ids.length,
-    registeredCount: Object.keys(parts.reg).length, bundles: ['composable.mjs'], cfg: parts.cfg, ctx: parts.ctx, chunks } }
+    registeredCount: Object.keys(parts.reg).length, bundles: ['composable.mjs'], cfg: parts.cfg, ctx: parts.ctx,
+    chunksDigest: sha(JSON.stringify(chunks)), chunks } }
 }
 
 const load = f => importSearchRuntime(f.manifest, rows, generated, 'composable.mjs', async file => f.files.get(file))
@@ -59,6 +60,9 @@ for (const [name, change] of Object.entries({
   context: f => { f.manifest.ctx = [{ constructor: [0] }] },
   traversal: f => { f.manifest.chunks[0].file = '../outside.json' },
   duplicate: f => { f.manifest.chunks.push(f.manifest.chunks[0]) },
+  omitted: f => { f.manifest.chunks = f.manifest.chunks.filter(c => c.kind === 'reg') },
+  partial: f => { f.manifest.chunks.splice(f.manifest.chunks.findIndex(c => c.kind === 'map'), 1) },
+  score: f => { const c = f.manifest.chunks.find(c => c.kind === 'map'); c.score = (c.score + 1) % 9 },
   truncated: f => { f.files.set(f.manifest.chunks[0].file, '{}') },
   missing: f => { f.files.clear() },
   register: f => { f.manifest.registeredCount++ },
@@ -67,6 +71,7 @@ for (const [name, change] of Object.entries({
     const data = JSON.parse(f.files.get(c.file)); data[Object.keys(data)[0]] = [99999]
     const text = JSON.stringify(data); c.sha256 = sha(text); c.file = `${c.sha256}.json`; c.bytes = Buffer.byteLength(text)
     f.files.set(c.file, text)
+    f.manifest.chunksDigest = sha(JSON.stringify(f.manifest.chunks))
   },
 })) test(`rejects ${name} saved index before it becomes searchable`, async () => {
   const f = await fixture(); change(f)
@@ -74,7 +79,7 @@ for (const [name, change] of Object.entries({
 })
 
 const source = await readFile(new URL('../src/composables/useSearchIndex.ts', import.meta.url), 'utf8')
-for (const corrupt of [false, true]) test(`real composable ${corrupt ? 'falls back after damaged saved data' : 'loads saved data without calling Index.add'}`, async () => {
+for (const corrupt of [false, true, 'omitted']) test(`real composable ${corrupt ? `falls back after damaged saved data (${corrupt})` : 'loads saved data without calling Index.add'}`, async () => {
   const f = await fixture()
   const original = FlexSearch.Index.prototype.add
   let adds = 0
@@ -83,8 +88,9 @@ for (const corrupt of [false, true]) test(`real composable ${corrupt ? 'falls ba
     await searchIndexHarness(source, async api => {
       const base = searchResponses(rows)
       globalThis.fetch = async url => {
-        if (String(url).endsWith('/search-runtime/index.json')) return { ok: true, json: async () => f.manifest }
-        if (String(url).includes('/search-runtime/')) return { ok: true, text: async () => corrupt ? '{}' : f.files.get(String(url).split('/').at(-1)) }
+        if (String(url).endsWith('/search-runtime/index.json')) return { ok: true, json: async () => corrupt === 'omitted'
+          ? { ...f.manifest, chunks: f.manifest.chunks.filter(c => c.kind === 'reg') } : f.manifest }
+        if (String(url).includes('/search-runtime/')) return { ok: true, text: async () => corrupt === true ? '{}' : f.files.get(String(url).split('/').at(-1)) }
         return base(url)
       }
       await api.loadSearchIndex()

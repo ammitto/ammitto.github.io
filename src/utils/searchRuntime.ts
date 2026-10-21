@@ -38,6 +38,7 @@ export async function importSearchRuntime(
     || value.generated !== generated || value.rowCount !== rows.length
     || !Array.isArray(value.bundles) || !value.bundles.includes(bundle)
     || !Array.isArray(value.chunks) || value.chunks.length > 1024
+    || typeof value.chunksDigest !== 'string' || !/^[a-f0-9]{64}$/.test(value.chunksDigest)
     || !dictionary(value.cfg) || value.cfg.doc !== 0 || value.cfg.opt !== 1
     || !Array.isArray(value.ctx) || value.ctx.length !== 1
     || !dictionary(value.ctx[0]) || Object.keys(value.ctx[0]).length !== 0
@@ -45,7 +46,8 @@ export async function importSearchRuntime(
     || !integer(value.registeredCount)) fail()
   const ids = [...new Set(rows.map(row => row.id))]
   if (value.entityCount !== ids.length || value.registeredCount > ids.length
-    || value.rowsDigest !== await digest(JSON.stringify(rows))) fail()
+    || value.rowsDigest !== await digest(JSON.stringify(rows))
+    || value.chunksDigest !== await digest(JSON.stringify(value.chunks))) fail()
 
   const chunks: Chunk[] = []
   const seen = new Set<string>()

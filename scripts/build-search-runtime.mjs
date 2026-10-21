@@ -113,7 +113,9 @@ export async function prepareSearchRuntime(dist, apiRoot = resolve(dist, 'api/v1
     format: tools.SEARCH_RUNTIME_FORMAT, engine: tools.SEARCH_ENGINE_VERSION,
     generated: manifest.metadata.generated, rowsDigest, rowCount: rows.length,
     entityCount: ids.size, registeredCount: Object.keys(parts.reg).length,
-    cfg: parts.cfg, ctx: parts.ctx, bundles, chunks: chunks.map(chunk => chunk.descriptor),
+    cfg: parts.cfg, ctx: parts.ctx, bundles,
+    chunksDigest: digest(JSON.stringify(chunks.map(chunk => chunk.descriptor))),
+    chunks: chunks.map(chunk => chunk.descriptor),
   }
   const outputDirectory = resolve(dist, 'search-runtime')
   await mkdir(outputDirectory, { recursive: true })

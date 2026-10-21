@@ -58,6 +58,7 @@ test('build emits bounded immutable chunks tied to exact ordered rows and compil
     assert.equal(output.rowCount, 6)
     assert.equal(output.entityCount, 5)
     assert.equal(output.registeredCount, 4) // Empty text does not register a document.
+    assert.equal(output.chunksDigest, hash(JSON.stringify(output.chunks)))
     assert.deepEqual(output.bundles, ['app-abc123.js', 'z-def456.js'])
     assert.deepEqual(output.cfg, { doc: 0, opt: 1 })
     assert.deepEqual(output.ctx, [{}])
