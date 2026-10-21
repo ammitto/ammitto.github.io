@@ -13,8 +13,8 @@
  * perfectly, and every deploy went green while five sources' vocabularies were
  * absent. Entity floors could not see it either: vocabularies are loaded from
  * sources/supporting/, not from the entity corpus, so no entity count moves
- * when one disappears — ru publishes a vocabulary while harmonizing zero
- * entities, and us's 19k entities say nothing about whether its six document
+ * when one disappears — RU historically published a vocabulary without
+ * entity input, and US entity counts say nothing about whether its document
  * types loaded.
  *
  * What is asserted, and why it cannot rot. The expectation is not a count and

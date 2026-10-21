@@ -69,6 +69,16 @@ required_paths = lambda do |schema, data, path = []|
   found
 end
 
+# The final Pages adapter changes discovery only after producer validation.
+# Validate the actual transformed catalogue, including its local file targets.
+if ARGV[0]
+  catalogue_path = File.expand_path(ARGV.fetch(0))
+  catalogue = JSON.parse(File.read(catalogue_path))
+  require_relative 'publication-catalogue'
+  PublicationCatalogue.validate!(catalogue, spec, api_dir: File.dirname(catalogue_path))
+  puts 'Final publication catalogue matches OpenAPI and every declared local target'
+end
+
 negative_count = 0
 cases.each do |item|
   template = item.fetch('template')

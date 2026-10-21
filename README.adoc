@@ -149,8 +149,8 @@ The website loads data from `public/api/v1/`:
 | `ontology/properties.jsonld` | Ontology property definitions
 | `ontology/hierarchy.json` | Class hierarchy tree
 | `node/entity/{source}/{id}.jsonld` | Individual entity nodes
-| `sources/{source}.jsonld` | Every entity and entry for one source. Published for the 14 sources that contribute entities, so there is no `sources/ru.jsonld` while `ru` is pending
-| `all.jsonld` | Complete knowledge graph
+| `sources/{source}.jsonld` | Every entity and entry for one source. Published for all sources named in `publishing_sources`, including `sources/ru.jsonld`
+| `index.jsonld` entries named `all.jsonld` / `all.ttl` | Complete knowledge graph downloads via immutable GitHub Release URLs
 |===
 
 === API contract and SPARQL
@@ -247,14 +247,16 @@ cards) is the reference implementation.
 
 == Data Sources
 
-The 14 sources named in `publishing_sources` in
-`.github/harmonize-thresholds.json` contribute entities to the site. A
-fifteenth, `ru`, is harmonized but contributes none: `data-ru` ships no
-processed YAML, so the deploy holds it at exactly zero entities and no
-`sources/ru.jsonld` until its input returns. It still publishes its
-vocabulary — the document types and organizations under
-`sources/supporting/` are independent of the entity corpus — so it is listed
-below because it is in the graph, not because it has entities.
+The sources named in `publishing_sources` in
+`.github/harmonize-thresholds.json` contribute entities to the site, including
+Russia (`ru`). Each publishing source must provide a non-empty aggregate and
+meet its entity floor. Supporting vocabularies are checked separately from
+entity counts.
+
+Russia's processed announcements are maintained from the official source
+snapshots in `data-ru`. Their publication does not establish that every later
+announcement has been imported. The threshold manifest distinguishes the
+historical full-corpus calibration from this RU publication update.
 
 
 [cols="1,1"]
@@ -269,7 +271,7 @@ below because it is in the graph, not because it has entities.
 | eu_vessels | EU Vessels
 | jp | Japan (MOFA)
 | nz | New Zealand (MFAT)
-| ru | Russia (MID) -- pending, no entities yet
+| ru | Russia (MID)
 | tr | Turkey
 | uk | United Kingdom (OFSI)
 | un | United Nations

@@ -17,8 +17,9 @@ test('the download page exposes both complete formats and source aggregates', ()
   assert.match(page, /:download="file\.filename"/)
   assert.match(page, /fetch\(`\$\{API_BASE\}\/index\.jsonld`\)/)
   assert.match(page, /fetchableSources/)
-  assert.match(page, /156423069/)
-  assert.match(page, /116 MB/)
+  assert.doesNotMatch(page, /156423069|116 MB/)
+  assert.match(page, /bulk release published/)
+  assert.match(page, /file.href = entry.url/)
 })
 
 test('the route and homepage both point to the download page', () => {

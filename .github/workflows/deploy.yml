@@ -21,8 +21,8 @@ on:
   # Note that the verify step below is designed to FAIL when a source in
   # `pending_sources` starts publishing (it is held at exactly zero, so that a
   # source coming back online forces a threshold recalibration rather than
-  # slipping in unmeasured). Today that is `ru`. On a push you are present when
-  # that fires; on this schedule you are not, and the deployed site keeps
+  # slipping in unmeasured). There are currently no pending sources. A push
+  # makes a failure visible while you work; on this schedule the site keeps
   # serving the previous build until someone acts on the failure. That is the
   # intended trade: a stale-but-known site beats an unmeasured one.
   #
@@ -76,7 +76,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ammitto/ammitto
-          # Pinned to the reviewed ontology-contract correction 8efe7b0.
+          # Pinned to the reviewed RU metadata correction b785112.
           # Includes preserved Swiss vessels, Japan source validation,
           # Turkish listing dates, the output-schema publication gate and
           # preserved Turtle backslashes, quiet strict parser logging and
@@ -84,7 +84,7 @@ jobs:
           # conservative cross-source identity links, schema-derived ontology
           # metadata and serializer-generated canonical examples.
           # This build verifies all fifteen source repositories, output
-          # thresholds and browser behavior; Russia remains unpublished.
+          # thresholds and browser behavior, including the RU aggregate.
           #
           # DEBT, not introduced here: the manifest's gem_commit still reads
           # 5e8b95c, further behind each pin. Its own derivation note says
@@ -97,7 +97,7 @@ jobs:
           # total_entities_floor only, none of the provenance fields, so the
           # staleness costs accuracy in the record and nothing in the gate.
           # Pin-to-SHA stays the policy.
-          ref: 8efe7b0dd3059f691cfd846d85fe8f3ad5566170  # canonical ontology metadata/examples
+          ref: b785112d333974e946370572e66fa159e6ba6391  # source identity and optional regime metadata for RU pages
           path: ammitto-gem
 
       - name: Checkout data repositories
@@ -150,8 +150,8 @@ jobs:
           rm -rf ../public/api/v1
           # --combine emits the aggregated all.jsonld and its all.ttl
           # Turtle rendering; the gem gates both behind the flag and
-          # defaults it off. They are published because the API
-          # advertises them at that path. Two earlier revisions got the
+          # defaults it off. Validate the complete graphs before the final
+          # publication layout moves bulk downloads to GitHub Releases. Two earlier revisions got the
           # reason wrong in opposite directions, so state it exactly: the
           # gem does not download all.jsonld automatically, and its public
           # `ApiClient#fetch_all` exists precisely so a consumer can ask
@@ -171,18 +171,12 @@ jobs:
           # reasoning is obsolete: the 2026-08-07 calibration harvest
           # measured us 19189, ch 8604 and jp 5097 entities, each exit 0.
           #
-          # --allow-empty exempts the one pending source whose input is
-          # missing upstream: ru ships no processed YAML, and the verify
-          # step below holds it at exactly zero. un and ca left this list on
-          # 2026-08-07 and un_vessels leaves it now, each for the same
-          # reason — the data-repo gitignore fix landed their committed
-          # corpora, so they are floor-gated publishing sources, and a
-          # source gated on a floor must not also be exempt from the
-          # producer's own gates or a future outage is excused twice.
+          # Every named source now publishes entities, including RU. No source
+          # is exempt from the producer's empty-input check; the verify step
+          # also requires each publishing source's aggregate and positive floor.
           bundle exec ruby exe/ammitto harmonize \
             eu un wb uk au ca cn ru tr nz jp eu_vessels un_vessels us ch \
             --verbose --combine \
-            --allow-empty ru \
             --sources-dir .. \
             --output-dir ../public/api/v1 \
             --report ../harmonization-report.json
@@ -353,7 +347,7 @@ jobs:
                     and (.pending_sources | to_entries
                        | all(.value | type == "string" and test("\\S"))))' \
             "$thresholds" > /dev/null \
-            || { echo "publishing_sources and pending_sources must be non-empty, disjoint, each a [a-z0-9_] code, together exactly the keys of source_floors, and every pending source must carry a reason"; exit 1; }
+            || { echo "publishing_sources must be non-empty and disjoint from pending_sources, each a [a-z0-9_] code, together exactly the keys of source_floors, and every pending source must carry a reason"; exit 1; }
           publishing=$(jq -er '.publishing_sources | join(" ")' "$thresholds")
           pending=$(jq -er '.pending_sources | keys_unsorted | join(" ")' "$thresholds")
           echo "Publishing sources: ${publishing}"
@@ -366,9 +360,9 @@ jobs:
           # nothing from ch, cn, jp, ru or us, and this step passed every day.
           # The entity floors could not see it either — vocabularies come
           # from sources/supporting/, not from the entity corpus, so no
-          # gated count moves when one vanishes. ru proves the two are
-          # independent in both directions: it is a pending source held at
-          # zero entities that nonetheless publishes a vocabulary.
+          # gated count moves when one vanishes. Historically, RU published
+          # a vocabulary while its entity input was unavailable, proving
+          # that vocabulary and entity publication are independent.
           # BOTH source lists are passed, for that reason.
           #
           # The expectation is derived from the clones this run already made
@@ -607,6 +601,31 @@ jobs:
           # fresh multi-source data; stop build:api from clobbering it with
           # the stale CN-only copy from data-cn.
           SKIP_API_DATA: '1'
+
+      - name: Prepare size-bounded Pages publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The complete generated graphs have passed the source/schema gates.
+          # Discover the data release once; the catalogue records exact tag URLs.
+          gh api repos/ammitto/data/releases/latest > bulk-release.json
+          node scripts/prepare-pages-publication.mjs dist bulk-release.json
+          node scripts/verify-pages-size.mjs dist
+
+      - name: Install catalogue contract validator
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+        env:
+          BUNDLE_GEMFILE: .github/validation.Gemfile
+
+      - name: Verify final publication catalogue
+        env:
+          BUNDLE_GEMFILE: .github/validation.Gemfile
+        run: |
+          bundle exec ruby scripts/test-publication-catalogue.rb
+          bundle exec ruby scripts/verify-api-contract.rb dist/api/v1/index.jsonld
 
       - name: Install Playwright chromium
         # Only chromium, and only its dependencies. The browser version is

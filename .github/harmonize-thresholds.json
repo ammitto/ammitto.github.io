@@ -1,9 +1,10 @@
 {
   "derivation": [
+    "HISTORICAL BASELINE: the following full-corpus calibration predates the RU publication update recorded in publication_updates; it is not a measurement of the current deploy pin or current RU corpus.",
     "Per-source entity floors for the deploy.yml 'Verify harmonized output'",
     "gate. Regenerated 2026-08-19 from one full 15-source harvest on",
-    "ammitto/ammitto main 5e8b95c — the exact SHA deploy.yml pins, with NO",
-    "branches applied and a clean working tree — over the fifteen data-*",
+    "ammitto/ammitto main 5e8b95c \u2014 the historical calibration SHA, with NO",
+    "branches applied and a clean working tree \u2014 over the fifteen data-*",
     "clones whose HEAD SHAs are recorded in data_repo_commits. Each source",
     "was harmonized ALONE first so no failure could mask another, then one",
     "combined run produced the artifact tree the gate actually reads.",
@@ -93,7 +94,7 @@
     "per-source log, the exit codes, and the combined stats.json and",
     "search-index.json are retained."
   ],
-  "run_log": "operator copy at ~/ammitto-evidence/recalibration-2026-08-19/ — data-repo-shas.txt, versions.txt, per-source harmonize-*.log, exit-codes.txt, per-source stats/*.json, harmonize-combined.log and the combined stats.json and search-index.json",
+  "run_log": "operator copy at ~/ammitto-evidence/recalibration-2026-08-19/ \u2014 data-repo-shas.txt, versions.txt, per-source harmonize-*.log, exit-codes.txt, per-source stats/*.json, harmonize-combined.log and the combined stats.json and search-index.json",
   "measured_entity_counts": {
     "au": 3855,
     "ca": 5582,
@@ -129,7 +130,7 @@
     "un_vessels": 59,
     "us": 19207,
     "wb": 1585,
-    "note": "documentation only: pre-dedup TRANSFORM record counts — the '[src] Harmonized N entities' log line. Each solo graph dedups within its own source to exactly the measured_entity_counts value (ca 5690 -> 5582, cn 323 -> 322, jp 7980 -> 5097; the other eleven carry no duplicates), so no dedup crosses sources"
+    "note": "documentation only: pre-dedup TRANSFORM record counts \u2014 the '[src] Harmonized N entities' log line. Each solo graph dedups within its own source to exactly the measured_entity_counts value (ca 5690 -> 5582, cn 323 -> 322, jp 7980 -> 5097; the other eleven carry no duplicates), so no dedup crosses sources"
   },
   "partition": [
     "publishing_sources and pending_sources partition source_floors: every",
@@ -157,6 +158,7 @@
     "eu_vessels",
     "jp",
     "nz",
+    "ru",
     "tr",
     "uk",
     "un",
@@ -164,9 +166,7 @@
     "us",
     "wb"
   ],
-  "pending_sources": {
-    "ru": "data-ru ships no processed YAML; harmonize reports 'No YAML files found'. Solo run at these SHAs confirms: exit 1 alone, exit 0 with 0 entities under --allow-empty."
-  },
+  "pending_sources": {},
   "source_floors": {
     "au": 2698,
     "ca": 3907,
@@ -176,7 +176,7 @@
     "eu_vessels": 518,
     "jp": 3567,
     "nz": 1478,
-    "ru": 698,
+    "ru": 2228,
     "tr": 193,
     "uk": 4444,
     "un": 707,
@@ -184,5 +184,25 @@
     "us": 13444,
     "wb": 1109
   },
-  "total_entities_floor": 42731
+  "total_entities_floor": 42731,
+  "publication_updates": {
+    "ru": {
+      "date": "2026-10-20",
+      "status": "publishing",
+      "floor_status": "70 percent of measured RU unique entities; full corrected-build validation still required",
+      "source_floor": 2228,
+      "scope": "RU publication only. Historical measured_entity_counts, pre_dedup_transform_counts, data_repo_commits, gem_commit and total_entities_floor above remain the recorded full-corpus baseline, not current measurements.",
+      "change": "Processed source-backed announcement YAML is restored in data-ru; RU is no longer exempted with --allow-empty, and its aggregate is required by the publishing-source gate.",
+      "verification": "Full combined harmonization, output validation and browser checks are required in build_deploy; no local full-corpus recalibration is claimed.",
+      "input_named_occurrences": 3185,
+      "minimum_unique_id_ratio": 0.5,
+      "derivation": "floor(3184 measured unique RU entities * 0.70) = 2228. Historical full-corpus calibration above is unchanged. The corrected full GHA build must pass every source, output and browser gate.",
+      "core_commit": "b785112d333974e946370572e66fa159e6ba6391",
+      "data_commit": "43185c847e139c342432ac3f98eafae34e61a9f9",
+      "measured_unique_entities": 3184,
+      "measured_named_entities": 3184,
+      "measurement_run": "https://github.com/ammitto/ammitto.github.io/actions/runs/39443198548/attempts/2",
+      "measurement_scope": "RU source metrics from a completed full harmonization: 3185 input occurrences, 3184 unique entities, all named, no RU parse/transform errors or exemptions. Overall build FAILED strict output validation for an unnamed regime; these counts are not a publication-success claim."
+    }
+  }
 }

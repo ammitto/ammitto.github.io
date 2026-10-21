@@ -27,8 +27,6 @@ export const MODES = ['live', 'sample']
  * TEMPLATED_PATHS, and when an entry here no longer appears in src/.
  */
 export const REQUIRED_STATIC = [
-  'all.jsonld',
-  'all.ttl',
   'facets/authorities.json',
   'facets/list_types.json',
   'facets/regimes.json',

@@ -65,9 +65,14 @@ curl --fail --location \
 sparql execute --dataset cn.ttl --format json active-cn-entries.rq
 ----
 
-To query the whole publication, download `/api/v1/all.ttl` instead and pass
-`--dataset all.ttl`. Inspect its `bytes` value in the catalogue before loading
-it; an RDF store can need substantially more memory than the file size.
+For the whole publication, find the entry named `all.ttl` in
+`/api/v1/index.jsonld`, download its `url` with redirects enabled, then pass
+`--dataset all.ttl`. Bulk URLs pin GitHub Releases; `/api/v1/all.ttl` and
+`/api/v1/all.jsonld` are no longer hosted files. RU Turtle is discoverable as
+`sources/ru.ttl` in the same catalogue. The RU JSON-LD source stays local.
+Inspect each release entry's `bytes`, `digest` and `published` values before
+loading it. The catalogue's `generated` timestamp describes the site snapshot;
+the bulk release can have a different publication date. As before, an RDF store can need substantially more memory than the file size.
 
 The query in `public/queries/active-cn-entries.rq` selects active CN sanction
 entries and their entities, primary names and regimes. The query in

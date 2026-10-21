@@ -101,10 +101,10 @@ onMounted(() => {
       </div>
 
       <!--
-        All fifteen catalogued sources are listed, including any the deploy does
+        All catalogued sources are listed, including any the deploy does
         not yet publish — `sourceCatalog.ts` argues, correctly, that a source
         silently dropped from the catalogue is the worse bug. But the heading
-        above counts the fourteen that ARE published, so the two must not be
+        above counts only those with published data, so the two must not be
         allowed to read as a miscount: a source with no published entities is
         marked as such on its own card.
       -->

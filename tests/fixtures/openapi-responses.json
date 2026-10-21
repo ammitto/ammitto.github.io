@@ -637,42 +637,6 @@
       }
     },
     {
-      "template": "/all.jsonld",
-      "parameters": {},
-      "path": "/all.jsonld",
-      "provenance": "Previously downloaded release HTTP200 artifact; arrays/text bounded for regression fixture.",
-      "sourceUrl": "https://www.ammitto.org/api/v1/all.jsonld",
-      "status": 200,
-      "response": {
-        "@context": "https://ammitto.org/api/v1/context.jsonld",
-        "@graph": [
-          {
-            "@context": "https://ammitto.org/api/v1/context.jsonld",
-            "@id": "https://www.ammitto.org/authority/eu",
-            "@type": "Authority",
-            "name": "European Union",
-            "countryCode": "EU"
-          },
-          {
-            "@context": "https://ammitto.org/api/v1/context.jsonld",
-            "@id": "https://www.ammitto.org/authority/un",
-            "@type": "Authority",
-            "name": "United Nations",
-            "countryCode": "UN"
-          }
-        ]
-      }
-    },
-    {
-      "template": "/all.ttl",
-      "parameters": {},
-      "path": "/all.ttl",
-      "provenance": "Previously downloaded release HTTP200 artifact; arrays/text bounded for regression fixture. Turtle text truncated to first4096characters.",
-      "sourceUrl": "https://www.ammitto.org/api/v1/all.ttl",
-      "status": 200,
-      "response": "@prefix ammitto: <https://www.ammitto.org/ontology/> .\n@prefix entity: <https://www.ammitto.org/entity/> .\n@prefix entry: <https://www.ammitto.org/entry/> .\n@prefix instrument: <https://www.ammitto.org/instrument/> .\n@prefix regime: <https://www.ammitto.org/regime/> .\n@prefix authority: <https://www.ammitto.org/authority/> .\n@prefix schema: <http://schema.org/> .\n@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .\n@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .\n@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .\n@prefix owl: <http://www.w3.org/2002/07/owl#> .\n\n<https://www.ammitto.org/authority/eu>\n  a ammitto:Authority ;\n  schema:name \"European Union\" ;\n  ammitto:countryCode \"EU\" .\n<https://www.ammitto.org/authority/un>\n  a ammitto:Authority ;\n  schema:name \"United Nations\" ;\n  ammitto:countryCode \"UN\" .\n<https://www.ammitto.org/authority/us>\n  a ammitto:Authority ;\n  schema:name \"United States (OFAC)\" ;\n  ammitto:countryCode \"US\" .\n<https://www.ammitto.org/authority/wb>\n  a ammitto:Authority ;\n  schema:name \"World Bank\" ;\n  ammitto:countryCode \"WB\" .\n<https://www.ammitto.org/authority/uk>\n  a ammitto:Authority ;\n  schema:name \"United Kingdom (OFSI)\" ;\n  ammitto:countryCode \"GB\" .\n<https://www.ammitto.org/authority/au>\n  a ammitto:Authority ;\n  schema:name \"Australia (DFAT)\" ;\n  ammitto:countryCode \"AU\" .\n<https://www.ammitto.org/authority/ca>\n  a ammitto:Authority ;\n  schema:name \"Canada (SEFO)\" ;\n  ammitto:countryCode \"CA\" .\n<https://www.ammitto.org/authority/ch>\n  a ammitto:Authority ;\n  schema:name \"Switzerland (SECO)\" ;\n  ammitto:countryCode \"CH\" .\n<https://www.ammitto.org/authority/cn>\n  a ammitto:Authority ;\n  schema:name \"China (MOFCOM/MFA)\" ;\n  ammitto:countryCode \"CN\" .\n<https://www.ammitto.org/authority/tr>\n  a ammitto:Authority ;\n  schema:name \"Turkey (Ministry of Treasury and Finance)\" ;\n  ammitto:countryCode \"TR\" .\n<https://www.ammitto.org/authority/nz>\n  a ammitto:Authority ;\n  schema:name \"New Zealand (MFAT)\" ;\n  ammitto:countryCode \"NZ\" .\n<https://www.ammitto.org/authority/jp>\n  a ammitto:Authority ;\n  schema:name \"Japan (METI End-User List)\" ;\n  ammitto:countryCode \"JP\" .\n<https://www.ammitto.org/authority/eu_vessels>\n  a ammitto:Authority ;\n  schema:name \"EU Designated Vessels (via Denmark DMA)\" ;\n  ammitto:countryCode \"EU\" .\n<https://www.ammitto.org/authority/un_vessels>\n  a ammitto:Authority ;\n  schema:name \"UN Security Council (1718 Committee)\" ;\n  ammitto:countryCode \"UN\" .\n<https://www.ammitto.org/regime/taqa>\n  a ammitto:SanctionRegime ;\n  schema:name \"TAQA\" ;\n  ammitto:code \"TAQA\" .\n<https://www.ammitto.org/regime/euaq>\n  a ammitto:SanctionRegime ;\n  schema:name \"EUAQ\" ;\n  ammitto:code \"EUAQ\" .\n<https://www.ammitto.org/regime/syria>\n  a ammitto:SanctionRegime ;\n  schema:name \"Syria\" ;\n  ammitto:code \"SYRIA\" .\n<https://www.ammitto.org/regime/iran>\n  a ammitto:SanctionRegime ;\n  schema:name \"Iran\" ;\n  ammitto:code \"IRAN\" .\n<https://www.ammitto.org/regime/hr>\n  a ammitto:SanctionRegime ;\n  schema:name \"HR\" ;\n  ammitto:code \"HR\" .\n<https://www.ammitto.org/regime/russia>\n  a ammitto:SanctionRegime ;\n  schema:name \"Russia/Ukraine\" ;\n  ammitto:code \"RUSSIA\" .\n<https://www.ammitto.org/regime/mda>\n  a ammitto:SanctionRegime ;\n  schema:name \"MDA\" ;\n  ammitto:code \"MDA\" .\n<https://www.ammitto.org/regime/irq>\n  a ammitto:SanctionRegime ;\n  schema:name \"Iraq\" ;\n  ammitto:code \"IRQ\" .\n<https://www.ammitto.org/regime/myanmar>\n  a ammitto:SanctionRegime ;\n  schema:name \"Myanmar\" ;\n  ammitto:code \"MYANMAR\" .\n<https://www.ammitto.org/regime/belarus>\n  a ammitto:SanctionRegime ;\n  schema:name \"Belarus\" ;\n  ammitto:code \"BELARUS\" .\n<https://www.ammitto.org/regime/drc>\n  a ammitto:SanctionRegime ;\n  schema:name \"Democratic Republic of the Congo\" ;\n  ammitto:code \"DRC\" .\n<https://www.ammitto.org/regime/somalia>\n  a ammitto:SanctionRegime ;\n  schema:name \"Somalia\" ;\n  ammitto:code \"SOMALIA\" .\n<https://www.ammitto.org/regime/haiti>\n  a ammitto:SanctionRegime ;\n  schema:name \"Haiti\" ;\n  ammitto:code \"HAITI\" .\n<https://www.ammitto.org/regime/ham>\n  a ammitto:SanctionRegime ;\n  schema:name \"HAM\" ;\n  ammit"
-    },
-    {
       "template": "/sources/{source}.jsonld",
       "parameters": {
         "source": "cn"
