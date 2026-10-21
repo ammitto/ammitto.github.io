@@ -36,6 +36,9 @@ export async function searchIndexHarness(source, run) {
 export function searchResponses(rows) {
   return async (url) => ({
     ok: true,
+    async arrayBuffer() {
+      return new TextEncoder().encode(JSON.stringify({ entities: rows })).buffer
+    },
     async json() {
       if (String(url).endsWith('manifest.json')) {
         return {

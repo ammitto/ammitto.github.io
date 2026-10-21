@@ -48,7 +48,8 @@ const SKELETON_CARDS = 6
 
 // Load data from lightweight search index
 const {
-  isLoading: loading,
+  isLoading: indexLoading,
+  isQueryLoading,
   isLoaded,
   indexedCount,
   error,
@@ -60,6 +61,7 @@ const {
   statusFacets,
   generatedAt,
   loadSearchIndex,
+  prepareSearch,
   loadFacets,
   search,
   searchPartial,
@@ -67,6 +69,11 @@ const {
   filter,
   getEntity,
 } = useSearchIndex()
+
+const loading = computed(() => indexLoading.value || isQueryLoading.value)
+watch([debouncedQuery, isLoaded], ([query, loaded]) => {
+  if (loaded) void prepareSearch(query)
+}, { immediate: true, flush: 'sync' })
 
 // Query params arrive as string | null | (string | null)[] — or
 // undefined when absent; keep only non-blank string entries and drop
@@ -255,6 +262,7 @@ const partialNotice = (query: string) =>
   `Searching for \u201c${query}\u201d. Records are still loading, so results are not complete yet.`
 
 const resultAnnouncement = computed(() => {
+  if (isQueryLoading.value) return `Searching for “${debouncedQuery.value.trim()}”.`
   if (!isLoaded.value || loading.value) {
     return showPartial.value ? partialNotice(debouncedQuery.value.trim()) : ''
   }
@@ -335,6 +343,7 @@ const filteredEntities = computed(() => {
  */
 const showPartial = computed(() =>
   (!isLoaded.value || loading.value) &&
+  !isQueryLoading.value &&
   !error.value &&
   debouncedQuery.value.trim() !== '' &&
   searchQuery.value.trim() !== '',
@@ -911,15 +920,12 @@ function focusAfterBarEmptied() {
               vite-ssg-prerendered /search HTML, which is a false negative in
               the bytes a crawler reads.
             -->
-            <p v-if="isLoaded" class="text-sm text-light-muted dark:text-dark-muted" data-testid="search-count">
+            <p v-if="isLoaded && !loading" class="text-sm text-light-muted dark:text-dark-muted" data-testid="search-count">
               <span class="font-semibold text-light-text dark:text-dark-text">
                 {{ filteredEntities.length.toLocaleString() }}
               </span>
               {{ filteredEntities.length === 1 ? 'result' : 'results' }}
               <span v-if="hasActiveFilters">(filtered)</span>
-              <span v-if="loading" class="ml-2 text-brand-link">
-                (loading...)
-              </span>
             </p>
           </div>
 
@@ -938,6 +944,10 @@ function focusAfterBarEmptied() {
             data-testid="search-progress"
           >
             {{ progressMessage }}
+          </p>
+
+          <p v-if="isQueryLoading" class="mb-4 text-sm text-light-muted dark:text-dark-muted" data-testid="query-progress">
+            Searching for “{{ debouncedQuery.trim() }}”…
           </p>
 
           <!-- Results Grid -->

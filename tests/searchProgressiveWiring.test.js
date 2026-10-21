@@ -119,7 +119,7 @@ test('verdicts stay gated on the finished build', () => {
   }
   assert.ok(!/searchPartial/.test(computedBody('filteredEntities')), 'the final list must come from search()')
   assert.match(page, /v-if="isLoaded && !loading && filteredEntities\.length === 0"/)
-  assert.match(page, /<p v-if="isLoaded" class="text-sm/, 'the result count shows only once loaded')
+  assert.match(page, /<p v-if="isLoaded && !loading" class="text-sm/, 'the result count stays hidden until the current query is ready')
 })
 
 test('partial cards come from appendNewMatches, so they never move while loading', () => {
