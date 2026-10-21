@@ -20,11 +20,12 @@ const dictionary = (value: unknown): value is Dictionary =>
 const integer = (value: unknown): value is number => Number.isSafeInteger(value) && Number(value) >= 0
 function fail(): never { throw new Error('Incompatible saved search index') }
 
-async function digest(text: string): Promise<string> {
-  const bytes = new TextEncoder().encode(text)
+export async function searchBytesDigest(bytes: ArrayBuffer): Promise<string> {
   const hash = await globalThis.crypto.subtle.digest('SHA-256', bytes)
   return Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, '0')).join('')
 }
+
+const digest = (text: string) => searchBytesDigest(new TextEncoder().encode(text).buffer)
 
 /** Load only a complete index built for these exact rows and this application bundle. */
 export async function importSearchRuntime(
@@ -32,7 +33,8 @@ export async function importSearchRuntime(
   rows: readonly Row[],
   generated: string,
   bundle: string,
-  fetchChunk: (file: string) => Promise<string>,
+  fetchChunk: (file: string) => Promise<ArrayBuffer>,
+  expectedSourceDigest: string,
 ): Promise<{ index: FlexSearch.Index; ids: string[] }> {
   if (!dictionary(value) || value.format !== SEARCH_RUNTIME_FORMAT || value.engine !== SEARCH_ENGINE_VERSION
     || value.generated !== generated || value.rowCount !== rows.length
@@ -42,11 +44,11 @@ export async function importSearchRuntime(
     || !dictionary(value.cfg) || value.cfg.doc !== 0 || value.cfg.opt !== 1
     || !Array.isArray(value.ctx) || value.ctx.length !== 1
     || !dictionary(value.ctx[0]) || Object.keys(value.ctx[0]).length !== 0
-    || typeof value.rowsDigest !== 'string' || !/^[a-f0-9]{64}$/.test(value.rowsDigest)
+    || typeof value.sourceDigest !== 'string' || !/^[a-f0-9]{64}$/.test(value.sourceDigest)
     || !integer(value.registeredCount)) fail()
   const ids = [...new Set(rows.map(row => row.id))]
   if (value.entityCount !== ids.length || value.registeredCount > ids.length
-    || value.rowsDigest !== await digest(JSON.stringify(rows))
+    || value.sourceDigest !== expectedSourceDigest
     || value.chunksDigest !== await digest(JSON.stringify(value.chunks))) fail()
 
   const chunks: Chunk[] = []
@@ -69,12 +71,12 @@ export async function importSearchRuntime(
   // then yield between chunks instead of parsing one 40 MB object on the UI thread.
   for (let offset = 0; offset < chunks.length; offset += 8) {
     const batch = chunks.slice(offset, offset + 8)
-    const texts = await Promise.all(batch.map(chunk => fetchChunk(chunk.file)))
+    const buffers = await Promise.all(batch.map(chunk => fetchChunk(chunk.file)))
     for (let i = 0; i < batch.length; i++) {
       const chunk = batch[i]
-      const text = texts[i]
-      if (new TextEncoder().encode(text).byteLength !== chunk.bytes || await digest(text) !== chunk.sha256) fail()
-      const data: unknown = JSON.parse(text)
+      const bytes = buffers[i]
+      if (bytes.byteLength !== chunk.bytes || await searchBytesDigest(bytes) !== chunk.sha256) fail()
+      const data: unknown = JSON.parse(new TextDecoder().decode(bytes))
       if (!dictionary(data)) fail()
       const target = chunk.kind === 'reg' ? register : map[chunk.score!]
       await forEachWithinBudget(Object.keys(data), key => {

@@ -70,8 +70,11 @@ export async function prepareSearchRuntime(dist, apiRoot = resolve(dist, 'api/v1
     throw new Error('Invalid search runtime source manifest or metadata')
   }
   const rows = []
+  const sources = []
   for (const shard of tools.orderShards(manifest.shards)) {
-    const value = JSON.parse(await readFile(resolve(indexDirectory, shard.file), 'utf8'))
+    const bytes = await readFile(resolve(indexDirectory, shard.file))
+    sources.push([shard.code, shard.file, digest(bytes)])
+    const value = JSON.parse(bytes.toString('utf8'))
     if (!Array.isArray(value?.entities) || value.entities.length !== shard.count) {
       throw new Error(`Invalid search runtime source shard ${shard.file}`)
     }
@@ -87,7 +90,7 @@ export async function prepareSearchRuntime(dist, apiRoot = resolve(dist, 'api/v1
   const bundles = (await readdir(resolve(dist, 'assets'), { withFileTypes: true }))
     .filter(entry => entry.isFile() && entry.name.endsWith('.js')).map(entry => entry.name).sort()
   if (!bundles.length) throw new Error('Search runtime requires built JavaScript assets')
-  const rowsDigest = digest(JSON.stringify(rows))
+  const sourceDigest = digest(JSON.stringify(sources))
   const ids = new Map()
   const index = tools.createSearchIndex()
   for (const row of rows) {
@@ -111,7 +114,7 @@ export async function prepareSearchRuntime(dist, apiRoot = resolve(dist, 'api/v1
   if (chunks.length > 1024) throw new Error('Search runtime exceeds supported chunk count')
   const output = {
     format: tools.SEARCH_RUNTIME_FORMAT, engine: tools.SEARCH_ENGINE_VERSION,
-    generated: manifest.metadata.generated, rowsDigest, rowCount: rows.length,
+    generated: manifest.metadata.generated, sourceDigest, rowCount: rows.length,
     entityCount: ids.size, registeredCount: Object.keys(parts.reg).length,
     cfg: parts.cfg, ctx: parts.ctx, bundles,
     chunksDigest: digest(JSON.stringify(chunks.map(chunk => chunk.descriptor))),

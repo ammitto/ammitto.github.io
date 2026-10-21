@@ -11,6 +11,14 @@ import { prepareSearchRuntime, partitionSearchRuntimeDictionary } from '../scrip
 const generated = '2026-01-01T00:00:00Z'
 const hash = bytes => createHash('sha256').update(bytes).digest('hex')
 const row = (id, ...names) => ({ id, ref: `cn/${id}`, type: 'person', names })
+async function sourceDigest(indexDirectory, orderedCodes) {
+  const signatures = await Promise.all(orderedCodes.map(async code =>
+    [code, `${code}.json`, hash(await readFile(join(indexDirectory, `${code}.json`)))]))
+  return hash(JSON.stringify(signatures))
+}
+async function chunkBuffer(dist, file) {
+  return Uint8Array.from(await readFile(join(dist, 'search-runtime', file))).buffer
+}
 let helpersPromise
 function helpers() {
   return helpersPromise ??= build({
@@ -45,16 +53,16 @@ async function fixture(run, shards = [
   } finally { await rm(dist, { recursive: true, force: true }) }
 }
 
-test('build emits bounded immutable chunks tied to exact ordered rows and compiled bundles', async () => {
-  await fixture(async ({ dist, apiRoot, indexDirectory, shards }) => {
+test('build emits bounded immutable chunks tied to exact ordered source bytes and compiled bundles', async () => {
+  await fixture(async ({ dist, apiRoot, indexDirectory }) => {
     const before = await Promise.all((await readdir(indexDirectory)).map(async file => [file, hash(await readFile(join(indexDirectory, file)))]))
     const output = await prepareSearchRuntime(dist, apiRoot)
     const installed = JSON.parse(await readFile(createRequire(import.meta.url).resolve('flexsearch/package.json'), 'utf8'))
     assert.equal(output.engine, installed.version)
     assert.equal(output.format, 'ammitto-search-runtime/v1')
     assert.equal(output.generated, generated)
-    const ordered = [...shards[1].entities, ...shards[0].entities, ...shards[2].entities]
-    assert.equal(output.rowsDigest, hash(JSON.stringify(ordered)))
+    assert.equal(output.sourceDigest, await sourceDigest(indexDirectory, ['eu', 'un', 'zz']))
+    assert.equal('rowsDigest' in output, false)
     assert.equal(output.rowCount, 6)
     assert.equal(output.entityCount, 5)
     assert.equal(output.registeredCount, 4) // Empty text does not register a document.
@@ -78,14 +86,15 @@ test('build emits bounded immutable chunks tied to exact ordered rows and compil
 })
 
 test('generated chunks round trip through the actual browser importer with duplicate result order and recall', async () => {
-  await fixture(async ({ dist, shards }) => {
+  await fixture(async ({ dist, indexDirectory, shards }) => {
     const tools = await helpers()
     const output = await prepareSearchRuntime(dist)
     const ordered = [...shards[1].entities, ...shards[0].entities, ...shards[2].entities]
     const previousCrypto = globalThis.crypto
     if (!globalThis.crypto) Object.defineProperty(globalThis, 'crypto', { value: webcrypto, configurable: true })
     try {
-      const imported = await tools.importSearchRuntime(output, ordered, generated, 'app-abc123.js', file => readFile(join(dist, 'search-runtime', file), 'utf8'))
+      const imported = await tools.importSearchRuntime(output, ordered, generated, 'app-abc123.js', file => chunkBuffer(dist, file),
+        await sourceDigest(indexDirectory, ['eu', 'un', 'zz']))
       const original = tools.createSearchIndex()
       for (const entity of ordered) original.add(entity.id, tools.indexableText(tools.searchRowText(entity), entity.primaryName ? [entity.primaryName, ...entity.names] : entity.names))
       assert.deepEqual(imported.ids, ['a', 'b', 'constructor', 'c', 'empty'])
@@ -101,7 +110,7 @@ test('generated chunks round trip through the actual browser importer with dupli
 })
 
 test('blank document text produces zero chunks and still imports a complete empty index', async () => {
-  await fixture(async ({ dist, shards }) => {
+  await fixture(async ({ dist, indexDirectory, shards }) => {
     const output = await prepareSearchRuntime(dist)
     assert.equal(output.registeredCount, 0)
     assert.deepEqual(output.chunks, [])
@@ -109,10 +118,27 @@ test('blank document text produces zero chunks and still imports a complete empt
     const previousCrypto = globalThis.crypto
     if (!globalThis.crypto) Object.defineProperty(globalThis, 'crypto', { value: webcrypto, configurable: true })
     try {
-      const imported = await tools.importSearchRuntime(output, shards[0].entities, generated, 'app-abc123.js', () => { throw new Error('No chunk fetch expected') })
+      const imported = await tools.importSearchRuntime(output, shards[0].entities, generated, 'app-abc123.js', () => { throw new Error('No chunk fetch expected') },
+        await sourceDigest(indexDirectory, ['cn']))
       assert.deepEqual(imported.index.search('constructor'), [])
     } finally { if (!previousCrypto) delete globalThis.crypto }
   }, [{ code: 'cn', entities: [row('empty')] }])
+})
+
+test('source fingerprint binds raw shard bytes even when decoded rows are unchanged', async () => {
+  await fixture(async ({ dist, indexDirectory }) => {
+    const first = await prepareSearchRuntime(dist)
+    const shardPath = join(indexDirectory, 'eu.json')
+    const original = await readFile(shardPath, 'utf8')
+    await writeFile(shardPath, `${original}\n`)
+    const second = await prepareSearchRuntime(dist)
+    assert.notEqual(second.sourceDigest, first.sourceDigest)
+    assert.equal(second.sourceDigest, await sourceDigest(indexDirectory, ['eu', 'un', 'zz']))
+    assert.equal(second.rowCount, first.rowCount)
+    assert.equal(second.entityCount, first.entityCount)
+    assert.deepEqual(second.chunks, first.chunks)
+    assert.equal(second.chunksDigest, first.chunksDigest)
+  })
 })
 
 test('a corrupt existing content-addressed chunk fails without publishing another manifest', async () => {

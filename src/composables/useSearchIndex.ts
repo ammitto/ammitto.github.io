@@ -1,6 +1,6 @@
 import { ref, shallowRef, triggerRef, computed, toRaw } from 'vue'
 import FlexSearch from 'flexsearch'
-import { createSearchIndex, importSearchRuntime } from '@/utils/searchRuntime'
+import { createSearchIndex, importSearchRuntime, searchBytesDigest } from '@/utils/searchRuntime'
 import { normalizeNode } from '@/utils/normalizeNode'
 import { searchRowText } from '@/utils/birthAdapters'
 import type { SearchBirthYear } from '@/utils/birthDisplay'
@@ -215,14 +215,16 @@ async function loadSearchIndex(): Promise<void> {
         if (!response.ok) {
           throw new Error(`Failed to load search index shard ${shard.file}: ${response.status}`)
         }
-        const data: SearchShardResponse = await response.json()
+        const bytes = await response.arrayBuffer()
+        const sourceHash = globalThis.crypto?.subtle ? await searchBytesDigest(bytes).catch(() => null) : null
+        const data: SearchShardResponse = JSON.parse(new TextDecoder().decode(bytes))
         if (!Array.isArray(data?.entities)) {
           throw new Error(`Failed to load search index shard ${shard.file}: no entities`)
         }
-        return data.entities
+        return { entities: data.entities, signature: [shard.code, shard.file, sourceHash] }
       }),
     )
-    const rows = shards.flat()
+    const rows = shards.flatMap(shard => shard.entities)
     metadata.value = checkMetadata(manifest.metadata)
     if (metadata.value.invalid.length && !reportedBadMetadata) {
       reportedBadMetadata = true
@@ -239,14 +241,16 @@ async function loadSearchIndex(): Promise<void> {
     let importTimeout: ReturnType<typeof setTimeout> | undefined
     try {
       const payload = await savedRuntime
-      if (payload !== null) {
+      if (payload !== null && shards.every(shard => shard.signature[2] !== null)) {
+        const sourceDigest = await searchBytesDigest(new TextEncoder().encode(
+          JSON.stringify(shards.map(shard => shard.signature))).buffer)
         importTimeout = setTimeout(() => runtimeController.abort(), 30000)
         const loaded = await importSearchRuntime(payload, rows, manifest.metadata.generated,
           new URL(import.meta.url).pathname.split('/').pop() || '', async file => {
             const response = await fetch(`${API_BASE}search-runtime/${file}`, { signal: runtimeController.signal })
             if (!response.ok) throw new Error('Saved search index chunk unavailable')
-            return response.text()
-          })
+            return response.arrayBuffer()
+          }, sourceDigest)
         const hydrated = new Map<string, SearchEntity>()
         await forEachWithinBudget(rows, row => hydrated.set(row.id, row), {
           budgetMs: INDEX_BUDGET_MS, checkEvery: INDEX_BUDGET_CHECK_EVERY,

@@ -11,6 +11,8 @@ import { searchIndexHarness, searchResponses } from '../scripts/search-index-har
 if (!globalThis.crypto) Object.defineProperty(globalThis, 'crypto', { value: webcrypto })
 const generated = '2026-01-01T00:00:00Z'
 const sha = text => createHash('sha256').update(text).digest('hex')
+const bytes = text => new TextEncoder().encode(text).buffer
+const sourceDigest = input => sha(JSON.stringify([['cn', 'cn.json', sha(JSON.stringify({ entities: input }))]]))
 const row = (id, name) => ({ id, ref: `cn/${id}`, type: 'person', names: [name], primaryName: name, authority: 'cn', status: 'active' })
 const rows = [row('same', 'Oldword'), row('other', 'Newword'), row('same', 'Newword'), row('accent', 'Islámský stát'), row('ru', 'Скотт Моррисон')]
 
@@ -31,12 +33,12 @@ async function fixture(input = rows) {
   chunk('reg', parts.reg)
   parts.map.forEach((data, score) => chunk('map', data, score))
   return { index, ids, files, manifest: { format: SEARCH_RUNTIME_FORMAT, engine: SEARCH_ENGINE_VERSION,
-    generated, rowsDigest: sha(JSON.stringify(input)), rowCount: input.length, entityCount: ids.length,
+    generated, sourceDigest: sourceDigest(input), rowCount: input.length, entityCount: ids.length,
     registeredCount: Object.keys(parts.reg).length, bundles: ['composable.mjs'], cfg: parts.cfg, ctx: parts.ctx,
     chunksDigest: sha(JSON.stringify(chunks)), chunks } }
 }
 
-const load = f => importSearchRuntime(f.manifest, rows, generated, 'composable.mjs', async file => f.files.get(file))
+const load = f => importSearchRuntime(f.manifest, rows, generated, 'composable.mjs', async file => bytes(f.files.get(file)), sourceDigest(rows))
 
 test('saved index retains duplicate replacement, ordering, accents, Cyrillic and absent constructor queries', async () => {
   const f = await fixture(), loaded = await load(f)
@@ -53,7 +55,7 @@ for (const [name, change] of Object.entries({
   stale: f => { f.manifest.generated = '2025-01-01' },
   engine: f => { f.manifest.engine = 'different' },
   bundle: f => { f.manifest.bundles = ['old.js'] },
-  digest: f => { f.manifest.rowsDigest = '0'.repeat(64) },
+  digest: f => { f.manifest.sourceDigest = '0'.repeat(64) },
   rows: f => { f.manifest.rowCount++ },
   entities: f => { f.manifest.entityCount++ },
   configuration: f => { f.manifest.cfg.opt = 0 },
@@ -79,18 +81,21 @@ for (const [name, change] of Object.entries({
 })
 
 const source = await readFile(new URL('../src/composables/useSearchIndex.ts', import.meta.url), 'utf8')
-for (const corrupt of [false, true, 'omitted']) test(`real composable ${corrupt ? `falls back after damaged saved data (${corrupt})` : 'loads saved data without calling Index.add'}`, async () => {
+for (const corrupt of [false, true, 'omitted', 'source', 'crypto', 'crypto-missing']) test(`real composable ${corrupt ? `falls back after damaged saved data (${corrupt})` : 'loads saved data without calling Index.add'}`, async () => {
   const f = await fixture()
   const original = FlexSearch.Index.prototype.add
+  const originalDigest = globalThis.crypto.subtle.digest
+  if (String(corrupt).startsWith('crypto')) globalThis.crypto.subtle.digest = async () => { throw new Error('digest failed') }
   let adds = 0
   FlexSearch.Index.prototype.add = function (...args) { adds++; return original.apply(this, args) }
   try {
     await searchIndexHarness(source, async api => {
-      const base = searchResponses(rows)
+      const sourceRows = corrupt === 'source' ? rows.map(row => ({ ...row, country: 'CHANGED' })) : rows
+      const base = searchResponses(sourceRows)
       globalThis.fetch = async url => {
-        if (String(url).endsWith('/search-runtime/index.json')) return { ok: true, json: async () => corrupt === 'omitted'
+        if (String(url).endsWith('/search-runtime/index.json')) return { ok: corrupt !== 'crypto-missing', json: async () => corrupt === 'omitted'
           ? { ...f.manifest, chunks: f.manifest.chunks.filter(c => c.kind === 'reg') } : f.manifest }
-        if (String(url).includes('/search-runtime/')) return { ok: true, text: async () => corrupt === true ? '{}' : f.files.get(String(url).split('/').at(-1)) }
+        if (String(url).includes('/search-runtime/')) return { ok: true, arrayBuffer: async () => bytes(corrupt === true ? '{}' : f.files.get(String(url).split('/').at(-1))) }
         return base(url)
       }
       await api.loadSearchIndex()
@@ -105,5 +110,8 @@ for (const corrupt of [false, true, 'omitted']) test(`real composable ${corrupt 
     // Updating a repeated ID can call add internally as well as the row replay.
     if (corrupt) assert.ok(adds >= rows.length)
     else assert.equal(adds, 0)
-  } finally { FlexSearch.Index.prototype.add = original }
+  } finally {
+    FlexSearch.Index.prototype.add = original
+    globalThis.crypto.subtle.digest = originalDigest
+  }
 })
