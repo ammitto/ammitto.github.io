@@ -6,7 +6,8 @@ import { readFile, writeFile, mkdir, mkdtemp, rm, access, readdir } from 'node:f
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createRequire } from 'node:module'
-import { prepareSearchRuntime, partitionSearchRuntimeDictionary } from '../scripts/build-search-runtime.mjs'
+import { gunzipSync } from 'node:zlib'
+import { prepareSearchRuntime } from '../scripts/build-search-runtime.mjs'
 
 const generated = '2026-01-01T00:00:00Z'
 const hash = bytes => createHash('sha256').update(bytes).digest('hex')
@@ -23,6 +24,7 @@ let helpersPromise
 function helpers() {
   return helpersPromise ??= build({
     stdin: { contents: `export * from './searchRuntime.ts';
+      export { decodeSearchRuntimeBinary, SEARCH_RUNTIME_PARTITIONS } from './searchRuntimeBinary.ts';
       export { searchRowText } from './birthAdapters.ts';
       export { indexableText } from './searchEncode.ts';`, loader: 'ts',
     resolveDir: new URL('../src/utils/', import.meta.url).pathname },
@@ -53,39 +55,50 @@ async function fixture(run, shards = [
   } finally { await rm(dist, { recursive: true, force: true }) }
 }
 
-test('build emits bounded immutable chunks tied to exact ordered source bytes and compiled bundles', async () => {
+test('build emits 64 compressed immutable partitions tied to exact source bytes and compiled bundles', async () => {
   await fixture(async ({ dist, apiRoot, indexDirectory }) => {
     const before = await Promise.all((await readdir(indexDirectory)).map(async file => [file, hash(await readFile(join(indexDirectory, file)))]))
     const output = await prepareSearchRuntime(dist, apiRoot)
     const installed = JSON.parse(await readFile(createRequire(import.meta.url).resolve('flexsearch/package.json'), 'utf8'))
     assert.equal(output.engine, installed.version)
-    assert.equal(output.format, 'ammitto-search-runtime/v1')
+    assert.equal(output.format, 'ammitto-search-runtime/v3')
     assert.equal(output.generated, generated)
     assert.equal(output.sourceDigest, await sourceDigest(indexDirectory, ['eu', 'un', 'zz']))
     assert.equal('rowsDigest' in output, false)
     assert.equal(output.rowCount, 6)
     assert.equal(output.entityCount, 5)
     assert.equal(output.registeredCount, 4) // Empty text does not register a document.
-    assert.equal(output.chunksDigest, hash(JSON.stringify(output.chunks)))
     assert.deepEqual(output.bundles, ['app-abc123.js', 'z-def456.js'])
     assert.deepEqual(output.cfg, { doc: 0, opt: 1 })
     assert.deepEqual(output.ctx, [{}])
-    for (const chunk of output.chunks) {
-      const bytes = await readFile(join(dist, 'search-runtime', chunk.file))
-      assert.equal(chunk.bytes, bytes.byteLength)
-      assert.ok(chunk.bytes <= 1024 * 1024)
-      assert.equal(chunk.sha256, hash(bytes))
-      assert.equal(chunk.file, `${chunk.sha256}.json`)
-      assert.ok(Object.keys(JSON.parse(bytes)).length > 0)
-      assert.ok(chunk.kind === 'reg' || (chunk.kind === 'map' && chunk.score >= 0 && chunk.score <= 8))
+    const tools = await helpers()
+    assert.equal(tools.SEARCH_RUNTIME_PARTITIONS, 64)
+    assert.equal(output.partitions.length, 64)
+    assert.equal(output.partitionsDigest, hash(JSON.stringify(output.partitions)))
+    assert.equal('binary' in output, false)
+    const registered = new Set()
+    for (const [partition, part] of output.partitions.entries()) {
+      if (part === null) continue
+      const bytes = await readFile(join(dist, 'search-runtime', part.file))
+      assert.equal(part.bytes, bytes.byteLength)
+      assert.ok(bytes.byteLength <= 64 * 1024 * 1024)
+      assert.equal(part.sha256, hash(bytes))
+      assert.equal(part.file, `${hash(bytes)}.bin`)
+      assert.deepEqual([...bytes.subarray(0, 2)], [0x1f, 0x8b])
+      const raw = gunzipSync(bytes)
+      assert.equal(raw.byteLength, part.decodedBytes)
+      assert.equal(raw.subarray(0, 8).toString(), 'AMMITTO2')
+      const decoded = await tools.decodeSearchRuntimeBinary(Uint8Array.from(raw).buffer, output.entityCount, part.registeredCount, partition)
+      for (const id of Object.keys(decoded.register)) registered.add(id)
     }
+    assert.equal(registered.size, output.registeredCount)
     assert.deepEqual(JSON.parse(await readFile(join(dist, 'search-runtime/index.json'), 'utf8')), output)
     assert.deepEqual(await prepareSearchRuntime(dist, apiRoot), output, 'repeated generation reuses immutable content')
     for (const [file, digest] of before) assert.equal(hash(await readFile(join(indexDirectory, file))), digest, `preserved API ${file}`)
   })
 })
 
-test('generated chunks round trip through the actual browser importer with duplicate result order and recall', async () => {
+test('generated binary postings round trip through the actual browser importer with duplicate result order and recall', async () => {
   await fixture(async ({ dist, indexDirectory, shards }) => {
     const tools = await helpers()
     const output = await prepareSearchRuntime(dist)
@@ -93,15 +106,25 @@ test('generated chunks round trip through the actual browser importer with dupli
     const previousCrypto = globalThis.crypto
     if (!globalThis.crypto) Object.defineProperty(globalThis, 'crypto', { value: webcrypto, configurable: true })
     try {
-      const imported = await tools.importSearchRuntime(output, ordered, generated, 'app-abc123.js', file => chunkBuffer(dist, file),
+      const fetched = []
+      const imported = await tools.importSearchRuntime(output, ordered, generated, 'app-abc123.js', file => {
+        fetched.push(file); return chunkBuffer(dist, file)
+      },
         await sourceDigest(indexDirectory, ['eu', 'un', 'zz']))
       const original = tools.createSearchIndex()
       for (const entity of ordered) original.add(entity.id, tools.indexableText(tools.searchRowText(entity), entity.primaryName ? [entity.primaryName, ...entity.names] : entity.names))
       assert.deepEqual(imported.ids, ['a', 'b', 'constructor', 'c', 'empty'])
+      assert.deepEqual(fetched, [], 'metadata import does not load query partitions')
+      await imported.prepare('')
+      assert.equal(imported.ready(''), true)
+      assert.deepEqual(fetched, [], 'blank query needs no partitions')
       for (const query of ['shared', 'old alias', 'muhammad', 'alqaida', 'al qaida', 'binladen', 'иван', '1970', '1971', '1972', 'constructor', 'constructor absent', 'absent', 'toString']) {
+        await imported.prepare(query)
+        assert.equal(imported.ready(query), true, query)
         const ids = imported.index.search(query, { limit: 100 }).map(id => imported.ids[Number(id)])
         assert.deepEqual(ids, original.search(query, { limit: 100 }).map(String), query)
       }
+      assert.equal(fetched[0], output.partitions['s'.charCodeAt(0) % 64].file)
       assert.deepEqual(imported.index.search('shared').map(id => imported.ids[Number(id)]), ['b', 'a'])
     } finally {
       if (!previousCrypto) delete globalThis.crypto
@@ -109,17 +132,22 @@ test('generated chunks round trip through the actual browser importer with dupli
   })
 })
 
-test('blank document text produces zero chunks and still imports a complete empty index', async () => {
+test('blank document text produces empty postings and still imports a complete empty index', async () => {
   await fixture(async ({ dist, indexDirectory, shards }) => {
     const output = await prepareSearchRuntime(dist)
     assert.equal(output.registeredCount, 0)
-    assert.deepEqual(output.chunks, [])
+    assert.equal(output.partitions.length, 64)
+    assert.ok(output.partitions.every(part => part === null))
+    assert.deepEqual(await readdir(join(dist, 'search-runtime')), ['index.json'])
     const tools = await helpers()
     const previousCrypto = globalThis.crypto
     if (!globalThis.crypto) Object.defineProperty(globalThis, 'crypto', { value: webcrypto, configurable: true })
     try {
-      const imported = await tools.importSearchRuntime(output, shards[0].entities, generated, 'app-abc123.js', () => { throw new Error('No chunk fetch expected') },
+      const imported = await tools.importSearchRuntime(output, shards[0].entities, generated, 'app-abc123.js', () => { throw new Error('Empty index must not fetch') },
         await sourceDigest(indexDirectory, ['cn']))
+      await imported.prepare('')
+      await imported.prepare('constructor')
+      assert.equal(imported.ready('constructor'), true)
       assert.deepEqual(imported.index.search('constructor'), [])
     } finally { if (!previousCrypto) delete globalThis.crypto }
   }, [{ code: 'cn', entities: [row('empty')] }])
@@ -136,8 +164,8 @@ test('source fingerprint binds raw shard bytes even when decoded rows are unchan
     assert.equal(second.sourceDigest, await sourceDigest(indexDirectory, ['eu', 'un', 'zz']))
     assert.equal(second.rowCount, first.rowCount)
     assert.equal(second.entityCount, first.entityCount)
-    assert.deepEqual(second.chunks, first.chunks)
-    assert.equal(second.chunksDigest, first.chunksDigest)
+    assert.deepEqual(second.partitions, first.partitions)
+    assert.equal(second.partitionsDigest, first.partitionsDigest)
   })
 })
 
@@ -146,9 +174,9 @@ test('a corrupt existing content-addressed chunk fails without publishing anothe
     const output = await prepareSearchRuntime(dist)
     const manifestPath = join(dist, 'search-runtime/index.json')
     const originalManifest = await readFile(manifestPath, 'utf8')
-    const chunkPath = join(dist, 'search-runtime', output.chunks[0].file)
+    const chunkPath = join(dist, 'search-runtime', output.partitions.find(Boolean).file)
     await writeFile(chunkPath, 'corrupt fixture content')
-    await assert.rejects(prepareSearchRuntime(dist), /chunk is corrupt/)
+    await assert.rejects(prepareSearchRuntime(dist), /asset is corrupt/)
     assert.equal(await readFile(manifestPath, 'utf8'), originalManifest)
     assert.equal(await readFile(chunkPath, 'utf8'), 'corrupt fixture content')
   })
@@ -177,23 +205,4 @@ for (const [name, mutate] of Object.entries({
 test('build command generates the runtime after the real Vite build', async () => {
   const packageJson = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
   assert.match(packageJson.scripts.build, /vite-ssg build && node scripts\/build-search-runtime\.mjs dist$/)
-})
-
-test('dictionary chunks bound UTF-8 parsing work and reject an indivisible entry over 1 MiB', () => {
-  const dictionary = { ['é'.repeat(75_000)]: [0], ['ø'.repeat(75_000)]: [1] }
-  const chunks = partitionSearchRuntimeDictionary(dictionary, 'map', 2)
-  assert.equal(chunks.length, 2)
-  const reconstructed = Object.assign({}, ...chunks.map(chunk => JSON.parse(chunk.text)))
-  assert.deepEqual(reconstructed, dictionary)
-  for (const chunk of chunks) {
-    assert.equal(chunk.descriptor.bytes, Buffer.byteLength(chunk.text))
-    assert.ok(chunk.descriptor.bytes <= 256 * 1024)
-    assert.equal(chunk.descriptor.sha256, hash(chunk.text))
-  }
-  const largePosting = partitionSearchRuntimeDictionary({ shared: Array(90_000).fill(12345) }, 'map', 0)
-  assert.equal(largePosting.length, 1)
-  assert.ok(largePosting[0].descriptor.bytes > 256 * 1024)
-  assert.ok(largePosting[0].descriptor.bytes <= 1024 * 1024)
-  assert.throws(() => partitionSearchRuntimeDictionary({ shared: Array(200_000).fill(12345) }, 'map', 0), /exceeds 1 MiB/)
-  assert.deepEqual(partitionSearchRuntimeDictionary({}, 'reg'), [])
 })

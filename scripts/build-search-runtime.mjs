@@ -5,10 +5,9 @@ import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { gzipSync } from 'node:zlib'
 
 const repository = fileURLToPath(new URL('../', import.meta.url))
-const TARGET_CHUNK_BYTES = 256 * 1024
-const MAX_CHUNK_BYTES = 1024 * 1024
 const digest = bytes => createHash('sha256').update(bytes).digest('hex')
 const dictionary = value => value !== null && typeof value === 'object' && !Array.isArray(value)
 
@@ -19,6 +18,7 @@ function sharedTools() {
   return toolsPromise ??= build({
     stdin: {
       contents: `export { createSearchIndex, SEARCH_RUNTIME_FORMAT, SEARCH_ENGINE_VERSION } from './searchRuntime.ts';
+        export { encodeSearchRuntimeBinary, SEARCH_RUNTIME_PARTITIONS, SEARCH_BINARY_MAX_BYTES } from './searchRuntimeBinary.ts';
         export { orderShards, isSearchIndexManifest } from './searchShards.ts';
         export { checkMetadata } from './indexMetadata.ts';
         export { searchRowText } from './birthAdapters.ts';
@@ -28,31 +28,6 @@ function sharedTools() {
     bundle: true, write: false, platform: 'node', format: 'esm',
     alias: { '@': resolve(repository, 'src') },
   }).then(result => import(`data:text/javascript;base64,${Buffer.from(`${result.outputFiles[0].text}\n//# sourceURL=search-runtime-build-tools.mjs`).toString('base64')}`))
-}
-
-export function partitionSearchRuntimeDictionary(value, kind, score) {
-  const chunks = []
-  let entries = []
-  let bytes = 2
-  const finish = () => {
-    if (!entries.length) return
-    const text = `{${entries.join(',')}}`
-    const sha256 = digest(text)
-    chunks.push({ descriptor: { file: `${sha256}.json`, sha256, bytes: Buffer.byteLength(text), kind,
-      ...(kind === 'map' ? { score } : {}) }, text })
-    entries = []
-    bytes = 2
-  }
-  for (const [key, item] of Object.entries(value)) {
-    const entry = `${JSON.stringify(key)}:${JSON.stringify(item)}`
-    const entryBytes = Buffer.byteLength(entry)
-    if (entryBytes + 2 > MAX_CHUNK_BYTES) throw new Error(`Search runtime ${kind} entry exceeds 1 MiB`)
-    if (entries.length && bytes + 1 + entryBytes > TARGET_CHUNK_BYTES) finish()
-    bytes += entryBytes + (entries.length ? 1 : 0)
-    entries.push(entry)
-  }
-  finish()
-  return chunks
 }
 
 /** Generate only dist/search-runtime; leave every API file intact. */
@@ -109,25 +84,48 @@ export async function prepareSearchRuntime(dist, apiRoot = resolve(dist, 'api/v1
       || !dictionary(parts.reg) || !Array.isArray(parts.map) || parts.map.length !== 9 || !parts.map.every(dictionary)) {
     throw new Error('Unsupported FlexSearch export shape')
   }
-  const chunks = partitionSearchRuntimeDictionary(parts.reg, 'reg')
-  parts.map.forEach((bucket, score) => chunks.push(...partitionSearchRuntimeDictionary(bucket, 'map', score)))
-  if (chunks.length > 1024) throw new Error('Search runtime exceeds supported chunk count')
+  const seen = new Set()
+  for (const bucket of parts.map) for (const list of Object.values(bucket)) for (const id of list) seen.add(String(id))
+  if (seen.size !== Object.keys(parts.reg).length || [...seen].some(id => parts.reg[id] !== 1)) {
+    throw new Error('Search runtime register does not match postings')
+  }
+  const maps = Array.from({ length: tools.SEARCH_RUNTIME_PARTITIONS }, () =>
+    Array.from({ length: 9 }, () => Object.create(null)))
+  parts.map.forEach((bucket, score) => {
+    for (const [term, values] of Object.entries(bucket)) {
+      if (!term.length) throw new Error('Search runtime contains an empty term')
+      maps[(term.charCodeAt(0) || 0) % tools.SEARCH_RUNTIME_PARTITIONS][score][term] = values
+    }
+  })
+  const assets = maps.map(partition => {
+    if (partition.every(bucket => Object.keys(bucket).length === 0)) return null
+    const registered = new Set()
+    for (const bucket of partition) for (const values of Object.values(bucket)) for (const id of values) registered.add(id)
+    const raw = tools.encodeSearchRuntimeBinary(partition, ids.size)
+    const bytes = gzipSync(raw, { level: 9 })
+    if (bytes.byteLength > tools.SEARCH_BINARY_MAX_BYTES) throw new Error('Compressed search runtime partition exceeds 64 MiB')
+    const sha256 = digest(bytes)
+    return { bytes, descriptor: { file: `${sha256}.bin`, sha256, bytes: bytes.byteLength,
+      decodedBytes: raw.byteLength, registeredCount: registered.size } }
+  })
+  const partitions = assets.map(asset => asset?.descriptor ?? null)
   const output = {
     format: tools.SEARCH_RUNTIME_FORMAT, engine: tools.SEARCH_ENGINE_VERSION,
     generated: manifest.metadata.generated, sourceDigest, rowCount: rows.length,
     entityCount: ids.size, registeredCount: Object.keys(parts.reg).length,
     cfg: parts.cfg, ctx: parts.ctx, bundles,
-    chunksDigest: digest(JSON.stringify(chunks.map(chunk => chunk.descriptor))),
-    chunks: chunks.map(chunk => chunk.descriptor),
+    partitions, partitionsDigest: digest(JSON.stringify(partitions)),
   }
   const outputDirectory = resolve(dist, 'search-runtime')
   await mkdir(outputDirectory, { recursive: true })
-  for (const { descriptor, text } of chunks) {
-    const file = resolve(outputDirectory, descriptor.file)
-    try { await writeFile(file, text, { flag: 'wx' }) }
+  for (const asset of assets) {
+    if (!asset) continue
+    const file = resolve(outputDirectory, asset.descriptor.file)
+    try { await writeFile(file, asset.bytes, { flag: 'wx' }) }
     catch (error) {
       if (error.code !== 'EEXIST') throw error
-      if (await readFile(file, 'utf8') !== text) throw new Error(`Existing search runtime chunk is corrupt: ${descriptor.file}`)
+      const existing = await readFile(file)
+      if (!existing.equals(asset.bytes)) throw new Error(`Existing search runtime asset is corrupt: ${asset.descriptor.file}`)
     }
   }
   // Publish only after source validation, complete export and every chunk write.
@@ -139,6 +137,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   try {
     const [dist = 'dist', apiRoot] = process.argv.slice(2)
     const manifest = await prepareSearchRuntime(dist, apiRoot)
-    console.log(`Search runtime: ${manifest.rowCount} rows, ${manifest.entityCount} entities, ${manifest.chunks.length} chunks`)
+    console.log(`Search runtime: ${manifest.rowCount} rows, ${manifest.entityCount} entities, ${manifest.partitions.reduce((sum, part) => sum + (part?.bytes ?? 0), 0)} compressed binary bytes`)
   } catch (error) { console.error(error); process.exitCode = 1 }
 }

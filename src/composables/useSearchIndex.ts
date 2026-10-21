@@ -90,6 +90,11 @@ const isLoading = ref(false)
 const isLoaded = ref(false)
 // Saved indexes use compact numeric posting IDs; the fallback retains string IDs.
 let savedDocumentIds: string[] | null = null
+let queryRuntime: Awaited<ReturnType<typeof importSearchRuntime>> | null = null
+const isQueryLoading = ref(false)
+let queryVersion = 0
+let skipSavedRuntime = false
+let fallbackBuild: Promise<void> | null = null
 const error = ref<string | null>(null)
 const metadata = ref<CheckedMetadata | null>(null)
 
@@ -183,6 +188,7 @@ async function loadSearchIndex(): Promise<void> {
   const runtimeTimeout = setTimeout(() => runtimeController.abort(), 10000)
   const savedRuntime = (async () => {
     try {
+      if (skipSavedRuntime) return null
       const response = await fetch(`${API_BASE}search-runtime/index.json`, { signal: runtimeController.signal })
       return response.ok ? await response.json() : null
     } catch {
@@ -238,18 +244,20 @@ async function loadSearchIndex(): Promise<void> {
     // An optional internal build asset removes repeated index construction.
     // Bind it to the complete ordered rows and the exact application bundle;
     // stale, absent or damaged assets fall back to the existing builder below.
-    let importTimeout: ReturnType<typeof setTimeout> | undefined
     try {
       const payload = await savedRuntime
       if (payload !== null && shards.every(shard => shard.signature[2] !== null)) {
         const sourceDigest = await searchBytesDigest(new TextEncoder().encode(
           JSON.stringify(shards.map(shard => shard.signature))).buffer)
-        importTimeout = setTimeout(() => runtimeController.abort(), 30000)
         const loaded = await importSearchRuntime(payload, rows, manifest.metadata.generated,
           new URL(import.meta.url).pathname.split('/').pop() || '', async file => {
-            const response = await fetch(`${API_BASE}search-runtime/${file}`, { signal: runtimeController.signal })
-            if (!response.ok) throw new Error('Saved search index chunk unavailable')
-            return response.arrayBuffer()
+            const controller = new AbortController()
+            const timeout = setTimeout(() => controller.abort(), 30000)
+            try {
+              const response = await fetch(`${API_BASE}search-runtime/${file}`, { signal: controller.signal })
+              if (!response.ok) throw new Error('Saved search index partition unavailable')
+              return await response.arrayBuffer()
+            } finally { clearTimeout(timeout) }
           }, sourceDigest)
         const hydrated = new Map<string, SearchEntity>()
         await forEachWithinBudget(rows, row => hydrated.set(row.id, row), {
@@ -257,6 +265,7 @@ async function loadSearchIndex(): Promise<void> {
           now: () => performance.now(), yieldControl: yieldToEventLoop,
         })
         entities.value = hydrated
+        queryRuntime = loaded
         savedDocumentIds = loaded.ids
         indexedCount.value = rows.length
         searchIndex.value = loaded.index
@@ -266,10 +275,10 @@ async function loadSearchIndex(): Promise<void> {
     } catch {
       // Never publish a partial imported index or interpret it as "no match".
     } finally {
-      clearTimeout(importTimeout)
       runtimeController.abort()
     }
     savedDocumentIds = null
+    queryRuntime = null
 
     // Build FlexSearch index.
     //
@@ -381,6 +390,42 @@ async function loadSearchIndex(): Promise<void> {
   }
 }
 
+/** Prepare before rendering a verdict; stale requests may fill cache but cannot clear newer loading state. */
+async function prepareSearch(query: string): Promise<void> {
+  const version = ++queryVersion
+  const runtime = queryRuntime
+  if (!runtime || runtime.ready(query)) {
+    isQueryLoading.value = false
+    return
+  }
+  isQueryLoading.value = true
+  try {
+    await runtime.prepare(query)
+  } catch {
+    if (queryRuntime === runtime) {
+      queryRuntime = null
+      skipSavedRuntime = true
+      savedDocumentIds = null
+      searchIndex.value = null
+      entities.value = new Map()
+      suggestionTokens = null
+      lastSuggestKey = null
+      lastSuggestResult = []
+      isLoaded.value = false
+      isLoading.value = false
+      const rebuild = loadSearchIndex()
+      // The regular builder now owns progress; let its partial matches render.
+      isQueryLoading.value = false
+      fallbackBuild = rebuild
+      try { await rebuild } finally { if (fallbackBuild === rebuild) fallbackBuild = null }
+    } else if (fallbackBuild) {
+      await fallbackBuild
+    }
+  } finally {
+    if (version === queryVersion) isQueryLoading.value = false
+  }
+}
+
 /**
  * Load facet data from API
  */
@@ -440,7 +485,8 @@ async function loadFacets(): Promise<void> {
 }
 
 /**
- * Search entities by query
+ * Search entities by query. Await prepareSearch(query) before treating an empty
+ * answer as a verdict; isLoaded alone describes the catalogue, not every query.
  */
 function search(query: string, limit = 100): SearchEntity[] {
   // Not loaded yet: the chunked build (above) adds rows to `entities` well
@@ -450,6 +496,8 @@ function search(query: string, limit = 100): SearchEntity[] {
   if (!searchIndex.value) {
     return []
   }
+
+  if (queryRuntime && !queryRuntime.ready(query)) return []
 
   if (!query.trim()) {
     return Array.from(entities.value.values()).slice(0, limit)
@@ -652,6 +700,7 @@ export function useSearchIndex() {
   return {
     // State
     isLoading,
+    isQueryLoading,
     isLoaded,
     indexedCount,
     error,
@@ -668,6 +717,7 @@ export function useSearchIndex() {
 
     // Methods
     loadSearchIndex,
+    prepareSearch,
     loadFacets,
     search,
     searchPartial,
