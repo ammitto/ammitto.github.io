@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { sources } from '@/config'
 import { fetchableSources } from '@/utils/sourceCatalog'
 import { tileToneVars } from '@/config/palette'
@@ -28,21 +28,26 @@ type CatalogueEntry = {
   name?: string
   url?: string
   bytes?: number
+  published?: string
+  digest?: string
+  releaseTag?: string
+  sourceCommit?: string
+  mediaType?: string
 }
 
-const fullJsonLd: DownloadFile = {
+const fullJsonLd = reactive<DownloadFile>({
   filename: 'all.jsonld',
   title: 'Complete graph in JSON-LD',
   description: 'The complete published graph in JSON-LD format.',
-  href: `${API_BASE}/all.jsonld`,
-}
+  href: '',
+})
 
-const fullTurtle: DownloadFile = {
+const fullTurtle = reactive<DownloadFile>({
   filename: 'all.ttl',
   title: 'Complete graph in Turtle',
   description: 'The complete published graph in RDF/Turtle format.',
-  href: `${API_BASE}/all.ttl`,
-}
+  href: '',
+})
 
 const fullDownloads = [fullJsonLd, fullTurtle]
 
@@ -61,18 +66,7 @@ const sourceDownloads: DownloadFile[] = sources
     sourceColor: source.color,
   }))
 
-const sizes = ref<Record<string, SizeInfo>>({
-  [fullJsonLd.href]: {
-    bytes: 156423069,
-    exact: true,
-    asOf: 'measured 14 September 2026',
-  },
-  [fullTurtle.href]: {
-    display: '116 MB',
-    exact: false,
-    asOf: 'approximate; last measured 14 September 2026',
-  },
-})
+const sizes = ref<Record<string, SizeInfo>>({})
 
 const catalogueLoading = ref(true)
 
@@ -145,7 +139,7 @@ function catalogueTimestamp(payload: unknown): string | undefined {
 }
 
 function matchesFile(entry: CatalogueEntry, file: DownloadFile): boolean {
-  const expected = cataloguePath(file.href)
+  const expected = fullDownloads.includes(file) ? file.filename : cataloguePath(file.href)
   const values = [entry.url, entry.name].filter(
     (value): value is string => typeof value === 'string',
   )
@@ -154,6 +148,20 @@ function matchesFile(entry: CatalogueEntry, file: DownloadFile): boolean {
     const candidate = cataloguePath(value)
     return candidate === expected || expected.endsWith(`/${candidate}`)
   })
+}
+
+function validBulkEntry(entry: CatalogueEntry, file: DownloadFile, payload: unknown): boolean {
+  if (typeof payload !== 'object' || payload === null) return false
+  const release = (payload as { bulkRelease?: { tag?: string; url?: string; published?: string } }).bulkRelease
+  if (!release || typeof release.tag !== 'string' || !/^api-v1-[a-f0-9]{40}$/.test(release.tag)) return false
+  return entry.name === file.filename
+    && entry.url === `https://github.com/ammitto/data/releases/download/${release.tag}/${file.filename}`
+    && entry.mediaType === (file.filename.endsWith('.jsonld') ? 'application/ld+json' : 'text/turtle')
+    && entry.releaseTag === release.tag && entry.sourceCommit === release.tag.slice('api-v1-'.length)
+    && typeof entry.digest === 'string' && /^sha256:[a-f0-9]{64}$/.test(entry.digest)
+    && typeof entry.published === 'string' && Number.isFinite(Date.parse(entry.published))
+    && entry.published === release.published
+    && release.url === `https://github.com/ammitto/data/releases/tag/${release.tag}`
 }
 
 async function verifySourceSize(file: DownloadFile): Promise<void> {
@@ -208,16 +216,27 @@ onMounted(async () => {
     for (const file of [...fullDownloads, ...sourceDownloads]) {
       const entry = entries.find((candidate) => matchesFile(candidate, file))
 
-      if (entry?.bytes !== undefined && Number.isFinite(entry.bytes) && entry.bytes > 0) {
+      if (entry?.bytes !== undefined && Number.isSafeInteger(entry.bytes) && entry.bytes > 0) {
+        if (fullDownloads.includes(file)) {
+          if (!entry.url) continue
+          // Published bulk URLs pin an immutable release; never follow a mutable latest alias.
+          if (/^https?:/.test(entry.url)) {
+            if (!validBulkEntry(entry, file, payload)) continue
+            file.href = entry.url
+          } else {
+            if (entry.url !== file.filename) continue
+            file.href = API_BASE + '/' + entry.url
+          }
+        }
         sizes.value[file.href] = {
           bytes: entry.bytes,
           exact: true,
-          asOf,
+          asOf: entry.published ? `bulk release published ${entry.published}` : asOf,
         }
       }
     }
   } catch {
-    // Full-file fallback measurements remain visible if the catalogue fails.
+    // Without a verified catalogue, bulk links remain unavailable.
   } finally {
     // Published catalogues may omit source aggregates that are available.
     await Promise.all(sourceDownloads.filter(file => !sizes.value[file.href]).map(verifySourceSize))
@@ -289,7 +308,8 @@ onMounted(async () => {
         </h2>
         <p class="text-light-muted dark:text-dark-muted mb-6 max-w-3xl">
           These files contain the entire published graph. They are intended for
-          local processing or archival use.
+          local processing or archival use. Large exports are hosted in GitHub Releases;
+          their release date can differ from the searchable site snapshot.
         </p>
 
         <ul class="grid md:grid-cols-2 gap-6">
@@ -303,6 +323,7 @@ onMounted(async () => {
               </p>
 
               <a
+                v-if="sizeFor(file)"
                 :href="file.href"
                 :download="file.filename"
                 class="mt-auto inline-flex flex-wrap items-center gap-2 rounded border

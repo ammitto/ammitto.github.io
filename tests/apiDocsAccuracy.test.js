@@ -175,7 +175,7 @@ test('each endpoint entry is complete', () => {
     '/stats.json',
     '/sources/{source}.jsonld',
     '/node/entity/{source}/{id}.jsonld',
-    '/all.jsonld and /all.ttl',
+    'Bulk downloads via /index.jsonld',
     '/ontology/classes.jsonld',
     '/facets/{facet}.json',
     '/search-index/manifest.json',

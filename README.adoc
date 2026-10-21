@@ -150,7 +150,7 @@ The website loads data from `public/api/v1/`:
 | `ontology/hierarchy.json` | Class hierarchy tree
 | `node/entity/{source}/{id}.jsonld` | Individual entity nodes
 | `sources/{source}.jsonld` | Every entity and entry for one source. Published for all sources named in `publishing_sources`, including `sources/ru.jsonld`
-| `all.jsonld` | Complete knowledge graph
+| `index.jsonld` entries named `all.jsonld` / `all.ttl` | Complete knowledge graph downloads via immutable GitHub Release URLs
 |===
 
 === API contract and SPARQL

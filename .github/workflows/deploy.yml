@@ -150,8 +150,8 @@ jobs:
           rm -rf ../public/api/v1
           # --combine emits the aggregated all.jsonld and its all.ttl
           # Turtle rendering; the gem gates both behind the flag and
-          # defaults it off. They are published because the API
-          # advertises them at that path. Two earlier revisions got the
+          # defaults it off. Validate the complete graphs before the final
+          # publication layout moves bulk downloads to GitHub Releases. Two earlier revisions got the
           # reason wrong in opposite directions, so state it exactly: the
           # gem does not download all.jsonld automatically, and its public
           # `ApiClient#fetch_all` exists precisely so a consumer can ask
@@ -360,9 +360,9 @@ jobs:
           # nothing from ch, cn, jp, ru or us, and this step passed every day.
           # The entity floors could not see it either — vocabularies come
           # from sources/supporting/, not from the entity corpus, so no
-          # gated count moves when one vanishes. ru proves the two are
-          # independent in both directions: it is a pending source held at
-          # zero entities that nonetheless publishes a vocabulary.
+          # gated count moves when one vanishes. Historically, RU published
+          # a vocabulary while its entity input was unavailable, proving
+          # that vocabulary and entity publication are independent.
           # BOTH source lists are passed, for that reason.
           #
           # The expectation is derived from the clones this run already made
@@ -601,6 +601,31 @@ jobs:
           # fresh multi-source data; stop build:api from clobbering it with
           # the stale CN-only copy from data-cn.
           SKIP_API_DATA: '1'
+
+      - name: Prepare size-bounded Pages publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The complete generated graphs have passed the source/schema gates.
+          # Discover the data release once; the catalogue records exact tag URLs.
+          gh api repos/ammitto/data/releases/latest > bulk-release.json
+          node scripts/prepare-pages-publication.mjs dist bulk-release.json
+          node scripts/verify-pages-size.mjs dist
+
+      - name: Install catalogue contract validator
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+        env:
+          BUNDLE_GEMFILE: .github/validation.Gemfile
+
+      - name: Verify final publication catalogue
+        env:
+          BUNDLE_GEMFILE: .github/validation.Gemfile
+        run: |
+          bundle exec ruby scripts/test-publication-catalogue.rb
+          bundle exec ruby scripts/verify-api-contract.rb dist/api/v1/index.jsonld
 
       - name: Install Playwright chromium
         # Only chromium, and only its dependencies. The browser version is

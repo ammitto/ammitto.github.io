@@ -65,7 +65,9 @@ jobs:
       - name: Validate API response contracts
         env:
           BUNDLE_GEMFILE: .github/validation.Gemfile
-        run: bundle exec ruby scripts/verify-api-contract.rb
+        run: |
+          bundle exec ruby scripts/verify-api-contract.rb
+          bundle exec ruby scripts/test-publication-catalogue.rb
 
       - name: Typecheck
         run: npm run typecheck

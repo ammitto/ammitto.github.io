@@ -9,14 +9,17 @@ const publicBase = import.meta.env.BASE_URL
 const baseUrl = 'https://www.ammitto.org/api/v1'
 
 // Every path below is taken from the catalogue the producer publishes at
-// /index.jsonld, and every response shape from a live fetch of that path.
+// /index.jsonld. Response shapes follow those files; the catalogue example
+// is illustrative, while the other samples retain their dated readings.
 // The page used to list two endpoints against a base URL that redirects,
 // with a @context we do not emit and counts from a corpus a seventh the
 // size of today's. Start from the catalogue when this needs updating.
 //
-// The sizes, counts and timestamps in the samples below are a dated
-// reading, not a live value. They were read on 2026-09-14 from
-// /index.jsonld, /stats.json, /facets/types.json and
+// The catalogue response below is illustrative, including its repeated-hex
+// commit and digest. Resolve real bulk URLs from the live catalogue.
+// Apart from that illustrative catalogue, sample sizes, counts and timestamps
+// are dated readings, not live values. They were read on 2026-09-14 from
+// /stats.json, /facets/types.json and
 // /ontology/classes.jsonld, and every harmonize run moves them, so a
 // mismatch against the deployed API is this page going stale rather than
 // the producer changing shape. No test checks these against the live
@@ -32,14 +35,23 @@ const endpoints = [
   "@context": "https://ammitto.org/api/v1/context.jsonld",
   "@type": "Index",
   "slice": "catalogue",
-  "generated": "2026-09-14T11:54:44Z",
+  "generated": "2026-10-21T12:00:00Z",
+  "bulkRelease": {
+    "tag": "api-v1-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "url": "https://github.com/ammitto/data/releases/tag/api-v1-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "published": "2026-10-20T10:00:00Z"
+  },
   "entries": [
     {
       "name": "all.jsonld",
-      "url": "all.jsonld",
+      "url": "https://github.com/ammitto/data/releases/download/api-v1-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/all.jsonld",
       "mediaType": "application/ld+json",
       "description": "Every node in one graph",
-      "bytes": 156423069
+      "bytes": 156423069,
+      "published": "2026-10-20T10:00:00Z",
+      "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "releaseTag": "api-v1-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "sourceCommit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     },
     {
       "name": "sources",
@@ -103,10 +115,11 @@ const endpoints = [
   },
   {
     method: 'GET',
-    path: '/all.jsonld and /all.ttl',
+    path: 'Bulk downloads via /index.jsonld',
     description:
-      'The whole graph in one file — JSON-LD or RDF/Turtle. Check current byte sizes in the catalogue before downloading. Prefer a source aggregate or a node document when you only need part of the graph.',
-    example: `curl --fail --compressed ${baseUrl}/all.jsonld`,
+      'Whole graph exports in JSON-LD or RDF/Turtle. Discover their immutable GitHub Release URLs in the catalogue and follow redirects. Check each entry’s size, digest and published date; the bulk release can differ from the searchable site snapshot. Prefer a source aggregate or a node document when you only need part of the graph.',
+    example: `curl --fail ${baseUrl}/index.jsonld > catalogue.json
+curl --fail --location "$(jq -r '.entries[] | select(.name == "all.jsonld") | .url' catalogue.json)" -o all.jsonld`,
     response: `{
   "@context": "https://ammitto.org/api/v1/context.jsonld",
   "@graph": [ /* every entity, entry, regime, authority and instrument */ ]

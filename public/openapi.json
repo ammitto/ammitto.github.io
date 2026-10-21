@@ -3,7 +3,7 @@
   "info": {
     "title": "Ammitto static data API",
     "version": "1.0.0",
-    "description": "Read-only generated files. No API key, server-side search, filtering, pagination, or hosted SPARQL query endpoint. Discover available files in /index.jsonld; publication contents and counts change. JSON-LD suffixes are required. Identifiers may span path segments: use indexes rather than assuming an opaque one-segment id. Error handling and HTTP caching are provided by static hosting."
+    "description": "Read-only generated files. No API key, server-side search, filtering, pagination, or hosted SPARQL query endpoint. Discover available files in /index.jsonld; publication contents and counts change. JSON-LD suffixes are required. Identifiers may span path segments: use indexes rather than assuming an opaque one-segment id. Error handling and HTTP caching are provided by static hosting. Whole-graph downloads and RU Turtle are external release assets discovered by name and URL in /index.jsonld; follow HTTP redirects and use each entry publication date, size and digest. The catalogue generated date describes the site snapshot, not the bulk release."
   },
   "servers": [
     {
@@ -75,48 +75,6 @@
         }
       }
     },
-    "/all.jsonld": {
-      "get": {
-        "summary": "Download the whole JSON-LD graph",
-        "operationId": "getAllJsonld",
-        "responses": {
-          "200": {
-            "description": "Published file. Values reflect the current generated snapshot.",
-            "content": {
-              "application/ld+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Graph"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "File absent from the publication. Error body and media type depend on static hosting; no JSON error envelope is guaranteed."
-          }
-        }
-      }
-    },
-    "/all.ttl": {
-      "get": {
-        "summary": "Download the whole Turtle graph",
-        "operationId": "getAllTtl",
-        "responses": {
-          "200": {
-            "description": "Published file. Values reflect the current generated snapshot.",
-            "content": {
-              "text/turtle": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "File absent from the publication. Error body and media type depend on static hosting; no JSON error envelope is guaranteed."
-          }
-        }
-      }
-    },
     "/sources/{source}.jsonld": {
       "get": {
         "summary": "Download a source graph",
@@ -173,7 +131,7 @@
             "name": "source",
             "in": "path",
             "required": true,
-            "description": "Published identifier from the catalogue or collection index. Preserve any slash-separated identifier components when forming the URL.",
+            "description": "Source code from local sources catalogue members. RU Turtle is an external release asset discovered by entry name sources/ru.ttl in /index.jsonld; do not request its former local path.",
             "schema": {
               "type": "string"
             }
@@ -1228,7 +1186,76 @@
                 },
                 "index": {
                   "type": "string"
+                },
+                "published": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "Publication time of the separate bulk release, not the site snapshot."
+                },
+                "digest": {
+                  "type": "string",
+                  "pattern": "^sha256:[a-f0-9]{64}$"
+                },
+                "releaseTag": {
+                  "type": "string",
+                  "pattern": "^api-v1-[a-f0-9]{40}$"
+                },
+                "sourceCommit": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{40}$"
                 }
+              },
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "url": {
+                        "pattern": "^https://github.com/ammitto/data/releases/download/"
+                      }
+                    },
+                    "required": [
+                      "url"
+                    ]
+                  },
+                  "then": {
+                    "required": [
+                      "bytes",
+                      "mediaType",
+                      "published",
+                      "digest",
+                      "releaseTag",
+                      "sourceCommit"
+                    ],
+                    "properties": {
+                      "bytes": {
+                        "type": "integer",
+                        "minimum": 1
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "bulkRelease": {
+            "type": "object",
+            "required": [
+              "tag",
+              "url",
+              "published"
+            ],
+            "properties": {
+              "tag": {
+                "type": "string",
+                "pattern": "^api-v1-[a-f0-9]{40}$"
+              },
+              "url": {
+                "type": "string",
+                "format": "uri"
+              },
+              "published": {
+                "type": "string",
+                "format": "date-time"
               }
             }
           }
