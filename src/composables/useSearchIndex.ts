@@ -1,5 +1,6 @@
 import { ref, shallowRef, triggerRef, computed, toRaw } from 'vue'
 import FlexSearch from 'flexsearch'
+import { createSearchIndex, importSearchRuntime } from '@/utils/searchRuntime'
 import { normalizeNode } from '@/utils/normalizeNode'
 import { searchRowText } from '@/utils/birthAdapters'
 import type { SearchBirthYear } from '@/utils/birthDisplay'
@@ -87,6 +88,8 @@ const searchIndex = shallowRef<FlexSearch.Index | null>(null)
 const entities = shallowRef<Map<string, SearchEntity>>(new Map())
 const isLoading = ref(false)
 const isLoaded = ref(false)
+// Saved indexes use compact numeric posting IDs; the fallback retains string IDs.
+let savedDocumentIds: string[] | null = null
 const error = ref<string | null>(null)
 const metadata = ref<CheckedMetadata | null>(null)
 
@@ -176,6 +179,19 @@ async function loadSearchIndex(): Promise<void> {
   error.value = null
   indexedCount.value = 0
 
+  const runtimeController = new AbortController()
+  const runtimeTimeout = setTimeout(() => runtimeController.abort(), 10000)
+  const savedRuntime = (async () => {
+    try {
+      const response = await fetch(`${API_BASE}search-runtime/index.json`, { signal: runtimeController.signal })
+      return response.ok ? await response.json() : null
+    } catch {
+      return null
+    } finally {
+      clearTimeout(runtimeTimeout)
+    }
+  })()
+
   try {
     const indexBase = `${API_BASE}api/v1/search-index/`
     const manifestResponse = await fetch(`${API_BASE}api/v1/search-index/manifest.json`)
@@ -217,6 +233,40 @@ async function loadSearchIndex(): Promise<void> {
       )
     }
 
+    // An optional internal build asset removes repeated index construction.
+    // Bind it to the complete ordered rows and the exact application bundle;
+    // stale, absent or damaged assets fall back to the existing builder below.
+    let importTimeout: ReturnType<typeof setTimeout> | undefined
+    try {
+      const payload = await savedRuntime
+      if (payload !== null) {
+        importTimeout = setTimeout(() => runtimeController.abort(), 30000)
+        const loaded = await importSearchRuntime(payload, rows, manifest.metadata.generated,
+          new URL(import.meta.url).pathname.split('/').pop() || '', async file => {
+            const response = await fetch(`${API_BASE}search-runtime/${file}`, { signal: runtimeController.signal })
+            if (!response.ok) throw new Error('Saved search index chunk unavailable')
+            return response.text()
+          })
+        const hydrated = new Map<string, SearchEntity>()
+        await forEachWithinBudget(rows, row => hydrated.set(row.id, row), {
+          budgetMs: INDEX_BUDGET_MS, checkEvery: INDEX_BUDGET_CHECK_EVERY,
+          now: () => performance.now(), yieldControl: yieldToEventLoop,
+        })
+        entities.value = hydrated
+        savedDocumentIds = loaded.ids
+        indexedCount.value = rows.length
+        searchIndex.value = loaded.index
+        isLoaded.value = true
+        return
+      }
+    } catch {
+      // Never publish a partial imported index or interpret it as "no match".
+    } finally {
+      clearTimeout(importTimeout)
+      runtimeController.abort()
+    }
+    savedDocumentIds = null
+
     // Build FlexSearch index.
     //
     // `encode` folds diacritics and splits on punctuation rather than
@@ -235,11 +285,7 @@ async function loadSearchIndex(): Promise<void> {
     // See src/utils/searchEncode.ts for what folding deliberately does not fix:
     // `kadhafi` vs `qadhafi` is a substituted letter, which no encoder mends.
     // `suggestFor` below covers that.
-    const index = new FlexSearch.Index({
-      tokenize: 'forward',
-      cache: true,
-      encode: foldForSearch,
-    })
+    const index = createSearchIndex()
 
     const budget = {
       budgetMs: INDEX_BUDGET_MS,
@@ -323,6 +369,8 @@ async function loadSearchIndex(): Promise<void> {
     error.value = e instanceof Error ? e.message : 'Failed to load search index'
     console.error('Failed to load search index:', e)
   } finally {
+    runtimeController.abort()
+    clearTimeout(runtimeTimeout)
     partialIndex = null
     repeatedIds = new Set()
     isLoading.value = false
@@ -406,7 +454,7 @@ function search(query: string, limit = 100): SearchEntity[] {
   const results = searchIndex.value.search(query, { limit }) as number[]
 
   return results
-    .map((id) => entities.value.get(String(id)))
+    .map((id) => entities.value.get(savedDocumentIds ? savedDocumentIds[Number(id)] : String(id)))
     .filter(Boolean) as SearchEntity[]
 }
 
