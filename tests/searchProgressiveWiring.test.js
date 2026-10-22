@@ -38,7 +38,8 @@ function openingTag(marker) {
 
 test('partial results show only while building and only for a typed query', () => {
   const body = computedBody('showPartial')
-  assert.match(body, /!isLoaded\.value \|\| loading\.value/)
+  // indexBusy: the index/partitions, not the card rows or suggestions that `loading` also waits for.
+  assert.match(body, /!isLoaded\.value \|\| indexBusy\.value/)
   assert.match(body, /debouncedQuery\.value\.trim\(\) !== ''/)
   assert.match(body, /searchQuery\.value\.trim\(\) !== ''/)
 })
@@ -110,10 +111,15 @@ test('without an index total the banner still counts the partial matches', () =>
 })
 
 test('verdicts stay gated on the finished build', () => {
+  // filteredEntities is the list itself (gated on indexBusy); the verdicts
+  // built from it are gated on `loading`, which includes indexBusy.
+  assert.match(page, /const loading = computed\(\(\) => indexBusy\.value \|\| cardsPending\.value \|\| suggestionsPending\.value\)/)
   for (const name of ['filteredEntities', 'nearMisses', 'resultAnnouncement']) {
     assert.match(
       computedBody(name),
-      /if \(!isLoaded\.value \|\| loading\.value\) (\{\s*)?return/,
+      name === 'filteredEntities'
+        ? /if \(!isLoaded\.value \|\| indexBusy\.value\) (\{\s*)?return/
+        : /if \(!isLoaded\.value \|\| loading\.value\) (\{\s*)?return/,
       `${name} must answer nothing until the index is fully built`,
     )
   }

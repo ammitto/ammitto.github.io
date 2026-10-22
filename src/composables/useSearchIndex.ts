@@ -1,6 +1,21 @@
 import { ref, shallowRef, triggerRef, computed, toRaw } from 'vue'
 import FlexSearch from 'flexsearch'
-import { createSearchIndex, importSearchRuntime, searchBytesDigest } from '@/utils/searchRuntime'
+import { createSearchIndex, importSearchRuntime, inflate, openSearchRuntime, searchBytesDigest } from '@/utils/searchRuntime'
+import {
+  decodeFastColumns,
+  decodeFastIds,
+  decodeFastRows,
+  fastResults,
+  fastFilterFields,
+  decodeSuggestionTokens,
+  suggestionTokenList,
+  FAST_FILTER_FIELDS,
+  validateFastManifest,
+  type FastAsset,
+  type FastColumns,
+  type FastManifest,
+} from '@/utils/searchFast'
+import { fetchVerifiedAsset, pruneSearchAssets, searchAssetKey } from '@/utils/searchAssetCache'
 import { normalizeNode } from '@/utils/normalizeNode'
 import { searchRowText } from '@/utils/birthAdapters'
 import type { SearchBirthYear } from '@/utils/birthDisplay'
@@ -10,7 +25,6 @@ import { getEntityNodePath } from '@/utils/entityUrls'
 import { checkMetadata, type CheckedMetadata } from '@/utils/indexMetadata'
 import { partialMatchIds } from '@/utils/progressiveResults'
 import {
-  foldForSearch,
   indexableText,
   nearestNames,
   type NearMiss,
@@ -95,6 +109,32 @@ const isQueryLoading = ref(false)
 let queryVersion = 0
 let skipSavedRuntime = false
 let fallbackBuild: Promise<void> | null = null
+
+/**
+ * Partition-first state: answers search, filters and counts from the saved
+ * runtime plus the filter columns, and fetches card rows per visible chunk,
+ * before (and without) the catalogue. Null when the regular path is in use.
+ */
+interface FastState {
+  manifest: FastManifest
+  ids: string[]
+  columns: FastColumns
+  results: ReturnType<typeof fastResults>
+  rows: (SearchEntity[] | undefined)[]
+  pendingRows: Map<number, Promise<void>>
+  /** Cache keys of every asset the current manifest references (prune keep-set). */
+  keys: Set<string>
+  suggestions: Promise<void> | null
+  /** Aborted when this fast state is abandoned (fallback): stops its downloads. */
+  abandon: AbortController
+}
+let fast: FastState | null = null
+/** Bumped when a row chunk lands, so card lists re-read `rowFor`. */
+const rowsVersion = ref(0)
+/** The complete catalogue (entities Map) is hydrated: suggestions, getEntity. */
+const catalogueReady = ref(false)
+/** Partition-first: the build's suggestion candidates have loaded. */
+const tokensReady = ref(false)
 const error = ref<string | null>(null)
 const metadata = ref<CheckedMetadata | null>(null)
 
@@ -168,11 +208,391 @@ const INDEX_BUDGET_MS = 40
 /** Rows indexed between clock reads, so reading the clock stays negligible. */
 const INDEX_BUDGET_CHECK_EVERY = 25
 
+const RUNTIME_BASE = `${API_BASE}search-runtime/`
+const INDEX_BASE = `${API_BASE}api/v1/search-index/`
+
+async function fetchBytes(url: string, abandon?: AbortSignal): Promise<ArrayBuffer> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 30000)
+  const stop = () => controller.abort()
+  if (abandon?.aborted) controller.abort()
+  abandon?.addEventListener('abort', stop)
+  try {
+    const response = await fetch(url, { signal: controller.signal })
+    if (!response.ok) throw new Error('Saved search asset unavailable')
+    return await response.arrayBuffer()
+  } finally { clearTimeout(timeout); abandon?.removeEventListener('abort', stop) }
+}
+
+function absoluteKey(url: string, sha256: string): string {
+  const key = searchAssetKey(url, sha256)
+  try { return new URL(key, globalThis.location?.href).href } catch { return key }
+}
+
+async function fastJson(asset: FastAsset, abandon?: AbortSignal): Promise<unknown> {
+  const url = `${RUNTIME_BASE}${asset.file}`
+  const bytes = await fetchVerifiedAsset(url, asset.sha256, asset.bytes, target => fetchBytes(target, abandon))
+  return JSON.parse(new TextDecoder().decode(await inflate(bytes, asset.decodedBytes)))
+}
+
+function invalidFast(): never { throw new Error('Incompatible saved search index') }
+
+/**
+ * Up to two search workers validate partitions off the main thread (two is
+ * what a query usually needs, one per first-letter partition). Any worker
+ * failure (unsupported, CSP, crash) returns null and the page validates
+ * in-thread with the same code, so this only ever changes where work runs.
+ */
+type PartReply = { id: number; ok: true; decoded: ArrayBuffer } | { id: number; ok: false; invalid: boolean }
+/** A worker that has not answered in this long is presumed stuck: validate in the page. */
+const PART_WORKER_TIMEOUT_MS = 15000
+/** Idle workers are terminated after this long and recreated on demand. */
+const PART_WORKER_IDLE_MS = 10000
+let partWorkerIdle: ReturnType<typeof setTimeout> | null = null
+
+function settlePartRequest(): void {
+  if (partReplies.size || !partWorkers) return
+  if (partWorkerIdle) clearTimeout(partWorkerIdle)
+  partWorkerIdle = setTimeout(() => {
+    partWorkerIdle = null
+    if (partReplies.size) return
+    for (const worker of partWorkers ?? []) worker.terminate()
+    partWorkers = null
+  }, PART_WORKER_IDLE_MS)
+}
+let partWorkers: Worker[] | null = null
+let partWorkerTurn = 0
+let partRequestId = 0
+const partReplies = new Map<number, { resolve: (value: ArrayBuffer | null) => void; reject: (error: Error) => void }>()
+
+function searchPartWorker(): Worker | null {
+  if (partWorkers === null) {
+    partWorkers = []
+    try {
+      const count = Math.max(1, Math.min(2, (globalThis.navigator?.hardwareConcurrency ?? 2) - 1))
+      for (let i = 0; i < count; i++) {
+        const worker = new Worker(new URL('../utils/searchPartWorker.ts', import.meta.url), { type: 'module' })
+        worker.onmessage = ({ data }: MessageEvent<PartReply>) => {
+          const pending = partReplies.get(data.id)
+          if (!pending) return
+          partReplies.delete(data.id)
+          if (data.ok) pending.resolve(data.decoded)
+          // Only a validation failure marks the partition bad; an environment
+          // error in the worker falls back to validating in the page.
+          else if (data.invalid) pending.reject(new Error('Incompatible saved search index'))
+          else pending.resolve(null)
+          settlePartRequest()
+        }
+        worker.onerror = () => {
+          // Unusable worker: drop it and let every request it held validate in-thread.
+          partWorkers = (partWorkers ?? []).filter(other => other !== worker)
+          for (const [id, pending] of partReplies) { partReplies.delete(id); pending.resolve(null) }
+          worker.terminate()
+        }
+        partWorkers.push(worker)
+      }
+    } catch { /* No module workers: validate in-thread. */ }
+  }
+  if (!partWorkers.length) return null
+  return partWorkers[partWorkerTurn++ % partWorkers.length]
+}
+
+function validatePartOffThread(
+  bytes: ArrayBuffer,
+  descriptor: { sha256: string; decodedBytes: number; registeredCount: number },
+  part: number,
+  entityCount: number,
+): Promise<ArrayBuffer | null> {
+  const worker = searchPartWorker()
+  if (!worker) return Promise.resolve(null)
+  if (partWorkerIdle) { clearTimeout(partWorkerIdle); partWorkerIdle = null }
+  return new Promise((resolve, reject) => {
+    const id = ++partRequestId
+    const timeout = setTimeout(() => {
+      if (!partReplies.delete(id)) return
+      resolve(null)
+      settlePartRequest()
+    }, PART_WORKER_TIMEOUT_MS)
+    partReplies.set(id, {
+      resolve: value => { clearTimeout(timeout); resolve(value) },
+      reject: error => { clearTimeout(timeout); reject(error) },
+    })
+    // A copy is transferred: the caller's bytes may still be written to the cache.
+    const copy = bytes.slice(0)
+    try {
+      worker.postMessage({ id, bytes: copy, sha256: descriptor.sha256, decodedBytes: descriptor.decodedBytes,
+        entityCount, registeredCount: descriptor.registeredCount, part }, [copy])
+    } catch {
+      partReplies.delete(id)
+      clearTimeout(timeout)
+      resolve(null)
+    }
+  })
+}
+
+/** Phase marks for the performance harness (User Timing; no effect on behaviour). */
+function mark(name: string): void {
+  try { globalThis.performance?.mark?.(`ammitto:search:${name}`) } catch { /* unsupported */ }
+}
+
+/**
+ * Partition-first load. Starts the query's partitions at once (from the URL's
+ * query), alongside the ids and filter columns, and publishes an exact,
+ * query-ready index without downloading the catalogue. The catalogue follows
+ * in the background and re-verifies the binding; a mismatch falls back to the
+ * regular builder. Returns false (caller continues with the regular path) when
+ * the build carries no fast assets; throws when they are present but invalid.
+ */
+async function loadFast(
+  savedRuntime: Promise<unknown>,
+  sourceManifest: Promise<unknown>,
+  hint: string,
+): Promise<boolean> {
+  const payload = await savedRuntime
+  mark('runtime-manifest')
+  if (payload === null || typeof payload !== 'object' || !(payload as { fast?: unknown }).fast) return false
+  const value = payload as Record<string, unknown>
+  const keys = new Set<string>()
+  // Aborted if this load is abandoned, so a hinted prefetch stops downloading.
+  const abandon = new AbortController()
+  try {
+  const partBytes = new Map<string, number>()
+  if (Array.isArray(value.partitions)) {
+    for (const part of value.partitions) {
+      if (part && typeof part === 'object') partBytes.set(String((part as FastAsset).file), Number((part as FastAsset).bytes))
+    }
+  }
+  const runtime = await openSearchRuntime(payload, new URL(import.meta.url).pathname.split('/').pop() || '', file => {
+    if (abandon.signal.aborted) invalidFast()
+    return fetchVerifiedAsset(`${RUNTIME_BASE}${file}`, file.slice(0, -4), partBytes.get(file) ?? -1,
+      url => fetchBytes(url, abandon.signal))
+  }, validatePartOffThread)
+  const manifest = validateFastManifest(value.fast, runtime.entityCount)
+  if (value.fastDigest !== await searchBytesDigest(new TextEncoder().encode(JSON.stringify(value.fast)).buffer)
+    || value.sourceDigest !== await searchBytesDigest(new TextEncoder().encode(JSON.stringify(
+      manifest.sources.map(source => [source.code, source.file, source.sha256]))).buffer)
+    || manifest.sources.reduce((sum, source) => sum + source.count, 0) !== value.rowCount) invalidFast()
+  // Every asset this manifest references, fetched this visit or not: the
+  // prune keep-set, so a later visit's different query never evicts them.
+  for (const [file, sha256] of [...partBytes.keys()].map(file => [file, file.slice(0, -4)])) {
+    keys.add(absoluteKey(`${RUNTIME_BASE}${file}`, sha256))
+  }
+  for (const asset of [manifest.ids, manifest.columns, manifest.suggestions, ...manifest.rows]) {
+    keys.add(absoluteKey(`${RUNTIME_BASE}${asset.file}`, asset.sha256))
+  }
+  for (const source of manifest.sources) keys.add(absoluteKey(`${INDEX_BASE}${source.file}`, source.sha256))
+  // The published shard manifest (requested alongside index.json, fetched
+  // fresh) must describe exactly the shards (order, files, counts) and the
+  // generation the runtime was built from. Checked before any asset is fetched.
+  const source = await sourceManifest
+  if (!isSearchIndexManifest(source) || source.metadata.generated !== value.generated) invalidFast()
+  const ordered = orderShards(source.shards)
+  if (ordered.length !== manifest.sources.length || ordered.some((shard, index) => {
+    const expected = manifest.sources[index]
+    return shard.code !== expected.code || shard.file !== expected.file || shard.count !== expected.count
+  })) invalidFast()
+  // Start the query's partitions now; prepareSearch later joins this work.
+  const hinted = typeof hint === 'string' && hint.trim() ? runtime.prepare(hint).catch(() => {}) : Promise.resolve()
+  const [idsValue, columnsValue] = await Promise.all([fastJson(manifest.ids, abandon.signal), fastJson(manifest.columns, abandon.signal)])
+  mark('ids-columns')
+  const ids = decodeFastIds(idsValue, runtime.entityCount)
+  const columns = decodeFastColumns(columnsValue, runtime.entityCount)
+  publishMetadata(source.metadata)
+  const state: FastState = {
+    manifest, ids, columns, results: fastResults(ids, columns),
+    rows: new Array(manifest.rows.length), pendingRows: new Map(), keys, suggestions: null, abandon,
+  }
+  fast = state
+  queryRuntime = { index: runtime.index, ids, prepare: runtime.prepare, ready: runtime.ready }
+  savedDocumentIds = ids
+  indexedCount.value = Number(value.rowCount)
+  searchIndex.value = runtime.index
+  isLoaded.value = true
+  mark('fast-ready')
+  // The catalogue must not compete with the first answer for bandwidth.
+  void hinted.then(() => {
+    if (fast !== state) return
+    void pruneSearchAssets(state.keys)
+    scheduleCatalogue(state)
+  })
+  return true
+  } catch (error) {
+    abandon.abort()
+    throw error
+  }
+}
+
+function publishMetadata(raw: unknown): void {
+  metadata.value = checkMetadata(raw)
+  if (metadata.value.invalid.length && !reportedBadMetadata) {
+    reportedBadMetadata = true
+    console.warn(
+      `search-index manifest metadata: absent or invalid ${metadata.value.invalid.join(', ')}; ` +
+        'the page omits them rather than state them',
+      raw,
+    )
+  }
+}
+
+/** Card rows (and the whole catalogue) are not on the first-result path: start them once the page is idle. */
+function scheduleCatalogue(state: FastState): void {
+  const start = () => { void loadCatalogue(state) }
+  const idle = (globalThis as { requestIdleCallback?: (fn: () => void, options?: { timeout: number }) => void }).requestIdleCallback
+  setTimeout(() => (idle ? idle(start, { timeout: 2000 }) : start()), 500)
+}
+
+/**
+ * Background: fetch the exact shard bytes (verified against the runtime's
+ * source hashes), re-check the row binding, then hydrate the catalogue for
+ * suggestions and entity lookups. Any mismatch replaces the fast path with
+ * the regular builder, which re-renders from scratch.
+ */
+async function loadCatalogue(state: FastState): Promise<void> {
+  if (fast !== state) return
+  try {
+    const shards = await Promise.all(state.manifest.sources.map(async source => {
+      if (fast !== state) return []
+      const bytes = await fetchVerifiedAsset(`${INDEX_BASE}${source.file}`, source.sha256, source.bytes,
+        url => fetchBytes(url, state.abandon.signal))
+      if (fast !== state) return []
+      const data = JSON.parse(new TextDecoder().decode(bytes)) as SearchShardResponse
+      if (!Array.isArray(data?.entities) || data.entities.length !== source.count) invalidFast()
+      await yieldToEventLoop()
+      return data.entities
+    }))
+    if (fast !== state) return
+    const hydrated = new Map<string, SearchEntity>()
+    await forEachWithinBudget(shards.flat(), row => hydrated.set(row.id, row), {
+      budgetMs: INDEX_BUDGET_MS, checkEvery: INDEX_BUDGET_CHECK_EVERY,
+      now: () => performance.now(), yieldControl: yieldToEventLoop,
+    })
+    if (fast !== state) return
+    // Re-verify everything the fast path has shown against the verified rows:
+    // order, every filter column, and each row chunk already on screen.
+    const docs = [...hydrated.values()]
+    if (docs.length !== state.ids.length) invalidFast()
+    let index = 0
+    await forEachWithinBudget(docs, (doc) => {
+      index++
+      if (doc.id !== state.ids[index - 1]) invalidFast()
+      const fields = fastFilterFields(state.columns, index - 1) as Record<string, unknown>
+      for (const field of FAST_FILTER_FIELDS) {
+        // null is encoded as absent (see encodeFastColumns).
+        if (fields[field] !== ((doc as unknown as Record<string, unknown>)[field] ?? undefined)) invalidFast()
+      }
+    }, {
+      budgetMs: INDEX_BUDGET_MS, checkEvery: INDEX_BUDGET_CHECK_EVERY,
+      now: () => performance.now(), yieldControl: yieldToEventLoop,
+    })
+    const size = state.manifest.rowChunk
+    state.rows.forEach((chunk, number) => {
+      if (chunk && JSON.stringify(chunk) !== JSON.stringify(docs.slice(number * size, number * size + chunk.length))) invalidFast()
+    })
+    if (fast !== state) return
+    entities.value = hydrated
+    catalogueReady.value = true
+    rowsVersion.value++
+    mark('catalogue-ready')
+  } catch {
+    if (fast === state) void startFallback()
+  }
+}
+
+/** Partition-first suggestions: fetch the build's token list (only when a query found nothing). */
+function loadSuggestions(): void {
+  const state = fast
+  if (!state || state.suggestions || tokensReady.value || catalogueReady.value) return
+  state.suggestions = (async () => {
+    const tokens = decodeSuggestionTokens(await fastJson(state.manifest.suggestions, state.abandon.signal))
+    if (fast !== state) return
+    suggestionTokens = new Set(tokens)
+    lastSuggestKey = null
+    tokensReady.value = true
+  // A failed list is not a failed search: suggestions then wait for the
+  // catalogue's words (`suggestionsReady` turns true with `catalogueReady`).
+  })().catch(() => {})
+}
+
+/** Whether `suggestFor` can answer now; when false, call `loadSuggestions`. */
+const suggestionsReady = computed(() => catalogueReady.value || tokensReady.value)
+
+function stubAt(state: FastState, index: number): SearchEntity {
+  return state.results.at(index) as unknown as SearchEntity
+}
+
+/** The full row behind a search result: itself, or (partition-first) its loaded chunk row. */
+function rowFor(entity: SearchEntity): SearchEntity | undefined {
+  const state = fast
+  const index = state?.results.indexOf(toRaw(entity))
+  if (!state || index === undefined) return entity
+  if (catalogueReady.value) return entities.value.get(state.ids[index])
+  const size = state.manifest.rowChunk
+  return state.rows[Math.floor(index / size)]?.[index % size]
+}
+
+/** Fetch the row chunks holding these results (visible cards only). */
+async function ensureRows(list: readonly SearchEntity[]): Promise<void> {
+  const state = fast
+  if (!state || catalogueReady.value) return
+  const size = state.manifest.rowChunk
+  const chunks = new Set<number>()
+  for (const entity of list) {
+    const index = state.results.indexOf(toRaw(entity))
+    if (index !== undefined && !state.rows[Math.floor(index / size)]) chunks.add(Math.floor(index / size))
+  }
+  try {
+    await Promise.all([...chunks].map(chunk => {
+      let work = state.pendingRows.get(chunk)
+      if (!work) {
+        work = (async () => {
+          if (fast !== state) return
+          const value = await fastJson(state.manifest.rows[chunk], state.abandon.signal)
+          state.rows[chunk] = decodeFastRows<SearchEntity & Record<string, unknown>>(value, state.ids, chunk, size)
+          if (fast === state) rowsVersion.value++
+          mark('rows')
+        })().finally(() => state.pendingRows.delete(chunk))
+        state.pendingRows.set(chunk, work)
+      }
+      return work
+    }))
+  } catch {
+    if (fast === state) await startFallback()
+  }
+}
+
+/** Drop the saved runtime (fast or not) and rebuild with the regular builder. */
+function startFallback(): Promise<void> {
+  if (fallbackBuild) return fallbackBuild
+  // Stop the abandoned fast path's downloads (hinted partitions, rows, catalogue).
+  fast?.abandon.abort()
+  queryRuntime = null
+  fast = null
+  skipSavedRuntime = true
+  savedDocumentIds = null
+  searchIndex.value = null
+  entities.value = new Map()
+  catalogueReady.value = false
+  tokensReady.value = false
+  suggestionTokens = null
+  lastSuggestKey = null
+  lastSuggestResult = []
+  isLoaded.value = false
+  isLoading.value = false
+  const rebuild = loadSearchIndex()
+  // The regular builder now owns progress; let its partial matches render.
+  isQueryLoading.value = false
+  fallbackBuild = rebuild
+  return rebuild.finally(() => { if (fallbackBuild === rebuild) fallbackBuild = null })
+}
+
 /**
  * Load the lightweight search index
  * This is much faster than loading all source JSON-LD files
+ *
+ * `hint` is the query already in the URL: partition-first loading fetches its
+ * partitions immediately instead of after the index is published.
  */
-async function loadSearchIndex(): Promise<void> {
+async function loadSearchIndex(hint = ''): Promise<void> {
   if (isLoaded.value || isLoading.value) return
 
   // Skip during SSR/build - data will be loaded client-side
@@ -189,7 +609,7 @@ async function loadSearchIndex(): Promise<void> {
   const savedRuntime = (async () => {
     try {
       if (skipSavedRuntime) return null
-      const response = await fetch(`${API_BASE}search-runtime/index.json`, { signal: runtimeController.signal })
+      const response = await fetch(`${API_BASE}search-runtime/index.json`, { signal: runtimeController.signal, cache: 'no-cache' })
       return response.ok ? await response.json() : null
     } catch {
       return null
@@ -198,15 +618,30 @@ async function loadSearchIndex(): Promise<void> {
     }
   })()
 
-  try {
-    const indexBase = `${API_BASE}api/v1/search-index/`
-    const manifestResponse = await fetch(`${API_BASE}api/v1/search-index/manifest.json`)
-
+  const sourceManifest = (async () => {
+    const manifestResponse = await fetch(`${API_BASE}api/v1/search-index/manifest.json`, { cache: 'no-cache' })
     if (!manifestResponse.ok) {
       throw new Error(`Failed to load search index: ${manifestResponse.status}`)
     }
+    return await manifestResponse.json() as unknown
+  })()
+  sourceManifest.catch(() => {})
 
-    const manifest: unknown = await manifestResponse.json()
+  try {
+    if (!skipSavedRuntime) {
+      try {
+        if (await loadFast(savedRuntime, sourceManifest, hint)) return
+      } catch {
+        // Invalid or unavailable fast assets: the regular path below decides.
+        fast = null
+        queryRuntime = null
+        savedDocumentIds = null
+        searchIndex.value = null
+        isLoaded.value = false
+      }
+    }
+    const indexBase = INDEX_BASE
+    const manifest: unknown = await sourceManifest
     if (!isSearchIndexManifest(manifest)) {
       throw new Error('Failed to load search index: malformed manifest')
     }
@@ -231,15 +666,7 @@ async function loadSearchIndex(): Promise<void> {
       }),
     )
     const rows = shards.flatMap(shard => shard.entities)
-    metadata.value = checkMetadata(manifest.metadata)
-    if (metadata.value.invalid.length && !reportedBadMetadata) {
-      reportedBadMetadata = true
-      console.warn(
-        `search-index manifest metadata: absent or invalid ${metadata.value.invalid.join(', ')}; ` +
-          'the page omits them rather than state them',
-        manifest.metadata,
-      )
-    }
+    publishMetadata(manifest.metadata)
 
     // An optional internal build asset removes repeated index construction.
     // Bind it to the complete ordered rows and the exact application bundle;
@@ -265,6 +692,7 @@ async function loadSearchIndex(): Promise<void> {
           now: () => performance.now(), yieldControl: yieldToEventLoop,
         })
         entities.value = hydrated
+        catalogueReady.value = true
         queryRuntime = loaded
         savedDocumentIds = loaded.ids
         indexedCount.value = rows.length
@@ -376,6 +804,7 @@ async function loadSearchIndex(): Promise<void> {
 
     triggerRef(entities)
     indexedCount.value = added
+    catalogueReady.value = true
     searchIndex.value = index
     isLoaded.value = true
   } catch (e) {
@@ -403,21 +832,7 @@ async function prepareSearch(query: string): Promise<void> {
     await runtime.prepare(query)
   } catch {
     if (queryRuntime === runtime) {
-      queryRuntime = null
-      skipSavedRuntime = true
-      savedDocumentIds = null
-      searchIndex.value = null
-      entities.value = new Map()
-      suggestionTokens = null
-      lastSuggestKey = null
-      lastSuggestResult = []
-      isLoaded.value = false
-      isLoading.value = false
-      const rebuild = loadSearchIndex()
-      // The regular builder now owns progress; let its partial matches render.
-      isQueryLoading.value = false
-      fallbackBuild = rebuild
-      try { await rebuild } finally { if (fallbackBuild === rebuild) fallbackBuild = null }
+      await startFallback()
     } else if (fallbackBuild) {
       await fallbackBuild
     }
@@ -499,6 +914,14 @@ function search(query: string, limit = 100): SearchEntity[] {
 
   if (queryRuntime && !queryRuntime.ready(query)) return []
 
+  const state = fast
+  if (state) {
+    if (!query.trim()) {
+      return Array.from({ length: Math.min(limit, state.ids.length) }, (_, index) => stubAt(state, index))
+    }
+    return (searchIndex.value.search(query, { limit }) as number[]).map(id => stubAt(state, Number(id)))
+  }
+
   if (!query.trim()) {
     return Array.from(entities.value.values()).slice(0, limit)
   }
@@ -553,29 +976,9 @@ function searchPartial(query: string, limit = 100): SearchEntity[] {
 let suggestionTokens: Set<string> | null = null
 
 function buildSuggestionTokens(): Set<string> {
-  const tokens = new Set<string>()
-  for (const entity of entities.value.values()) {
-    // `foldForSearch`, deliberately, not `indexableText`: a glued form is an
-    // index-matching device, never a name. Built from the glued set, the
-    // suggester offered "leilabadiau" (a surname glued to a country code) and
-    // "1limited" as things the reader might have meant.
-    const names = entity.primaryName
-      ? [entity.primaryName, ...entity.names]
-      : entity.names
-    for (const name of names) {
-      for (const token of foldForSearch(name)) {
-        // Length 3 and up. The floor is about the CANDIDATE, not the query, and
-        // an earlier version excluded length-3 tokens on the grounds that
-        // `suggestionBudget` returns 0 for a three-character QUERY — a different
-        // thing. A four-character query has a budget of 1 and can legitimately
-        // reach a three-character name, so excluding them meant `kimm` never
-        // suggested `kim` and `alii` never suggested `ali`. Below 3 the budget
-        // is 0 from either side, so nothing there can ever match.
-        if (token.length >= 3) tokens.add(token)
-      }
-    }
-  }
-  return tokens
+  // One implementation for the page and the build's suggestion asset; see
+  // `suggestionTokenList` (foldForSearch over names, never glued forms; length 3+).
+  return new Set(suggestionTokenList(entities.value.values()))
 }
 
 /**
@@ -594,6 +997,8 @@ let lastSuggestResult: NearMiss[] = []
 
 function suggestFor(query: string, limit = 5): NearMiss[] {
   if (!isLoaded.value || !query.trim()) return []
+  // Partition-first: the candidates come from the build's token list or the catalogue.
+  if (!suggestionsReady.value) return []
 
   // Memoized on the query string. The caller is a Vue computed, which
   // re-evaluates whenever any of its other dependencies change — a filter
@@ -726,6 +1131,11 @@ export function useSearchIndex() {
     getEntity,
     getEntityByRef,
     loadFullEntity,
+    rowFor,
+    ensureRows,
+    rowsVersion,
+    suggestionsReady,
+    loadSuggestions,
 
     // Direct access
     entities,

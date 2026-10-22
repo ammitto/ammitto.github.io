@@ -61,7 +61,7 @@ test('build emits 64 compressed immutable partitions tied to exact source bytes 
     const output = await prepareSearchRuntime(dist, apiRoot)
     const installed = JSON.parse(await readFile(createRequire(import.meta.url).resolve('flexsearch/package.json'), 'utf8'))
     assert.equal(output.engine, installed.version)
-    assert.equal(output.format, 'ammitto-search-runtime/v3')
+    assert.equal(output.format, 'ammitto-search-runtime/v4')
     assert.equal(output.generated, generated)
     assert.equal(output.sourceDigest, await sourceDigest(indexDirectory, ['eu', 'un', 'zz']))
     assert.equal('rowsDigest' in output, false)
@@ -138,7 +138,8 @@ test('blank document text produces empty postings and still imports a complete e
     assert.equal(output.registeredCount, 0)
     assert.equal(output.partitions.length, 64)
     assert.ok(output.partitions.every(part => part === null))
-    assert.deepEqual(await readdir(join(dist, 'search-runtime')), ['index.json'])
+    assert.deepEqual(await readdir(join(dist, 'search-runtime')),
+      [...new Set([output.fast.ids, output.fast.columns, output.fast.suggestions, ...output.fast.rows].map(asset => asset.file)), 'index.json'].sort())
     const tools = await helpers()
     const previousCrypto = globalThis.crypto
     if (!globalThis.crypto) Object.defineProperty(globalThis, 'crypto', { value: webcrypto, configurable: true })
@@ -205,4 +206,46 @@ for (const [name, mutate] of Object.entries({
 test('build command generates the runtime after the real Vite build', async () => {
   const packageJson = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
   assert.match(packageJson.scripts.build, /vite-ssg build && node scripts\/build-search-runtime\.mjs dist$/)
+})
+
+test('null filter values encode as absent; other non-string values ship without fast assets, loudly', async () => {
+  await fixture(async ({ dist }) => {
+    const output = await prepareSearchRuntime(dist)
+    assert.ok(output.fast, 'null is the same state as absent for every filter')
+    assert.equal(output.fastDisabled, undefined)
+    await assert.rejects(access(join(dist, 'search-runtime/fast-disabled.json')))
+  }, [{ code: 'un', entities: [{ ...row('a', 'Shared'), status: null, authority: null }, row('b', 'Other')] }])
+  await fixture(async ({ dist }) => {
+    const errors = []
+    const original = console.error
+    console.error = message => errors.push(String(message))
+    let output
+    try { output = await prepareSearchRuntime(dist) } finally { console.error = original }
+    assert.equal(output.fast, null)
+    assert.match(output.fastDisabled, /a status=3/)
+    assert.ok(errors.some(message => message.startsWith('::error title=Search fast assets disabled::')))
+    const marker = JSON.parse(await readFile(join(dist, 'search-runtime/fast-disabled.json'), 'utf8'))
+    assert.match(marker.reason, /non-string filter values \(1\)/)
+    const index = JSON.parse(await readFile(join(dist, 'search-runtime/index.json'), 'utf8'))
+    assert.equal(index.fast, null)
+  }, [{ code: 'un', entities: [{ ...row('a', 'Shared'), status: 3 }] }])
+})
+
+test('the build emits suggestion candidates equal to the in-page token set, in first-seen order', async () => {
+  await fixture(async ({ dist, shards }) => {
+    const output = await prepareSearchRuntime(dist)
+    const tokens = JSON.parse(gunzipSync(await readFile(join(dist, 'search-runtime', output.fast.suggestions.file))))
+    assert.ok(tokens.includes('shared') && tokens.includes('laden') && tokens.includes('иван'))
+    // The page builds its candidates with the same function over the hydrated
+    // catalogue (Map.set order: first position, last row).
+    const { suggestionTokenList } = await import('../.test-build/utils/searchFast.js')
+    const catalogue = new Map()
+    for (const shard of [...shards].sort((a, b) => ['eu', 'un', 'zz'].indexOf(a.code) - ['eu', 'un', 'zz'].indexOf(b.code))) {
+      for (const entity of shard.entities) catalogue.set(entity.id, entity)
+    }
+    assert.deepEqual(tokens, suggestionTokenList(catalogue.values()))
+    assert.ok(tokens.every(token => token.length >= 3))
+    assert.equal(new Set(tokens).size, tokens.length)
+    assert.equal(shards.length, 3)
+  })
 })
