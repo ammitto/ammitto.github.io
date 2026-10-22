@@ -71,9 +71,18 @@ const {
   rowFor,
   ensureRows,
   rowsVersion,
+  suggestionsReady,
+  loadSuggestions,
 } = useSearchIndex()
 
-const loading = computed(() => indexLoading.value || isQueryLoading.value)
+// The index or the query's partitions are still arriving. The result list
+// itself (`filteredEntities`, `showPartial`) keys to this; everything that
+// presents a verdict keys to `loading`, which also waits for the first page's
+// cards and, for an empty answer, the near-miss suggestions — so a count or a
+// "no match" is never shown or announced over an empty grid, nor announced
+// twice.
+const indexBusy = computed(() => indexLoading.value || isQueryLoading.value)
+const loading = computed(() => indexBusy.value || cardsPending.value || suggestionsPending.value)
 watch([debouncedQuery, isLoaded], ([query, loaded]) => {
   if (loaded) void prepareSearch(query)
 }, { immediate: true, flush: 'sync' })
@@ -317,7 +326,7 @@ const filteredEntities = computed(() => {
   // Same gate as `nearMisses`/`resultAnnouncement` above: while the index is
   // still building, `search()` cannot yet answer for the typed query, so the
   // grid must show nothing rather than an arbitrary unfiltered slice.
-  if (!isLoaded.value || loading.value) return []
+  if (!isLoaded.value || indexBusy.value) return []
   // Get search results - use very high limit to include all entities for filtering
   const results = search(debouncedQuery.value, 100000) // Get all results for filtering
 
@@ -346,7 +355,7 @@ const filteredEntities = computed(() => {
  * actually rendered.
  */
 const showPartial = computed(() =>
-  (!isLoaded.value || loading.value) &&
+  (!isLoaded.value || indexBusy.value) &&
   !isQueryLoading.value &&
   !error.value &&
   debouncedQuery.value.trim() !== '' &&
@@ -537,6 +546,26 @@ const finalSlice = computed(() =>
   showPartial.value ? [] : filteredEntities.value.slice(0, loadedCount.value))
 // Fetch only the row chunks the shown results live in.
 watch(finalSlice, (slice) => { void ensureRows(slice) }, { immediate: true })
+
+/** The first page's cards are still arriving (partition-first row chunks). */
+const cardsPending = computed(() => {
+  void rowsVersion.value
+  if (!isLoaded.value || indexBusy.value) return false
+  return finalSlice.value.slice(0, PAGE_SIZE).some((entity) => !rowFor(entity))
+})
+
+/**
+ * An empty answer whose near-miss candidates have not loaded yet. Held as
+ * loading so the empty state is announced once, with its suggestions.
+ * Mirrors `nearMisses`' own conditions (declared before the facet helpers).
+ */
+const suggestionsPending = computed(() =>
+  isLoaded.value && !indexBusy.value && !suggestionsReady.value &&
+  debouncedQuery.value.trim() !== '' &&
+  filteredEntities.value.length === 0 &&
+  filters.value.sources.length + filters.value.entityTypes.length +
+    filters.value.listTypes.length + filters.value.statuses.length === 0)
+watch(suggestionsPending, (pending) => { if (pending) loadSuggestions() }, { immediate: true })
 
 // Paginated results
 const paginatedEntities = computed(() => {

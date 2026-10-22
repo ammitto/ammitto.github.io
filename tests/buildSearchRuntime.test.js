@@ -139,7 +139,7 @@ test('blank document text produces empty postings and still imports a complete e
     assert.equal(output.partitions.length, 64)
     assert.ok(output.partitions.every(part => part === null))
     assert.deepEqual(await readdir(join(dist, 'search-runtime')),
-      [...new Set([output.fast.ids, output.fast.columns, ...output.fast.rows].map(asset => asset.file)), 'index.json'].sort())
+      [...new Set([output.fast.ids, output.fast.columns, output.fast.suggestions, ...output.fast.rows].map(asset => asset.file)), 'index.json'].sort())
     const tools = await helpers()
     const previousCrypto = globalThis.crypto
     if (!globalThis.crypto) Object.defineProperty(globalThis, 'crypto', { value: webcrypto, configurable: true })
@@ -206,4 +206,22 @@ for (const [name, mutate] of Object.entries({
 test('build command generates the runtime after the real Vite build', async () => {
   const packageJson = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
   assert.match(packageJson.scripts.build, /vite-ssg build && node scripts\/build-search-runtime\.mjs dist$/)
+})
+
+test('a non-string filter value fails the build loudly instead of silently dropping the fast path', async () => {
+  await fixture(async ({ dist }) => {
+    await assert.rejects(prepareSearchRuntime(dist), /non-string value/)
+    await assert.rejects(access(join(dist, 'search-runtime/index.json')))
+  }, [{ code: 'un', entities: [{ ...row('a', 'Shared'), status: 3 }] }])
+})
+
+test('the build emits suggestion candidates equal to the in-page token set, in first-seen order', async () => {
+  await fixture(async ({ dist, shards }) => {
+    const output = await prepareSearchRuntime(dist)
+    const tokens = JSON.parse(gunzipSync(await readFile(join(dist, 'search-runtime', output.fast.suggestions.file))))
+    assert.ok(tokens.includes('shared') && tokens.includes('laden') && tokens.includes('иван'))
+    assert.ok(tokens.every(token => token.length >= 3))
+    assert.equal(new Set(tokens).size, tokens.length)
+    assert.equal(shards.length, 3)
+  })
 })

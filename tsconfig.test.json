@@ -40,6 +40,7 @@
     "src/utils/searchRuntime.ts",
     "src/utils/searchFast.ts",
     "src/utils/searchAssetCache.ts",
+    "src/utils/searchPartWorker.ts",
     "src/utils/normalizeNode.ts",
     "src/utils/civilDate.ts",
     "src/utils/searchReturn.ts",

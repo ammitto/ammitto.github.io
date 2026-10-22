@@ -1,6 +1,9 @@
 import FlexSearch from 'flexsearch'
 import { foldForSearch } from './searchEncode.js'
 import { decodeSearchRuntimeBinary, SEARCH_RUNTIME_PARTITIONS } from './searchRuntimeBinary.js'
+import { inflate, searchBytesDigest } from './searchBytes.js'
+
+export { inflate, searchBytesDigest }
 
 export const SEARCH_RUNTIME_FORMAT = 'ammitto-search-runtime/v4'
 // Serialized engine compatibility. The generator rejects other installed versions.
@@ -21,30 +24,6 @@ const integer = (value: unknown): value is number => Number.isSafeInteger(value)
 function fail(): never { throw new Error('Incompatible saved search index') }
 function timing(name: string): void {
   try { globalThis.performance?.mark?.(`ammitto:search:${name}`) } catch { /* unsupported */ }
-}
-
-export async function searchBytesDigest(bytes: ArrayBuffer): Promise<string> {
-  const hash = await globalThis.crypto.subtle.digest('SHA-256', bytes)
-  return Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, '0')).join('')
-}
-
-export async function inflate(bytes: ArrayBuffer, expectedBytes: number): Promise<ArrayBuffer> {
-  const reader = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip')).getReader()
-  const chunks: BlobPart[] = []
-  let size = 0
-  try {
-    while (true) {
-      const { value, done } = await reader.read()
-      if (done) break
-      size += value.byteLength
-      if (size > expectedBytes) fail()
-      chunks.push(value)
-    }
-    if (size !== expectedBytes) fail()
-    return await new Blob(chunks).arrayBuffer()
-  } finally {
-    await reader.cancel().catch(() => {})
-  }
 }
 
 type SearchRuntime = { index: FlexSearch.Index; ids: string[]; prepare: (query: string) => Promise<void>; ready: (query: string) => boolean }
@@ -74,6 +53,11 @@ export async function openSearchRuntime(
   value: unknown,
   bundle: string,
   fetchPart: (file: string) => Promise<ArrayBuffer>,
+  // Optional off-thread validation (the search worker): resolves to the
+  // decoded bytes it fully validated, null when unavailable (validate here),
+  // or rejects when the partition is invalid.
+  validateOffThread?: (bytes: ArrayBuffer, descriptor: { sha256: string; decodedBytes: number; registeredCount: number },
+    part: number, entityCount: number) => Promise<ArrayBuffer | null>,
 ): Promise<Omit<SearchRuntime, 'ids'> & { entityCount: number }> {
   if (!dictionary(value) || value.format !== SEARCH_RUNTIME_FORMAT || value.engine !== SEARCH_ENGINE_VERSION
     || typeof value.generated !== 'string' || !integer(value.rowCount)
@@ -115,10 +99,18 @@ export async function openSearchRuntime(
         work = (async () => {
           const bytes = await fetchPart(descriptor.file)
           timing(`part-${part}-fetched`)
-          if (bytes.byteLength !== descriptor.bytes || await searchBytesDigest(bytes) !== descriptor.sha256) fail()
-          const decoded = await inflate(bytes, descriptor.decodedBytes)
-          timing(`part-${part}-inflated`)
-          const { map } = await decodeSearchRuntimeBinary(decoded, entityCount, descriptor.registeredCount, part)
+          if (bytes.byteLength !== descriptor.bytes) fail()
+          const validated = validateOffThread ? await validateOffThread(bytes, descriptor, part, entityCount) : null
+          let map: PostingMap[]
+          if (validated) {
+            timing(`part-${part}-validated`)
+            ;({ map } = await decodeSearchRuntimeBinary(validated, entityCount, descriptor.registeredCount, part, { prevalidated: true }))
+          } else {
+            if (await searchBytesDigest(bytes) !== descriptor.sha256) fail()
+            const decoded = await inflate(bytes, descriptor.decodedBytes)
+            timing(`part-${part}-inflated`)
+            ;({ map } = await decodeSearchRuntimeBinary(decoded, entityCount, descriptor.registeredCount, part))
+          }
           timing(`part-${part}-decoded`)
           loaded.set(part, map)
         })().catch((error: unknown) => { failed.add(part); throw error }).finally(() => pending.delete(part))

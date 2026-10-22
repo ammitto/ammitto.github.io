@@ -85,7 +85,11 @@ export function encodeSearchRuntimeBinary(maps: ReadonlyArray<PostingMap>, entit
  */
 export async function decodeSearchRuntimeBinary(
   buffer: ArrayBuffer, entityCount: number, registeredCount: number, expectedPartition?: number,
+  options: { prevalidated?: boolean } = {},
 ): Promise<{ map: PostingMap[]; register: Record<string, number> }> {
+  // `prevalidated`: this exact buffer already passed the full validation below
+  // (in the search worker, same code); only the cheap structural checks rerun.
+  const full = !options.prevalidated
   if (!(buffer instanceof ArrayBuffer) || buffer.byteLength < HEADER_BYTES || buffer.byteLength > SEARCH_BINARY_MAX_BYTES
     || !count(entityCount, SEARCH_BINARY_MAX_ENTITIES) || !count(registeredCount, entityCount)
     || (expectedPartition !== undefined && !count(expectedPartition, SEARCH_RUNTIME_PARTITIONS - 1))) invalid()
@@ -110,14 +114,14 @@ export async function decodeSearchRuntimeBinary(
   let start = performance.now()
   const outOfBudget = () => ++work % 256 === 0 && performance.now() - start >= 8
   const yieldWork = async () => { await yieldToEventLoop(); start = performance.now() }
-  for (let i = 0; i < terms.length; i++) {
+  for (let i = 0; full && i < terms.length; i++) {
     if (typeof terms[i] !== 'string' || (i > 0 && terms[i - 1] >= terms[i])
       || (expectedPartition !== undefined && (!terms[i].length
         || (terms[i].charCodeAt(0) || 0) % SEARCH_RUNTIME_PARTITIONS !== expectedPartition))) invalid()
     if (outOfBudget()) await yieldWork()
   }
   // JSON escaping preserves lone UTF-16 surrogates; UTF-8 term separators would not.
-  if (JSON.stringify(terms) !== dictionaryText) invalid()
+  if (full && JSON.stringify(terms) !== dictionaryText) invalid()
   const buckets: Bucket[] = []
   const usedTerms = new Uint8Array(termCount)
   let cursor = tableStart
@@ -125,14 +129,14 @@ export async function decodeSearchRuntimeBinary(
   for (const n of counts) {
     const bucket = { count: n, ids: cursor, offsets: cursor + n * 4 }
     let previousTerm = -1
-    for (let i = 0; i < n; i++) {
+    for (let i = 0; full && i < n; i++) {
       const id = view.getUint32(bucket.ids + i * 4, true)
       if (id <= previousTerm || id >= termCount) invalid()
       previousTerm = id
       usedTerms[id] = 1
       if (outOfBudget()) await yieldWork()
     }
-    for (let i = 0; i <= n; i++) {
+    for (let i = 0; full && i <= n; i++) {
       const next = view.getUint32(bucket.offsets + i * 4, true)
       if ((i === 0 && next !== offset) || next < offset || next > postingLength) invalid()
       offset = next
@@ -141,12 +145,12 @@ export async function decodeSearchRuntimeBinary(
     buckets.push(bucket)
     cursor += (n * 2 + 1) * 4
   }
-  if (offset !== postingLength || usedTerms.some(used => used !== 1)) invalid()
+  if (full && (offset !== postingLength || usedTerms.some(used => used !== 1))) invalid()
 
   // No arrays are materialized in this scan, including very long prefix lists.
   const seen = new Uint8Array(Math.ceil(entityCount / 8))
   let seenCount = 0
-  for (const bucket of buckets) {
+  for (const bucket of full ? buckets : []) {
     for (let i = 0; i < bucket.count; i++) {
       let position = postingStart + view.getUint32(bucket.offsets + i * 4, true)
       const end = postingStart + view.getUint32(bucket.offsets + (i + 1) * 4, true)
@@ -177,7 +181,7 @@ export async function decodeSearchRuntimeBinary(
       if (outOfBudget()) await yieldWork()
     }
   }
-  if (seenCount !== registeredCount) invalid()
+  if (full && seenCount !== registeredCount) invalid()
 
   const immutable = (): never => { throw new Error('Binary search index is read-only') }
   const map = buckets.map(bucket => {
@@ -230,6 +234,7 @@ export async function decodeSearchRuntimeBinary(
   return {
     map,
     get register() {
+      if (!full) throw new Error('Register unavailable for a prevalidated buffer')
       if (!register) {
         register = Object.create(null) as Record<string, number>
         for (let id = 0; id < entityCount; id++) if (seen[id >> 3] & (1 << (id % 8))) register[id] = 1

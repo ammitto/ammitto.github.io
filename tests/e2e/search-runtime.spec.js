@@ -153,3 +153,39 @@ for (const [name, options] of [
     expect(errors).toEqual([])
   })
 }
+
+test('a different query on a later visit does not evict cached parts the current index still references', async ({ page }) => {
+  const errors = collectPageErrors(page)
+  const partRequests = new Map()
+  await setup(page, async (_route, file) => { partRequests.set(file, (partRequests.get(file) ?? 0) + 1); return false })
+  const cachedKeys = () => page.evaluate(async () => (await (await caches.open('ammitto-search-assets-v1')).keys()).map(r => r.url))
+  const visit = async (query) => {
+    await page.goto(`/search?q=${query}`)
+    await expect(page.getByTestId('search-count')).toContainText('1 result')
+    await expect(page.getByTestId('search-results')).toContainText(query)
+    // Let background caching, the catalogue check and pruning finish.
+    await page.waitForTimeout(3000)
+  }
+  await visit('Alpha')
+  const afterFirst = new Map(partRequests)
+  expect(afterFirst.size).toBe(1)
+  await visit('Gamma')
+  expect(partRequests.size).toBe(2)
+  const alphaPart = [...afterFirst.keys()][0]
+  expect((await cachedKeys()).some(url => url.includes(alphaPart))).toBe(true)
+  await visit('Alpha')
+  expect(partRequests.get(alphaPart)).toBe(1)
+  expect(errors).toEqual([])
+})
+
+test('an unavailable search worker validates partitions in the page instead', async ({ page }) => {
+  const errors = collectPageErrors(page)
+  let workerRequests = 0
+  await page.route('**/assets/searchPartWorker-*.js', route => { workerRequests++; return route.fulfill({ status: 404, body: 'missing' }) })
+  await setup(page)
+  await page.goto('/search?q=Alpha')
+  await expect(page.getByTestId('search-count')).toContainText('1 result')
+  await expect(page.getByTestId('search-results')).toContainText('Alpha')
+  expect(workerRequests).toBeGreaterThan(0)
+  expect(errors).toEqual([])
+})

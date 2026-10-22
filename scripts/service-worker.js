@@ -1,5 +1,7 @@
 /* Generated with an exact, bounded list of this build's immutable static assets.
- * No document or data fallback: sanctions/API requests always use the network.
+ * No document or data fallback: sanctions/API requests always use the network
+ * as far as this worker is concerned. (The search page separately keeps
+ * content-addressed search assets in its own Cache API store; see README.)
  */
 const ASSETS = new Map(__AMMITTO_ASSETS__)
 const CACHE_NAME = '__AMMITTO_CACHE_NAME__'

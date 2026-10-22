@@ -18,6 +18,8 @@
  * Pure: no `vue`, no `fetch`.
  */
 
+import { foldForSearch } from './searchEncode.js'
+
 /** Every field `filterSearchEntities` reads besides `type`. */
 export const FAST_FILTER_FIELDS = ['type', 'authority', 'regime', 'status', 'country', 'listType'] as const
 export type FastField = typeof FAST_FILTER_FIELDS[number]
@@ -31,6 +33,7 @@ export interface FastManifest {
   ids: FastAsset
   columns: FastAsset
   rows: FastAsset[]
+  suggestions: FastAsset
   sources: FastSource[]
 }
 export interface FastColumns { dict: Record<FastField, string[]>; codes: Record<FastField, number[]> }
@@ -104,6 +107,7 @@ export function validateFastManifest(value: unknown, entityCount: number): FastM
     || value.sources.length === 0) fail()
   asset(value.ids)
   asset(value.columns)
+  asset(value.suggestions)
   value.rows.forEach(asset)
   for (const source of value.sources) {
     if (!dictionary(source) || typeof source.code !== 'string' || typeof source.file !== 'string'
@@ -163,4 +167,26 @@ export function fastResults(ids: readonly string[], columns: FastColumns) {
     at: (index: number) => (cache[index] ??= new FastResult(index)),
     indexOf: (value: unknown) => (value instanceof FastResult ? value.index : undefined),
   }
+}
+
+/**
+ * The suggestion candidates ("did you mean"): every folded name token of
+ * length 3 or more, in first-seen order over the documents. Shared by the
+ * build (fast asset) and the in-page catalogue so both produce the same set.
+ */
+export function suggestionTokenList(docs: Iterable<{ names: string[]; primaryName?: string }>): string[] {
+  const tokens = new Set<string>()
+  for (const doc of docs) {
+    // Names only, folded, never the glued forms of `indexableText`.
+    for (const name of doc.primaryName ? [doc.primaryName, ...doc.names] : doc.names) {
+      for (const token of foldForSearch(name)) if (token.length >= 3) tokens.add(token)
+    }
+  }
+  return [...tokens]
+}
+
+export function decodeSuggestionTokens(value: unknown): string[] {
+  if (!Array.isArray(value) || value.some(token => typeof token !== 'string' || token.length < 3)
+    || new Set(value).size !== value.length) fail()
+  return value as string[]
 }

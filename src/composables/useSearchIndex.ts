@@ -6,6 +6,9 @@ import {
   decodeFastIds,
   decodeFastRows,
   fastResults,
+  fastFilterFields,
+  decodeSuggestionTokens,
+  FAST_FILTER_FIELDS,
   validateFastManifest,
   type FastAsset,
   type FastColumns,
@@ -119,13 +122,17 @@ interface FastState {
   results: ReturnType<typeof fastResults>
   rows: (SearchEntity[] | undefined)[]
   pendingRows: Map<number, Promise<void>>
+  /** Cache keys of every asset the current manifest references (prune keep-set). */
   keys: Set<string>
+  suggestions: Promise<void> | null
 }
 let fast: FastState | null = null
 /** Bumped when a row chunk lands, so card lists re-read `rowFor`. */
 const rowsVersion = ref(0)
 /** The complete catalogue (entities Map) is hydrated: suggestions, getEntity. */
 const catalogueReady = ref(false)
+/** Partition-first: the build's suggestion candidates have loaded. */
+const tokensReady = ref(false)
 const error = ref<string | null>(null)
 const metadata = ref<CheckedMetadata | null>(null)
 
@@ -202,14 +209,17 @@ const INDEX_BUDGET_CHECK_EVERY = 25
 const RUNTIME_BASE = `${API_BASE}search-runtime/`
 const INDEX_BASE = `${API_BASE}api/v1/search-index/`
 
-async function fetchBytes(url: string): Promise<ArrayBuffer> {
+async function fetchBytes(url: string, abandon?: AbortSignal): Promise<ArrayBuffer> {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 30000)
+  const stop = () => controller.abort()
+  if (abandon?.aborted) controller.abort()
+  abandon?.addEventListener('abort', stop)
   try {
     const response = await fetch(url, { signal: controller.signal })
     if (!response.ok) throw new Error('Saved search asset unavailable')
     return await response.arrayBuffer()
-  } finally { clearTimeout(timeout) }
+  } finally { clearTimeout(timeout); abandon?.removeEventListener('abort', stop) }
 }
 
 function absoluteKey(url: string, sha256: string): string {
@@ -217,14 +227,76 @@ function absoluteKey(url: string, sha256: string): string {
   try { return new URL(key, globalThis.location?.href).href } catch { return key }
 }
 
-async function fastJson(asset: FastAsset, keys: Set<string>): Promise<unknown> {
+async function fastJson(asset: FastAsset): Promise<unknown> {
   const url = `${RUNTIME_BASE}${asset.file}`
-  keys.add(absoluteKey(url, asset.sha256))
   const bytes = await fetchVerifiedAsset(url, asset.sha256, asset.bytes, fetchBytes)
   return JSON.parse(new TextDecoder().decode(await inflate(bytes, asset.decodedBytes)))
 }
 
 function invalidFast(): never { throw new Error('Incompatible saved search index') }
+
+/**
+ * Up to two search workers validate partitions off the main thread (two is
+ * what a query usually needs, one per first-letter partition). Any worker
+ * failure (unsupported, CSP, crash) returns null and the page validates
+ * in-thread with the same code, so this only ever changes where work runs.
+ */
+type PartReply = { id: number; ok: true; decoded: ArrayBuffer } | { id: number; ok: false }
+let partWorkers: Worker[] | null = null
+let partWorkerTurn = 0
+let partRequestId = 0
+const partReplies = new Map<number, { resolve: (value: ArrayBuffer | null) => void; reject: (error: Error) => void }>()
+
+function searchPartWorker(): Worker | null {
+  if (partWorkers === null) {
+    partWorkers = []
+    try {
+      const count = Math.max(1, Math.min(2, (globalThis.navigator?.hardwareConcurrency ?? 2) - 1))
+      for (let i = 0; i < count; i++) {
+        const worker = new Worker(new URL('../utils/searchPartWorker.ts', import.meta.url), { type: 'module' })
+        worker.onmessage = ({ data }: MessageEvent<PartReply>) => {
+          const pending = partReplies.get(data.id)
+          if (!pending) return
+          partReplies.delete(data.id)
+          if (data.ok) pending.resolve(data.decoded)
+          else pending.reject(new Error('Incompatible saved search index'))
+        }
+        worker.onerror = () => {
+          // Unusable worker: drop it and let every request it held validate in-thread.
+          partWorkers = (partWorkers ?? []).filter(other => other !== worker)
+          for (const [id, pending] of partReplies) { partReplies.delete(id); pending.resolve(null) }
+          worker.terminate()
+        }
+        partWorkers.push(worker)
+      }
+    } catch { /* No module workers: validate in-thread. */ }
+  }
+  if (!partWorkers.length) return null
+  return partWorkers[partWorkerTurn++ % partWorkers.length]
+}
+
+function validatePartOffThread(
+  bytes: ArrayBuffer,
+  descriptor: { sha256: string; decodedBytes: number; registeredCount: number },
+  part: number,
+  entityCount: number,
+): Promise<ArrayBuffer | null> {
+  const worker = searchPartWorker()
+  if (!worker) return Promise.resolve(null)
+  return new Promise((resolve, reject) => {
+    const id = ++partRequestId
+    partReplies.set(id, { resolve, reject })
+    // A copy is transferred: the caller's bytes may still be written to the cache.
+    const copy = bytes.slice(0)
+    try {
+      worker.postMessage({ id, bytes: copy, sha256: descriptor.sha256, decodedBytes: descriptor.decodedBytes,
+        entityCount, registeredCount: descriptor.registeredCount, part }, [copy])
+    } catch {
+      partReplies.delete(id)
+      resolve(null)
+    }
+  })
+}
 
 /** Phase marks for the performance harness (User Timing; no effect on behaviour). */
 function mark(name: string): void {
@@ -249,6 +321,9 @@ async function loadFast(
   if (payload === null || typeof payload !== 'object' || !(payload as { fast?: unknown }).fast) return false
   const value = payload as Record<string, unknown>
   const keys = new Set<string>()
+  // Aborted if this load is abandoned, so a hinted prefetch stops downloading.
+  const abandon = new AbortController()
+  try {
   const partBytes = new Map<string, number>()
   if (Array.isArray(value.partitions)) {
     for (const part of value.partitions) {
@@ -256,16 +331,24 @@ async function loadFast(
     }
   }
   const runtime = await openSearchRuntime(payload, new URL(import.meta.url).pathname.split('/').pop() || '', file => {
-    const sha256 = file.slice(0, -4)
-    const url = `${RUNTIME_BASE}${file}`
-    keys.add(absoluteKey(url, sha256))
-    return fetchVerifiedAsset(url, sha256, partBytes.get(file) ?? -1, fetchBytes)
-  })
+    if (abandon.signal.aborted) invalidFast()
+    return fetchVerifiedAsset(`${RUNTIME_BASE}${file}`, file.slice(0, -4), partBytes.get(file) ?? -1,
+      url => fetchBytes(url, abandon.signal))
+  }, validatePartOffThread)
   const manifest = validateFastManifest(value.fast, runtime.entityCount)
   if (value.fastDigest !== await searchBytesDigest(new TextEncoder().encode(JSON.stringify(value.fast)).buffer)
     || value.sourceDigest !== await searchBytesDigest(new TextEncoder().encode(JSON.stringify(
       manifest.sources.map(source => [source.code, source.file, source.sha256]))).buffer)
     || manifest.sources.reduce((sum, source) => sum + source.count, 0) !== value.rowCount) invalidFast()
+  // Every asset this manifest references, fetched this visit or not: the
+  // prune keep-set, so a later visit's different query never evicts them.
+  for (const [file, sha256] of [...partBytes.keys()].map(file => [file, file.slice(0, -4)])) {
+    keys.add(absoluteKey(`${RUNTIME_BASE}${file}`, sha256))
+  }
+  for (const asset of [manifest.ids, manifest.columns, manifest.suggestions, ...manifest.rows]) {
+    keys.add(absoluteKey(`${RUNTIME_BASE}${asset.file}`, asset.sha256))
+  }
+  for (const source of manifest.sources) keys.add(absoluteKey(`${INDEX_BASE}${source.file}`, source.sha256))
   // The published shard manifest (requested alongside index.json, fetched
   // fresh) must describe exactly the shards (order, files, counts) and the
   // generation the runtime was built from. Checked before any asset is fetched.
@@ -278,14 +361,14 @@ async function loadFast(
   })) invalidFast()
   // Start the query's partitions now; prepareSearch later joins this work.
   const hinted = typeof hint === 'string' && hint.trim() ? runtime.prepare(hint).catch(() => {}) : Promise.resolve()
-  const [idsValue, columnsValue] = await Promise.all([fastJson(manifest.ids, keys), fastJson(manifest.columns, keys)])
+  const [idsValue, columnsValue] = await Promise.all([fastJson(manifest.ids), fastJson(manifest.columns)])
   mark('ids-columns')
   const ids = decodeFastIds(idsValue, runtime.entityCount)
   const columns = decodeFastColumns(columnsValue, runtime.entityCount)
   publishMetadata(source.metadata)
   const state: FastState = {
     manifest, ids, columns, results: fastResults(ids, columns),
-    rows: new Array(manifest.rows.length), pendingRows: new Map(), keys,
+    rows: new Array(manifest.rows.length), pendingRows: new Map(), keys, suggestions: null,
   }
   fast = state
   queryRuntime = { index: runtime.index, ids, prepare: runtime.prepare, ready: runtime.ready }
@@ -295,8 +378,16 @@ async function loadFast(
   isLoaded.value = true
   mark('fast-ready')
   // The catalogue must not compete with the first answer for bandwidth.
-  void hinted.then(() => scheduleCatalogue(state))
+  void hinted.then(() => {
+    if (fast !== state) return
+    void pruneSearchAssets(state.keys)
+    scheduleCatalogue(state)
+  })
   return true
+  } catch (error) {
+    abandon.abort()
+    throw error
+  }
 }
 
 function publishMetadata(raw: unknown): void {
@@ -325,11 +416,11 @@ function scheduleCatalogue(state: FastState): void {
  * the regular builder, which re-renders from scratch.
  */
 async function loadCatalogue(state: FastState): Promise<void> {
+  if (fast !== state) return
   try {
     const shards = await Promise.all(state.manifest.sources.map(async source => {
-      const url = `${INDEX_BASE}${source.file}`
-      state.keys.add(absoluteKey(url, source.sha256))
-      const bytes = await fetchVerifiedAsset(url, source.sha256, source.bytes, fetchBytes)
+      if (fast !== state) return []
+      const bytes = await fetchVerifiedAsset(`${INDEX_BASE}${source.file}`, source.sha256, source.bytes, fetchBytes)
       if (fast !== state) return []
       const data = JSON.parse(new TextDecoder().decode(bytes)) as SearchShardResponse
       if (!Array.isArray(data?.entities) || data.entities.length !== source.count) invalidFast()
@@ -343,18 +434,51 @@ async function loadCatalogue(state: FastState): Promise<void> {
       now: () => performance.now(), yieldControl: yieldToEventLoop,
     })
     if (fast !== state) return
+    // Re-verify everything the fast path has shown against the verified rows:
+    // order, every filter column, and each row chunk already on screen.
+    const docs = [...hydrated.values()]
+    if (docs.length !== state.ids.length) invalidFast()
     let index = 0
-    for (const id of hydrated.keys()) if (id !== state.ids[index++]) invalidFast()
-    if (index !== state.ids.length) invalidFast()
+    await forEachWithinBudget(docs, (doc) => {
+      index++
+      if (doc.id !== state.ids[index - 1]) invalidFast()
+      const fields = fastFilterFields(state.columns, index - 1) as Record<string, unknown>
+      for (const field of FAST_FILTER_FIELDS) {
+        if (fields[field] !== (doc as unknown as Record<string, unknown>)[field]) invalidFast()
+      }
+    }, {
+      budgetMs: INDEX_BUDGET_MS, checkEvery: INDEX_BUDGET_CHECK_EVERY,
+      now: () => performance.now(), yieldControl: yieldToEventLoop,
+    })
+    const size = state.manifest.rowChunk
+    state.rows.forEach((chunk, number) => {
+      if (chunk && JSON.stringify(chunk) !== JSON.stringify(docs.slice(number * size, number * size + chunk.length))) invalidFast()
+    })
+    if (fast !== state) return
     entities.value = hydrated
     catalogueReady.value = true
+    rowsVersion.value++
     mark('catalogue-ready')
-    void pruneSearchAssets(new Set([...state.keys, ...state.manifest.rows.map(asset =>
-      absoluteKey(`${RUNTIME_BASE}${asset.file}`, asset.sha256))]))
   } catch {
     if (fast === state) void startFallback()
   }
 }
+
+/** Partition-first suggestions: fetch the build's token list (only when a query found nothing). */
+function loadSuggestions(): void {
+  const state = fast
+  if (!state || state.suggestions || tokensReady.value || catalogueReady.value) return
+  state.suggestions = (async () => {
+    const tokens = decodeSuggestionTokens(await fastJson(state.manifest.suggestions))
+    if (fast !== state) return
+    suggestionTokens = new Set(tokens)
+    lastSuggestKey = null
+    tokensReady.value = true
+  })().catch(() => { if (fast === state) void startFallback() })
+}
+
+/** Whether `suggestFor` can answer now; when false, call `loadSuggestions`. */
+const suggestionsReady = computed(() => catalogueReady.value || tokensReady.value)
 
 function stubAt(state: FastState, index: number): SearchEntity {
   return state.results.at(index) as unknown as SearchEntity
@@ -365,6 +489,7 @@ function rowFor(entity: SearchEntity): SearchEntity | undefined {
   const state = fast
   const index = state?.results.indexOf(toRaw(entity))
   if (!state || index === undefined) return entity
+  if (catalogueReady.value) return entities.value.get(state.ids[index])
   const size = state.manifest.rowChunk
   return state.rows[Math.floor(index / size)]?.[index % size]
 }
@@ -372,7 +497,7 @@ function rowFor(entity: SearchEntity): SearchEntity | undefined {
 /** Fetch the row chunks holding these results (visible cards only). */
 async function ensureRows(list: readonly SearchEntity[]): Promise<void> {
   const state = fast
-  if (!state) return
+  if (!state || catalogueReady.value) return
   const size = state.manifest.rowChunk
   const chunks = new Set<number>()
   for (const entity of list) {
@@ -384,7 +509,8 @@ async function ensureRows(list: readonly SearchEntity[]): Promise<void> {
       let work = state.pendingRows.get(chunk)
       if (!work) {
         work = (async () => {
-          const value = await fastJson(state.manifest.rows[chunk], state.keys)
+          if (fast !== state) return
+          const value = await fastJson(state.manifest.rows[chunk])
           state.rows[chunk] = decodeFastRows<SearchEntity & Record<string, unknown>>(value, state.ids, chunk, size)
           if (fast === state) rowsVersion.value++
           mark('rows')
@@ -408,6 +534,7 @@ function startFallback(): Promise<void> {
   searchIndex.value = null
   entities.value = new Map()
   catalogueReady.value = false
+  tokensReady.value = false
   suggestionTokens = null
   lastSuggestKey = null
   lastSuggestResult = []
@@ -852,8 +979,8 @@ let lastSuggestResult: NearMiss[] = []
 
 function suggestFor(query: string, limit = 5): NearMiss[] {
   if (!isLoaded.value || !query.trim()) return []
-  // Partition-first: the catalogue is still arriving in the background.
-  if (!catalogueReady.value) return []
+  // Partition-first: the candidates come from the build's token list or the catalogue.
+  if (!suggestionsReady.value) return []
 
   // Memoized on the query string. The caller is a Vue computed, which
   // re-evaluates whenever any of its other dependencies change — a filter
@@ -989,6 +1116,8 @@ export function useSearchIndex() {
     rowFor,
     ensureRows,
     rowsVersion,
+    suggestionsReady,
+    loadSuggestions,
 
     // Direct access
     entities,

@@ -23,7 +23,7 @@ function sharedTools() {
         export { checkMetadata } from './indexMetadata.ts';
         export { searchRowText } from './birthAdapters.ts';
         export { indexableText } from './searchEncode.ts';
-        export { fastDocuments, encodeFastColumns, decodeFastColumns, decodeFastIds, decodeFastRows, validateFastManifest, FAST_ROW_CHUNK } from './searchFast.ts';`,
+        export { fastDocuments, encodeFastColumns, decodeFastColumns, decodeFastIds, decodeFastRows, validateFastManifest, FAST_ROW_CHUNK, suggestionTokenList, decodeSuggestionTokens } from './searchFast.ts';`,
       loader: 'ts', resolveDir: resolve(repository, 'src/utils'),
     },
     bundle: true, write: false, platform: 'node', format: 'esm',
@@ -128,8 +128,12 @@ export async function prepareSearchRuntime(dist, apiRoot = resolve(dist, 'api/v1
     throw new Error('Search runtime document order does not match ids')
   }
   const columns = tools.encodeFastColumns(docs)
+  // A non-string filter value would make the column encoding lossy. Fail the
+  // build loudly instead of silently shipping without the fast path.
+  if (!columns) throw new Error('Search runtime filter field holds a non-string value; fast assets cannot encode it exactly')
   let fast = null
-  if (columns) {
+  {
+    const suggestions = tools.suggestionTokenList(docs)
     const chunks = []
     for (let start = 0; start < docs.length; start += tools.FAST_ROW_CHUNK) chunks.push(docs.slice(start, start + tools.FAST_ROW_CHUNK))
     fast = {
@@ -137,6 +141,7 @@ export async function prepareSearchRuntime(dist, apiRoot = resolve(dist, 'api/v1
       ids: fastAsset(idList),
       columns: fastAsset(columns),
       rows: chunks.map(fastAsset),
+      suggestions: fastAsset(suggestions),
       sources: sources.map(([code, file, sha256], index) => ({ code, file, count: sourceCounts[index][0], sha256, bytes: sourceCounts[index][1] })),
     }
     // Round-trip every emitted asset and require it to reproduce the shard-derived values exactly.
@@ -152,6 +157,9 @@ export async function prepareSearchRuntime(dist, apiRoot = resolve(dist, 'api/v1
         throw new Error('Fast rows do not match source rows')
       }
     })
+    if (JSON.stringify(tools.decodeSuggestionTokens(read(fast.suggestions))) !== JSON.stringify(suggestions)) {
+      throw new Error('Fast suggestions do not match source rows')
+    }
     if (digest(JSON.stringify(fast.sources.map(source => [source.code, source.file, source.sha256]))) !== sourceDigest) {
       throw new Error('Fast sources do not match source digest')
     }

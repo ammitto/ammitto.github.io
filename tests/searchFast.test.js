@@ -82,7 +82,7 @@ test('tampered columns, ids and rows are rejected', () => {
 test('fast manifest validation rejects addresses that do not match, wrong chunk counts and bad sources', () => {
   const asset = { file: `${'a'.repeat(64)}.bin`, sha256: 'a'.repeat(64), bytes: 10, decodedBytes: 20 }
   const source = { code: 'eu', file: 'eu.json', count: 3, sha256: 'b'.repeat(64), bytes: 100 }
-  const manifest = { rowChunk: FAST_ROW_CHUNK, ids: asset, columns: asset, rows: [asset, asset], sources: [source] }
+  const manifest = { rowChunk: FAST_ROW_CHUNK, ids: asset, columns: asset, suggestions: asset, rows: [asset, asset], sources: [source] }
   assert.equal(validateFastManifest(manifest, FAST_ROW_CHUNK + 1), manifest)
   const variants = [
     { ...manifest, rows: [asset] },
@@ -90,6 +90,7 @@ test('fast manifest validation rejects addresses that do not match, wrong chunk 
     { ...manifest, ids: { ...asset, file: `${'c'.repeat(64)}.bin` } },
     { ...manifest, columns: { ...asset, bytes: 0 } },
     { ...manifest, sources: [] },
+    { ...manifest, suggestions: undefined },
     { ...manifest, sources: [{ ...source, file: '../x.json' }] },
     { ...manifest, sources: [{ ...source, bytes: undefined }] },
   ]
@@ -175,4 +176,27 @@ test('prune removes only entries the current manifest does not reference', async
   store.entries.set('k2', buffer('2'))
   assert.equal(await pruneSearchAssets(new Set(['k1']), store), 1)
   assert.deepEqual([...store.entries.keys()], ['k1'])
+})
+
+test('worker validation: accepts an exact partition, rejects tampering; prevalidated decode answers identically', async () => {
+  const { gzipSync } = await import('node:zlib')
+  const { validatePart } = await import('../.test-build/utils/searchPartWorker.js')
+  const { encodeSearchRuntimeBinary, decodeSearchRuntimeBinary } = await import('../.test-build/utils/searchRuntimeBinary.js')
+  const maps = Array.from({ length: 9 }, () => Object.create(null))
+  maps[0].alpha = [0, 2]
+  maps[3].alp = [1]
+  const raw = encodeSearchRuntimeBinary(maps, 3)
+  const gz = gzipSync(raw)
+  const bytes = Uint8Array.from(gz).buffer
+  const request = { bytes, sha256: sha(gz), decodedBytes: raw.byteLength, entityCount: 3, registeredCount: 3 }
+  const decoded = await validatePart({ ...request, part: undefined })
+  const fast = await decodeSearchRuntimeBinary(decoded, 3, 3, undefined, { prevalidated: true })
+  const full = await decodeSearchRuntimeBinary(decoded, 3, 3)
+  for (let score = 0; score < 9; score++) {
+    for (const key of ['alpha', 'alp', 'missing']) assert.deepEqual(fast.map[score][key], full.map[score][key])
+  }
+  assert.throws(() => fast.register, /unavailable/)
+  await assert.rejects(validatePart({ ...request, sha256: 'f'.repeat(64), part: undefined }), /Incompatible/)
+  await assert.rejects(validatePart({ ...request, registeredCount: 2, part: undefined }), /Invalid/)
+  await assert.rejects(validatePart({ ...request, decodedBytes: raw.byteLength + 1, part: undefined }), /Incompatible/)
 })
