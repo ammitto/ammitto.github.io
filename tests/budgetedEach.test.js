@@ -121,8 +121,11 @@ test('the search-index build uses the time budget, not a fixed row count', () =>
   // because a row costs more to add as the index fills.
   assert.equal(/INDEX_CHUNK_SIZE|\.slice\(start/.test(source), false)
 
-  // The index is published only once the whole loop has finished.
-  const build = source.indexOf('await forEachWithinBudget(')
-  assert.ok(build < source.indexOf('searchIndex.value = index'))
-  assert.ok(build < source.indexOf('isLoaded.value = true'))
+  // The index is published only once the whole loop has finished. (The
+  // partition-first loader above it publishes without building anything.)
+  const body = source.slice(source.indexOf('async function loadSearchIndex('))
+  const build = body.indexOf('await forEachWithinBudget(')
+  assert.ok(build > 0)
+  assert.ok(build < body.indexOf('searchIndex.value = index'))
+  assert.ok(build < body.indexOf('isLoaded.value = true'))
 })

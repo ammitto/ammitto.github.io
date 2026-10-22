@@ -1,6 +1,17 @@
 import { ref, shallowRef, triggerRef, computed, toRaw } from 'vue'
 import FlexSearch from 'flexsearch'
-import { createSearchIndex, importSearchRuntime, searchBytesDigest } from '@/utils/searchRuntime'
+import { createSearchIndex, importSearchRuntime, inflate, openSearchRuntime, searchBytesDigest } from '@/utils/searchRuntime'
+import {
+  decodeFastColumns,
+  decodeFastIds,
+  decodeFastRows,
+  fastResults,
+  validateFastManifest,
+  type FastAsset,
+  type FastColumns,
+  type FastManifest,
+} from '@/utils/searchFast'
+import { fetchVerifiedAsset, pruneSearchAssets, searchAssetKey } from '@/utils/searchAssetCache'
 import { normalizeNode } from '@/utils/normalizeNode'
 import { searchRowText } from '@/utils/birthAdapters'
 import type { SearchBirthYear } from '@/utils/birthDisplay'
@@ -95,6 +106,26 @@ const isQueryLoading = ref(false)
 let queryVersion = 0
 let skipSavedRuntime = false
 let fallbackBuild: Promise<void> | null = null
+
+/**
+ * Partition-first state: answers search, filters and counts from the saved
+ * runtime plus the filter columns, and fetches card rows per visible chunk,
+ * before (and without) the catalogue. Null when the regular path is in use.
+ */
+interface FastState {
+  manifest: FastManifest
+  ids: string[]
+  columns: FastColumns
+  results: ReturnType<typeof fastResults>
+  rows: (SearchEntity[] | undefined)[]
+  pendingRows: Map<number, Promise<void>>
+  keys: Set<string>
+}
+let fast: FastState | null = null
+/** Bumped when a row chunk lands, so card lists re-read `rowFor`. */
+const rowsVersion = ref(0)
+/** The complete catalogue (entities Map) is hydrated: suggestions, getEntity. */
+const catalogueReady = ref(false)
 const error = ref<string | null>(null)
 const metadata = ref<CheckedMetadata | null>(null)
 
@@ -168,11 +199,235 @@ const INDEX_BUDGET_MS = 40
 /** Rows indexed between clock reads, so reading the clock stays negligible. */
 const INDEX_BUDGET_CHECK_EVERY = 25
 
+const RUNTIME_BASE = `${API_BASE}search-runtime/`
+const INDEX_BASE = `${API_BASE}api/v1/search-index/`
+
+async function fetchBytes(url: string): Promise<ArrayBuffer> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 30000)
+  try {
+    const response = await fetch(url, { signal: controller.signal })
+    if (!response.ok) throw new Error('Saved search asset unavailable')
+    return await response.arrayBuffer()
+  } finally { clearTimeout(timeout) }
+}
+
+function absoluteKey(url: string, sha256: string): string {
+  const key = searchAssetKey(url, sha256)
+  try { return new URL(key, globalThis.location?.href).href } catch { return key }
+}
+
+async function fastJson(asset: FastAsset, keys: Set<string>): Promise<unknown> {
+  const url = `${RUNTIME_BASE}${asset.file}`
+  keys.add(absoluteKey(url, asset.sha256))
+  const bytes = await fetchVerifiedAsset(url, asset.sha256, asset.bytes, fetchBytes)
+  return JSON.parse(new TextDecoder().decode(await inflate(bytes, asset.decodedBytes)))
+}
+
+function invalidFast(): never { throw new Error('Incompatible saved search index') }
+
+/** Phase marks for the performance harness (User Timing; no effect on behaviour). */
+function mark(name: string): void {
+  try { globalThis.performance?.mark?.(`ammitto:search:${name}`) } catch { /* unsupported */ }
+}
+
+/**
+ * Partition-first load. Starts the query's partitions at once (from the URL's
+ * query), alongside the ids and filter columns, and publishes an exact,
+ * query-ready index without downloading the catalogue. The catalogue follows
+ * in the background and re-verifies the binding; a mismatch falls back to the
+ * regular builder. Returns false (caller continues with the regular path) when
+ * the build carries no fast assets; throws when they are present but invalid.
+ */
+async function loadFast(
+  savedRuntime: Promise<unknown>,
+  sourceManifest: Promise<unknown>,
+  hint: string,
+): Promise<boolean> {
+  const payload = await savedRuntime
+  mark('runtime-manifest')
+  if (payload === null || typeof payload !== 'object' || !(payload as { fast?: unknown }).fast) return false
+  const value = payload as Record<string, unknown>
+  const keys = new Set<string>()
+  const partBytes = new Map<string, number>()
+  if (Array.isArray(value.partitions)) {
+    for (const part of value.partitions) {
+      if (part && typeof part === 'object') partBytes.set(String((part as FastAsset).file), Number((part as FastAsset).bytes))
+    }
+  }
+  const runtime = await openSearchRuntime(payload, new URL(import.meta.url).pathname.split('/').pop() || '', file => {
+    const sha256 = file.slice(0, -4)
+    const url = `${RUNTIME_BASE}${file}`
+    keys.add(absoluteKey(url, sha256))
+    return fetchVerifiedAsset(url, sha256, partBytes.get(file) ?? -1, fetchBytes)
+  })
+  const manifest = validateFastManifest(value.fast, runtime.entityCount)
+  if (value.fastDigest !== await searchBytesDigest(new TextEncoder().encode(JSON.stringify(value.fast)).buffer)
+    || value.sourceDigest !== await searchBytesDigest(new TextEncoder().encode(JSON.stringify(
+      manifest.sources.map(source => [source.code, source.file, source.sha256]))).buffer)
+    || manifest.sources.reduce((sum, source) => sum + source.count, 0) !== value.rowCount) invalidFast()
+  // The published shard manifest (requested alongside index.json, fetched
+  // fresh) must describe exactly the shards (order, files, counts) and the
+  // generation the runtime was built from. Checked before any asset is fetched.
+  const source = await sourceManifest
+  if (!isSearchIndexManifest(source) || source.metadata.generated !== value.generated) invalidFast()
+  const ordered = orderShards(source.shards)
+  if (ordered.length !== manifest.sources.length || ordered.some((shard, index) => {
+    const expected = manifest.sources[index]
+    return shard.code !== expected.code || shard.file !== expected.file || shard.count !== expected.count
+  })) invalidFast()
+  // Start the query's partitions now; prepareSearch later joins this work.
+  const hinted = typeof hint === 'string' && hint.trim() ? runtime.prepare(hint).catch(() => {}) : Promise.resolve()
+  const [idsValue, columnsValue] = await Promise.all([fastJson(manifest.ids, keys), fastJson(manifest.columns, keys)])
+  mark('ids-columns')
+  const ids = decodeFastIds(idsValue, runtime.entityCount)
+  const columns = decodeFastColumns(columnsValue, runtime.entityCount)
+  publishMetadata(source.metadata)
+  const state: FastState = {
+    manifest, ids, columns, results: fastResults(ids, columns),
+    rows: new Array(manifest.rows.length), pendingRows: new Map(), keys,
+  }
+  fast = state
+  queryRuntime = { index: runtime.index, ids, prepare: runtime.prepare, ready: runtime.ready }
+  savedDocumentIds = ids
+  indexedCount.value = Number(value.rowCount)
+  searchIndex.value = runtime.index
+  isLoaded.value = true
+  mark('fast-ready')
+  // The catalogue must not compete with the first answer for bandwidth.
+  void hinted.then(() => scheduleCatalogue(state))
+  return true
+}
+
+function publishMetadata(raw: unknown): void {
+  metadata.value = checkMetadata(raw)
+  if (metadata.value.invalid.length && !reportedBadMetadata) {
+    reportedBadMetadata = true
+    console.warn(
+      `search-index manifest metadata: absent or invalid ${metadata.value.invalid.join(', ')}; ` +
+        'the page omits them rather than state them',
+      raw,
+    )
+  }
+}
+
+/** Card rows (and the whole catalogue) are not on the first-result path: start them once the page is idle. */
+function scheduleCatalogue(state: FastState): void {
+  const start = () => { void loadCatalogue(state) }
+  const idle = (globalThis as { requestIdleCallback?: (fn: () => void, options?: { timeout: number }) => void }).requestIdleCallback
+  setTimeout(() => (idle ? idle(start, { timeout: 2000 }) : start()), 500)
+}
+
+/**
+ * Background: fetch the exact shard bytes (verified against the runtime's
+ * source hashes), re-check the row binding, then hydrate the catalogue for
+ * suggestions and entity lookups. Any mismatch replaces the fast path with
+ * the regular builder, which re-renders from scratch.
+ */
+async function loadCatalogue(state: FastState): Promise<void> {
+  try {
+    const shards = await Promise.all(state.manifest.sources.map(async source => {
+      const url = `${INDEX_BASE}${source.file}`
+      state.keys.add(absoluteKey(url, source.sha256))
+      const bytes = await fetchVerifiedAsset(url, source.sha256, source.bytes, fetchBytes)
+      if (fast !== state) return []
+      const data = JSON.parse(new TextDecoder().decode(bytes)) as SearchShardResponse
+      if (!Array.isArray(data?.entities) || data.entities.length !== source.count) invalidFast()
+      await yieldToEventLoop()
+      return data.entities
+    }))
+    if (fast !== state) return
+    const hydrated = new Map<string, SearchEntity>()
+    await forEachWithinBudget(shards.flat(), row => hydrated.set(row.id, row), {
+      budgetMs: INDEX_BUDGET_MS, checkEvery: INDEX_BUDGET_CHECK_EVERY,
+      now: () => performance.now(), yieldControl: yieldToEventLoop,
+    })
+    if (fast !== state) return
+    let index = 0
+    for (const id of hydrated.keys()) if (id !== state.ids[index++]) invalidFast()
+    if (index !== state.ids.length) invalidFast()
+    entities.value = hydrated
+    catalogueReady.value = true
+    mark('catalogue-ready')
+    void pruneSearchAssets(new Set([...state.keys, ...state.manifest.rows.map(asset =>
+      absoluteKey(`${RUNTIME_BASE}${asset.file}`, asset.sha256))]))
+  } catch {
+    if (fast === state) void startFallback()
+  }
+}
+
+function stubAt(state: FastState, index: number): SearchEntity {
+  return state.results.at(index) as unknown as SearchEntity
+}
+
+/** The full row behind a search result: itself, or (partition-first) its loaded chunk row. */
+function rowFor(entity: SearchEntity): SearchEntity | undefined {
+  const state = fast
+  const index = state?.results.indexOf(toRaw(entity))
+  if (!state || index === undefined) return entity
+  const size = state.manifest.rowChunk
+  return state.rows[Math.floor(index / size)]?.[index % size]
+}
+
+/** Fetch the row chunks holding these results (visible cards only). */
+async function ensureRows(list: readonly SearchEntity[]): Promise<void> {
+  const state = fast
+  if (!state) return
+  const size = state.manifest.rowChunk
+  const chunks = new Set<number>()
+  for (const entity of list) {
+    const index = state.results.indexOf(toRaw(entity))
+    if (index !== undefined && !state.rows[Math.floor(index / size)]) chunks.add(Math.floor(index / size))
+  }
+  try {
+    await Promise.all([...chunks].map(chunk => {
+      let work = state.pendingRows.get(chunk)
+      if (!work) {
+        work = (async () => {
+          const value = await fastJson(state.manifest.rows[chunk], state.keys)
+          state.rows[chunk] = decodeFastRows<SearchEntity & Record<string, unknown>>(value, state.ids, chunk, size)
+          if (fast === state) rowsVersion.value++
+          mark('rows')
+        })().finally(() => state.pendingRows.delete(chunk))
+        state.pendingRows.set(chunk, work)
+      }
+      return work
+    }))
+  } catch {
+    if (fast === state) await startFallback()
+  }
+}
+
+/** Drop the saved runtime (fast or not) and rebuild with the regular builder. */
+function startFallback(): Promise<void> {
+  if (fallbackBuild) return fallbackBuild
+  queryRuntime = null
+  fast = null
+  skipSavedRuntime = true
+  savedDocumentIds = null
+  searchIndex.value = null
+  entities.value = new Map()
+  catalogueReady.value = false
+  suggestionTokens = null
+  lastSuggestKey = null
+  lastSuggestResult = []
+  isLoaded.value = false
+  isLoading.value = false
+  const rebuild = loadSearchIndex()
+  // The regular builder now owns progress; let its partial matches render.
+  isQueryLoading.value = false
+  fallbackBuild = rebuild
+  return rebuild.finally(() => { if (fallbackBuild === rebuild) fallbackBuild = null })
+}
+
 /**
  * Load the lightweight search index
  * This is much faster than loading all source JSON-LD files
+ *
+ * `hint` is the query already in the URL: partition-first loading fetches its
+ * partitions immediately instead of after the index is published.
  */
-async function loadSearchIndex(): Promise<void> {
+async function loadSearchIndex(hint = ''): Promise<void> {
   if (isLoaded.value || isLoading.value) return
 
   // Skip during SSR/build - data will be loaded client-side
@@ -198,15 +453,30 @@ async function loadSearchIndex(): Promise<void> {
     }
   })()
 
-  try {
-    const indexBase = `${API_BASE}api/v1/search-index/`
+  const sourceManifest = (async () => {
     const manifestResponse = await fetch(`${API_BASE}api/v1/search-index/manifest.json`)
-
     if (!manifestResponse.ok) {
       throw new Error(`Failed to load search index: ${manifestResponse.status}`)
     }
+    return await manifestResponse.json() as unknown
+  })()
+  sourceManifest.catch(() => {})
 
-    const manifest: unknown = await manifestResponse.json()
+  try {
+    if (!skipSavedRuntime) {
+      try {
+        if (await loadFast(savedRuntime, sourceManifest, hint)) return
+      } catch {
+        // Invalid or unavailable fast assets: the regular path below decides.
+        fast = null
+        queryRuntime = null
+        savedDocumentIds = null
+        searchIndex.value = null
+        isLoaded.value = false
+      }
+    }
+    const indexBase = INDEX_BASE
+    const manifest: unknown = await sourceManifest
     if (!isSearchIndexManifest(manifest)) {
       throw new Error('Failed to load search index: malformed manifest')
     }
@@ -231,15 +501,7 @@ async function loadSearchIndex(): Promise<void> {
       }),
     )
     const rows = shards.flatMap(shard => shard.entities)
-    metadata.value = checkMetadata(manifest.metadata)
-    if (metadata.value.invalid.length && !reportedBadMetadata) {
-      reportedBadMetadata = true
-      console.warn(
-        `search-index manifest metadata: absent or invalid ${metadata.value.invalid.join(', ')}; ` +
-          'the page omits them rather than state them',
-        manifest.metadata,
-      )
-    }
+    publishMetadata(manifest.metadata)
 
     // An optional internal build asset removes repeated index construction.
     // Bind it to the complete ordered rows and the exact application bundle;
@@ -265,6 +527,7 @@ async function loadSearchIndex(): Promise<void> {
           now: () => performance.now(), yieldControl: yieldToEventLoop,
         })
         entities.value = hydrated
+        catalogueReady.value = true
         queryRuntime = loaded
         savedDocumentIds = loaded.ids
         indexedCount.value = rows.length
@@ -376,6 +639,7 @@ async function loadSearchIndex(): Promise<void> {
 
     triggerRef(entities)
     indexedCount.value = added
+    catalogueReady.value = true
     searchIndex.value = index
     isLoaded.value = true
   } catch (e) {
@@ -403,21 +667,7 @@ async function prepareSearch(query: string): Promise<void> {
     await runtime.prepare(query)
   } catch {
     if (queryRuntime === runtime) {
-      queryRuntime = null
-      skipSavedRuntime = true
-      savedDocumentIds = null
-      searchIndex.value = null
-      entities.value = new Map()
-      suggestionTokens = null
-      lastSuggestKey = null
-      lastSuggestResult = []
-      isLoaded.value = false
-      isLoading.value = false
-      const rebuild = loadSearchIndex()
-      // The regular builder now owns progress; let its partial matches render.
-      isQueryLoading.value = false
-      fallbackBuild = rebuild
-      try { await rebuild } finally { if (fallbackBuild === rebuild) fallbackBuild = null }
+      await startFallback()
     } else if (fallbackBuild) {
       await fallbackBuild
     }
@@ -498,6 +748,14 @@ function search(query: string, limit = 100): SearchEntity[] {
   }
 
   if (queryRuntime && !queryRuntime.ready(query)) return []
+
+  const state = fast
+  if (state) {
+    if (!query.trim()) {
+      return Array.from({ length: Math.min(limit, state.ids.length) }, (_, index) => stubAt(state, index))
+    }
+    return (searchIndex.value.search(query, { limit }) as number[]).map(id => stubAt(state, Number(id)))
+  }
 
   if (!query.trim()) {
     return Array.from(entities.value.values()).slice(0, limit)
@@ -594,6 +852,8 @@ let lastSuggestResult: NearMiss[] = []
 
 function suggestFor(query: string, limit = 5): NearMiss[] {
   if (!isLoaded.value || !query.trim()) return []
+  // Partition-first: the catalogue is still arriving in the background.
+  if (!catalogueReady.value) return []
 
   // Memoized on the query string. The caller is a Vue computed, which
   // re-evaluates whenever any of its other dependencies change — a filter
@@ -726,6 +986,9 @@ export function useSearchIndex() {
     getEntity,
     getEntityByRef,
     loadFullEntity,
+    rowFor,
+    ensureRows,
+    rowsVersion,
 
     // Direct access
     entities,

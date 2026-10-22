@@ -145,7 +145,6 @@ export async function decodeSearchRuntimeBinary(
 
   // No arrays are materialized in this scan, including very long prefix lists.
   const seen = new Uint8Array(Math.ceil(entityCount / 8))
-  const register: Record<string, number> = Object.create(null)
   let seenCount = 0
   for (const bucket of buckets) {
     for (let i = 0; i < bucket.count; i++) {
@@ -165,12 +164,12 @@ export async function decodeSearchRuntimeBinary(
         } while (digit & 128)
         if ((length > 1 && digit === 0) || value > 2 * (SEARCH_BINARY_MAX_ENTITIES - 1)) invalid()
         previous += value % 2 ? -(value + 1) / 2 : value / 2
-        if (!count(previous, entityCount - 1)) invalid()
-        const mask = 1 << (previous % 8)
-        const byte = Math.floor(previous / 8)
+        // `previous` is always an integer here (zigzag halves are exact).
+        if (previous < 0 || previous >= entityCount) invalid()
+        const mask = 1 << (previous & 7)
+        const byte = previous >>> 3
         if (!(seen[byte] & mask)) {
           seen[byte] |= mask
-          register[previous] = 1
           seenCount++
         }
         if (outOfBudget()) await yieldWork()
@@ -225,5 +224,17 @@ export async function decodeSearchRuntimeBinary(
       setPrototypeOf: immutable, preventExtensions: immutable,
     })
   })
-  return { map, register }
+  // The register is only needed by callers that import it; building a 64k-key
+  // object per partition on the query path cost more than the whole scan.
+  let register: Record<string, number> | null = null
+  return {
+    map,
+    get register() {
+      if (!register) {
+        register = Object.create(null) as Record<string, number>
+        for (let id = 0; id < entityCount; id++) if (seen[id >> 3] & (1 << (id % 8))) register[id] = 1
+      }
+      return register
+    },
+  }
 }

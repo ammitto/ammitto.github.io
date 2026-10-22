@@ -68,6 +68,9 @@ const {
   suggestFor,
   filter,
   getEntity,
+  rowFor,
+  ensureRows,
+  rowsVersion,
 } = useSearchIndex()
 
 const loading = computed(() => indexLoading.value || isQueryLoading.value)
@@ -131,7 +134,8 @@ function applyRouteQuery() {
 watch(() => route.query, applyRouteQuery, { immediate: true, flush: 'sync' })
 
 onMounted(async () => {
-  await Promise.all([loadSearchIndex(), loadFacets()])
+  // The URL's query lets the index fetch that query's partitions immediately.
+  await Promise.all([loadSearchIndex(debouncedQuery.value), loadFacets()])
 })
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
@@ -528,6 +532,12 @@ const progressMessage = computed(() => {
  */
 const finalCards = new WeakMap<SearchEntity, ReturnType<typeof entityAdapter>>()
 
+/** The results the grid shows: the first `loadedCount` of the final list. */
+const finalSlice = computed(() =>
+  showPartial.value ? [] : filteredEntities.value.slice(0, loadedCount.value))
+// Fetch only the row chunks the shown results live in.
+watch(finalSlice, (slice) => { void ensureRows(slice) }, { immediate: true })
+
 // Paginated results
 const paginatedEntities = computed(() => {
   if (showPartial.value) {
@@ -544,15 +554,23 @@ const paginatedEntities = computed(() => {
     }
     return cards
   }
-  return filteredEntities.value.slice(0, loadedCount.value).map((entity) => {
-    const row = toRaw(entity)
+  // Partition-first results carry only their filter fields until their row
+  // chunk arrives (see `finalSlice`). Show the loaded prefix only, so a card
+  // never appears above one that is still missing and nothing moves.
+  void rowsVersion.value
+  const cards: ReturnType<typeof entityAdapter>[] = []
+  for (const entity of finalSlice.value) {
+    const loaded = rowFor(entity)
+    if (!loaded) break
+    const row = toRaw(loaded)
     let card = finalCards.get(row)
     if (!card) {
-      card = entityAdapter(entity)
+      card = entityAdapter(row)
       finalCards.set(row, card)
     }
-    return card
-  })
+    cards.push(card)
+  }
+  return cards
 })
 
 const loadMoreButton = ref<HTMLButtonElement | null>(null)
@@ -566,6 +584,7 @@ watch([isLoaded, loading], async ([loaded, busy]) => {
   const fromRecord = [history?.back, history?.forward].some((path) => typeof path === 'string' && path.startsWith('/entity/'))
   if (!context || context.path !== route.fullPath || !fromRecord) return
   loadedCount.value = context.loadedCount
+  await ensureRows(filteredEntities.value.slice(0, context.loadedCount))
   await nextTick()
   await resultGrid.value?.restoreResult(context.entityRef, context.offsetTop)
 }, { immediate: true })
@@ -827,7 +846,7 @@ function focusAfterBarEmptied() {
         </div>
         <h3 class="font-semibold text-lg mb-2">Failed to Load Data</h3>
         <p class="text-light-muted dark:text-dark-muted mb-4">{{ error }}</p>
-        <button @click="loadSearchIndex" class="btn-primary">
+        <button @click="loadSearchIndex()" class="btn-primary">
           Retry
         </button>
       </div>

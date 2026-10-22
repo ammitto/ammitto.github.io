@@ -61,7 +61,7 @@ test('build emits 64 compressed immutable partitions tied to exact source bytes 
     const output = await prepareSearchRuntime(dist, apiRoot)
     const installed = JSON.parse(await readFile(createRequire(import.meta.url).resolve('flexsearch/package.json'), 'utf8'))
     assert.equal(output.engine, installed.version)
-    assert.equal(output.format, 'ammitto-search-runtime/v3')
+    assert.equal(output.format, 'ammitto-search-runtime/v4')
     assert.equal(output.generated, generated)
     assert.equal(output.sourceDigest, await sourceDigest(indexDirectory, ['eu', 'un', 'zz']))
     assert.equal('rowsDigest' in output, false)
@@ -138,7 +138,8 @@ test('blank document text produces empty postings and still imports a complete e
     assert.equal(output.registeredCount, 0)
     assert.equal(output.partitions.length, 64)
     assert.ok(output.partitions.every(part => part === null))
-    assert.deepEqual(await readdir(join(dist, 'search-runtime')), ['index.json'])
+    assert.deepEqual(await readdir(join(dist, 'search-runtime')),
+      [...new Set([output.fast.ids, output.fast.columns, ...output.fast.rows].map(asset => asset.file)), 'index.json'].sort())
     const tools = await helpers()
     const previousCrypto = globalThis.crypto
     if (!globalThis.crypto) Object.defineProperty(globalThis, 'crypto', { value: webcrypto, configurable: true })

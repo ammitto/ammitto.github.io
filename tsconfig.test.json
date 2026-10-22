@@ -38,6 +38,8 @@
   // in automatically; unrelated application code is not compiled.
   "include": [
     "src/utils/searchRuntime.ts",
+    "src/utils/searchFast.ts",
+    "src/utils/searchAssetCache.ts",
     "src/utils/normalizeNode.ts",
     "src/utils/civilDate.ts",
     "src/utils/searchReturn.ts",

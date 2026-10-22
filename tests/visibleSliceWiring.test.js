@@ -37,8 +37,11 @@ test('filteredEntities holds rows; only paginatedEntities builds cards', () => {
   assert.doesNotMatch(filtered, /entityAdapter|searchRowToCard|\.map\(/)
   assert.match(filtered, /return filter\(results, filterSelection\.value\)/)
   const paginated = declaration(page, 'const paginatedEntities = computed(')
-  assert.match(paginated, /filteredEntities\.value\.slice\(0, loadedCount\.value\)\.map\(/)
+  assert.match(paginated, /for \(const entity of finalSlice\.value\)/)
+  assert.match(paginated, /const loaded = rowFor\(entity\)\s*if \(!loaded\) break/)
   assert.match(paginated, /finalCards\.get\(/)
+  const slice = declaration(page, 'const finalSlice = computed(')
+  assert.match(slice, /filteredEntities\.value\.slice\(0, loadedCount\.value\)/)
 })
 
 test('loading a source queues it; the first search indexes the queue', () => {
