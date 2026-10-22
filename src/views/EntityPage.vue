@@ -9,7 +9,7 @@ import Badge from '@/components/atoms/Badge.vue'
 import { useEntityData } from '@/composables/useEntityData'
 import SourceDocuments from '@/components/molecules/SourceDocuments.vue'
 import SourceFreshness from '@/components/molecules/SourceFreshness.vue'
-import { sources, entityTypes } from '@/config'
+import { sources, entityTypes, siteConfig } from '@/config'
 import {
   getEntityNodePath,
   getEntitySourceCode,
@@ -134,7 +134,36 @@ const primaryNameLanguage = computed(() => {
   const primary = entity.value?.names?.find(name => name.full_name === primaryNameOf(entity.value?.names))
   return languageTag(primary?.language || primary?.lang)
 })
-useHead(() => ({ title: entity.value ? `${primaryNameOf(entity.value.names) ?? 'Entity'} — Ammitto` : 'Entity record — Ammitto' }))
+// Per-record head: the App-level defaults describe the site, not this
+// record. Canonical and JSON-LD are emitted only once the record loads, so a
+// bad id never claims a canonical URL. Paths come from the router, which has
+// already decoded them; re-encode each segment for the absolute URL.
+const schemaTypes: Record<string, string> = { person: 'Person', individual: 'Person', organization: 'Organization', entity: 'Organization', company: 'Organization' }
+useHead(() => {
+  const record = entity.value
+  if (!record) return { title: 'Entity record — Ammitto' }
+  const name = primaryNameOf(record.names) ?? 'Entity'
+  const url = `${siteConfig.url.replace(/\/$/, '')}/entity/${entityId.value.split('/').map(encodeURIComponent).join('/')}`
+  const description = `Sanctions record for ${name} on Ammitto: names, identifiers, sanctioning authorities and source documents.`
+  const jsonLd = JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': schemaTypes[String(record.entity_type || '').toLowerCase()] ?? 'Thing',
+    name,
+    identifier: entityId.value,
+    url,
+  }).replace(/</g, '\\u003c')
+  return {
+    title: `${name} — Ammitto`,
+    link: [{ rel: 'canonical', href: url }],
+    meta: [
+      { name: 'description', content: description },
+      { property: 'og:title', content: name },
+      { property: 'og:description', content: description },
+      { property: 'og:url', content: url },
+    ],
+    script: [{ type: 'application/ld+json', key: 'entity-jsonld', innerHTML: jsonLd }],
+  }
+})
 
 // `getEntityNodePath` is the call `loadFullEntity` makes to fetch this
 // record, so the link and the fetch cannot describe different paths.
