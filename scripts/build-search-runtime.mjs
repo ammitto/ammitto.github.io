@@ -1,7 +1,7 @@
 // Optional UI acceleration data, generated from the exact API rows being shipped.
 import { build } from 'esbuild'
 import { createHash } from 'node:crypto'
-import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises'
+import { readFile, writeFile, mkdir, readdir, rm } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -23,7 +23,7 @@ function sharedTools() {
         export { checkMetadata } from './indexMetadata.ts';
         export { searchRowText } from './birthAdapters.ts';
         export { indexableText } from './searchEncode.ts';
-        export { fastDocuments, encodeFastColumns, decodeFastColumns, decodeFastIds, decodeFastRows, validateFastManifest, FAST_ROW_CHUNK, suggestionTokenList, decodeSuggestionTokens } from './searchFast.ts';`,
+        export { fastDocuments, encodeFastColumns, decodeFastColumns, decodeFastIds, decodeFastRows, validateFastManifest, FAST_ROW_CHUNK, FAST_FILTER_FIELDS, suggestionTokenList, decodeSuggestionTokens } from './searchFast.ts';`,
       loader: 'ts', resolveDir: resolve(repository, 'src/utils'),
     },
     bundle: true, write: false, platform: 'node', format: 'esm',
@@ -128,11 +128,20 @@ export async function prepareSearchRuntime(dist, apiRoot = resolve(dist, 'api/v1
     throw new Error('Search runtime document order does not match ids')
   }
   const columns = tools.encodeFastColumns(docs)
-  // A non-string filter value would make the column encoding lossy. Fail the
-  // build loudly instead of silently shipping without the fast path.
-  if (!columns) throw new Error('Search runtime filter field holds a non-string value; fast assets cannot encode it exactly')
+  // A filter value that is neither a string nor null/absent cannot be encoded
+  // exactly. The deploy still ships (the page falls back to the regular
+  // builder), but never silently: a loud error, a reason in index.json and a
+  // marker file that CI and tests can assert on.
+  let fastDisabled = null
+  if (!columns) {
+    const offending = docs.flatMap(doc => tools.FAST_FILTER_FIELDS
+      .filter(field => doc[field] !== undefined && doc[field] !== null && typeof doc[field] !== 'string')
+      .map(field => `${doc.id} ${field}=${JSON.stringify(doc[field])}`))
+    fastDisabled = `non-string filter values (${offending.length}): ${offending.slice(0, 5).join('; ')}`
+    console.error(`::error title=Search fast assets disabled::${fastDisabled}`)
+  }
   let fast = null
-  {
+  if (columns) {
     const suggestions = tools.suggestionTokenList(docs)
     const chunks = []
     for (let start = 0; start < docs.length; start += tools.FAST_ROW_CHUNK) chunks.push(docs.slice(start, start + tools.FAST_ROW_CHUNK))
@@ -170,7 +179,7 @@ export async function prepareSearchRuntime(dist, apiRoot = resolve(dist, 'api/v1
     entityCount: ids.size, registeredCount: Object.keys(parts.reg).length,
     cfg: parts.cfg, ctx: parts.ctx, bundles,
     partitions, partitionsDigest: digest(JSON.stringify(partitions)),
-    fast, fastDigest: digest(JSON.stringify(fast)),
+    fast, fastDigest: digest(JSON.stringify(fast)), ...(fastDisabled ? { fastDisabled } : {}),
   }
   const outputDirectory = resolve(dist, 'search-runtime')
   await mkdir(outputDirectory, { recursive: true })
@@ -184,6 +193,9 @@ export async function prepareSearchRuntime(dist, apiRoot = resolve(dist, 'api/v1
       if (!existing.equals(asset.bytes)) throw new Error(`Existing search runtime asset is corrupt: ${asset.descriptor.file}`)
     }
   }
+  const marker = resolve(outputDirectory, 'fast-disabled.json')
+  if (fastDisabled) await writeFile(marker, `${JSON.stringify({ reason: fastDisabled })}\n`)
+  else await rm(marker, { force: true })
   // Publish only after source validation, complete export and every chunk write.
   await writeFile(resolve(outputDirectory, 'index.json'), `${JSON.stringify(output)}\n`)
   return output

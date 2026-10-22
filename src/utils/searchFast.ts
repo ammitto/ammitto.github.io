@@ -51,7 +51,12 @@ export function fastDocuments<T extends Row>(rows: readonly T[]): T[] {
   return [...byId.values()]
 }
 
-/** Dictionary-encode the filter fields; null when a value is not a string (the fast path is then not emitted). */
+/**
+ * Dictionary-encode the filter fields. `null` and an absent field are the
+ * same state for every filter (both fail `e.field && ...` and never equal a
+ * selected string), so both encode as absent. Returns null for any other
+ * non-string value; the build then ships without fast assets and says so.
+ */
 export function encodeFastColumns(docs: readonly Row[]): FastColumns | null {
   const dict = {} as Record<FastField, string[]>
   const codes = {} as Record<FastField, number[]>
@@ -60,7 +65,7 @@ export function encodeFastColumns(docs: readonly Row[]): FastColumns | null {
     const column: number[] = []
     for (const doc of docs) {
       const value = doc[field]
-      if (value === undefined) { column.push(-1); continue }
+      if (value === undefined || value === null) { column.push(-1); continue }
       if (typeof value !== 'string') return null
       let code = values.get(value)
       if (code === undefined) { code = values.size; values.set(value, code) }
@@ -171,8 +176,15 @@ export function fastResults(ids: readonly string[], columns: FastColumns) {
 
 /**
  * The suggestion candidates ("did you mean"): every folded name token of
- * length 3 or more, in first-seen order over the documents. Shared by the
- * build (fast asset) and the in-page catalogue so both produce the same set.
+ * length 3 or more, in first-seen order over the documents. The single
+ * implementation: the build writes it as the fast suggestion asset and the
+ * page's `buildSuggestionTokens` calls it over the hydrated catalogue.
+ *
+ * `foldForSearch`, deliberately, not `indexableText`: a glued form is an
+ * index-matching device, never a name ("leilabadiau", "1limited" were offered
+ * when glued forms were candidates). Length 3 and up because a four-character
+ * query has an edit budget of 1 and can reach a three-character name (`kimm`
+ * -> `kim`); below 3 the budget is 0 from either side.
  */
 export function suggestionTokenList(docs: Iterable<{ names: string[]; primaryName?: string }>): string[] {
   const tokens = new Set<string>()

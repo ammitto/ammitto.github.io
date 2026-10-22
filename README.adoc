@@ -112,15 +112,20 @@ The search page itself keeps a separate device cache (Cache API, named
 again. It stores only content-addressed search assets named by the current
 `search-runtime/index.json`: the query partitions, ids, filter columns, row
 chunks and suggestion list (about 11.9 MB of `.bin` files for the October 2026 corpus),
-plus the `api/v1/search-index/*.json` shards (about 22.7 MB), each keyed by its
+plus the `api/v1/search-index/*.json` shards (about 22.8 MB), each keyed by its
 SHA-256. Freshness is always decided by the network: `index.json` and the
-shard manifest are fetched from the server on every visit, and a cached entry
+shard manifest are requested from the server on every visit with
+`cache: 'no-cache'` (the browser may revalidate with a conditional request,
+but never answers them from its HTTP cache unchecked), and a cached entry
 is used only when its hash matches what that fresh `index.json` names. Every
 cached read is re-hashed; a mismatch is discarded and refetched. Entries the
 current `index.json` no longer references are deleted (pruned per data
 generation). It is not an offline fallback: without the network the page
 cannot learn which generation is current, so it does not answer from cache.
 Storage failures (quota, private browsing, eviction) fall back to the network.
+If a build finds a filter value it cannot encode exactly, it ships without
+these fast assets (the page then uses its regular index builder), logs a
+`::error` annotation and writes `search-runtime/fast-disabled.json`.
 
 To compare search CPU costs, save a baseline version of
 `src/composables/useSearchIndex.ts` and run:

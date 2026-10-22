@@ -54,8 +54,18 @@ test('filter columns reproduce filterSearchEntities exactly, including absent an
   assert.deepEqual([...FAST_FILTER_FIELDS].sort(), ['authority', 'country', 'listType', 'regime', 'status', 'type'])
 })
 
-test('a non-string filter value disables the fast assets instead of guessing', () => {
+test('null encodes as absent; any other non-string filter value disables the fast assets', () => {
   assert.equal(encodeFastColumns([{ id: 'x', type: 'person', status: 3 }]), null)
+  assert.equal(encodeFastColumns([{ id: 'x', type: 'person', status: {} }]), null)
+  const docs = [{ id: 'x', type: 'person', status: null, authority: 'eu' }, { id: 'y', type: 'person', authority: null }]
+  const columns = encodeFastColumns(docs)
+  assert.deepEqual(columns.codes.status, [-1, -1])
+  assert.deepEqual(columns.codes.authority, [0, -1])
+  const results = fastResults(['x', 'y'], columns)
+  for (const selection of [{ statuses: ['null'] }, { authorities: ['eu'] }, { authorities: ['null'] }, {}]) {
+    assert.deepEqual(filterSearchEntities([results.at(0), results.at(1)], selection).map(e => e.id),
+      filterSearchEntities(docs, selection).map(e => e.id), JSON.stringify(selection))
+  }
 })
 
 test('tampered columns, ids and rows are rejected', () => {

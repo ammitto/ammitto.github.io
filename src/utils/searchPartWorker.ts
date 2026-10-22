@@ -18,7 +18,13 @@ export interface PartRequest {
   registeredCount: number
   part: number
 }
-export type PartReply = { id: number; ok: true; decoded: ArrayBuffer } | { id: number; ok: false }
+// `invalid`: the partition failed validation. Otherwise the worker could not
+// run (environment error) and the page should validate it itself.
+export type PartReply = { id: number; ok: true; decoded: ArrayBuffer } | { id: number; ok: false; invalid: boolean }
+
+/** Validation failures carry these messages; anything else is the environment. */
+export const isValidationFailure = (error: unknown): boolean =>
+  error instanceof Error && /^(Incompatible saved search index|Invalid binary search index)$/.test(error.message)
 
 export async function validatePart(request: Omit<PartRequest, 'id'>): Promise<ArrayBuffer> {
   if (await searchBytesDigest(request.bytes) !== request.sha256) throw new Error('Incompatible saved search index')
@@ -37,8 +43,8 @@ if (typeof scope.document === 'undefined' && typeof scope.postMessage === 'funct
     try {
       const decoded = await validatePart(data)
       scope.postMessage({ id: data.id, ok: true, decoded }, [decoded])
-    } catch {
-      scope.postMessage({ id: data.id, ok: false })
+    } catch (error) {
+      scope.postMessage({ id: data.id, ok: false, invalid: isValidationFailure(error) })
     }
   }
 }

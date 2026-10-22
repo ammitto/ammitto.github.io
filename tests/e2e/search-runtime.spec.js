@@ -189,3 +189,39 @@ test('an unavailable search worker validates partitions in the page instead', as
   expect(workerRequests).toBeGreaterThan(0)
   expect(errors).toEqual([])
 })
+
+test('a fast-mode no-match waits for its suggestions and is announced once, with them', async ({ page }) => {
+  const errors = collectPageErrors(page)
+  let release
+  const gate = new Promise(resolve => { release = resolve })
+  let suggestionRequests = 0
+  await setup(page, null, { asset: async (_route, file) => {
+    if (file !== manifest.fast.suggestions.file) return false
+    suggestionRequests++
+    await gate
+    return false
+  }, shard: async () => { await new Promise(() => {}); return true } })
+  await page.addInitScript(() => {
+    window.__announced = []
+    new MutationObserver(() => {
+      for (const node of document.querySelectorAll('[role="status"][aria-live]')) {
+        const text = node.textContent.trim()
+        if (text && window.__announced.at(-1) !== text) window.__announced.push(text)
+      }
+    }).observe(document, { subtree: true, childList: true, characterData: true })
+  })
+  await page.goto('/search?q=Alphx')
+  await expect.poll(() => suggestionRequests).toBe(1)
+  // Held: no verdict, no empty state, no count while the candidates load.
+  await expect(page.getByRole('heading', { name: 'No match found', exact: true })).toBeHidden()
+  await expect(page.getByTestId('search-count')).toBeHidden()
+  expect((await page.evaluate(() => window.__announced)).filter(text => text.startsWith('No match'))).toEqual([])
+  release()
+  await expect(page.getByRole('heading', { name: 'No match found', exact: true })).toBeVisible()
+  await expect(page.getByText('Did you mean alpha?', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: /alpha/i })).toBeVisible()
+  const noMatch = (await page.evaluate(() => window.__announced)).filter(text => text.startsWith('No match'))
+  expect(noMatch).toHaveLength(1)
+  expect(noMatch[0]).toContain('Did you mean alpha?')
+  expect(errors).toEqual([])
+})

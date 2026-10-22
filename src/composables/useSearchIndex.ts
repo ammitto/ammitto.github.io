@@ -8,6 +8,7 @@ import {
   fastResults,
   fastFilterFields,
   decodeSuggestionTokens,
+  suggestionTokenList,
   FAST_FILTER_FIELDS,
   validateFastManifest,
   type FastAsset,
@@ -24,7 +25,6 @@ import { getEntityNodePath } from '@/utils/entityUrls'
 import { checkMetadata, type CheckedMetadata } from '@/utils/indexMetadata'
 import { partialMatchIds } from '@/utils/progressiveResults'
 import {
-  foldForSearch,
   indexableText,
   nearestNames,
   type NearMiss,
@@ -125,6 +125,8 @@ interface FastState {
   /** Cache keys of every asset the current manifest references (prune keep-set). */
   keys: Set<string>
   suggestions: Promise<void> | null
+  /** Aborted when this fast state is abandoned (fallback): stops its downloads. */
+  abandon: AbortController
 }
 let fast: FastState | null = null
 /** Bumped when a row chunk lands, so card lists re-read `rowFor`. */
@@ -227,9 +229,9 @@ function absoluteKey(url: string, sha256: string): string {
   try { return new URL(key, globalThis.location?.href).href } catch { return key }
 }
 
-async function fastJson(asset: FastAsset): Promise<unknown> {
+async function fastJson(asset: FastAsset, abandon?: AbortSignal): Promise<unknown> {
   const url = `${RUNTIME_BASE}${asset.file}`
-  const bytes = await fetchVerifiedAsset(url, asset.sha256, asset.bytes, fetchBytes)
+  const bytes = await fetchVerifiedAsset(url, asset.sha256, asset.bytes, target => fetchBytes(target, abandon))
   return JSON.parse(new TextDecoder().decode(await inflate(bytes, asset.decodedBytes)))
 }
 
@@ -241,7 +243,23 @@ function invalidFast(): never { throw new Error('Incompatible saved search index
  * failure (unsupported, CSP, crash) returns null and the page validates
  * in-thread with the same code, so this only ever changes where work runs.
  */
-type PartReply = { id: number; ok: true; decoded: ArrayBuffer } | { id: number; ok: false }
+type PartReply = { id: number; ok: true; decoded: ArrayBuffer } | { id: number; ok: false; invalid: boolean }
+/** A worker that has not answered in this long is presumed stuck: validate in the page. */
+const PART_WORKER_TIMEOUT_MS = 15000
+/** Idle workers are terminated after this long and recreated on demand. */
+const PART_WORKER_IDLE_MS = 10000
+let partWorkerIdle: ReturnType<typeof setTimeout> | null = null
+
+function settlePartRequest(): void {
+  if (partReplies.size || !partWorkers) return
+  if (partWorkerIdle) clearTimeout(partWorkerIdle)
+  partWorkerIdle = setTimeout(() => {
+    partWorkerIdle = null
+    if (partReplies.size) return
+    for (const worker of partWorkers ?? []) worker.terminate()
+    partWorkers = null
+  }, PART_WORKER_IDLE_MS)
+}
 let partWorkers: Worker[] | null = null
 let partWorkerTurn = 0
 let partRequestId = 0
@@ -259,7 +277,11 @@ function searchPartWorker(): Worker | null {
           if (!pending) return
           partReplies.delete(data.id)
           if (data.ok) pending.resolve(data.decoded)
-          else pending.reject(new Error('Incompatible saved search index'))
+          // Only a validation failure marks the partition bad; an environment
+          // error in the worker falls back to validating in the page.
+          else if (data.invalid) pending.reject(new Error('Incompatible saved search index'))
+          else pending.resolve(null)
+          settlePartRequest()
         }
         worker.onerror = () => {
           // Unusable worker: drop it and let every request it held validate in-thread.
@@ -283,9 +305,18 @@ function validatePartOffThread(
 ): Promise<ArrayBuffer | null> {
   const worker = searchPartWorker()
   if (!worker) return Promise.resolve(null)
+  if (partWorkerIdle) { clearTimeout(partWorkerIdle); partWorkerIdle = null }
   return new Promise((resolve, reject) => {
     const id = ++partRequestId
-    partReplies.set(id, { resolve, reject })
+    const timeout = setTimeout(() => {
+      if (!partReplies.delete(id)) return
+      resolve(null)
+      settlePartRequest()
+    }, PART_WORKER_TIMEOUT_MS)
+    partReplies.set(id, {
+      resolve: value => { clearTimeout(timeout); resolve(value) },
+      reject: error => { clearTimeout(timeout); reject(error) },
+    })
     // A copy is transferred: the caller's bytes may still be written to the cache.
     const copy = bytes.slice(0)
     try {
@@ -293,6 +324,7 @@ function validatePartOffThread(
         entityCount, registeredCount: descriptor.registeredCount, part }, [copy])
     } catch {
       partReplies.delete(id)
+      clearTimeout(timeout)
       resolve(null)
     }
   })
@@ -361,14 +393,14 @@ async function loadFast(
   })) invalidFast()
   // Start the query's partitions now; prepareSearch later joins this work.
   const hinted = typeof hint === 'string' && hint.trim() ? runtime.prepare(hint).catch(() => {}) : Promise.resolve()
-  const [idsValue, columnsValue] = await Promise.all([fastJson(manifest.ids), fastJson(manifest.columns)])
+  const [idsValue, columnsValue] = await Promise.all([fastJson(manifest.ids, abandon.signal), fastJson(manifest.columns, abandon.signal)])
   mark('ids-columns')
   const ids = decodeFastIds(idsValue, runtime.entityCount)
   const columns = decodeFastColumns(columnsValue, runtime.entityCount)
   publishMetadata(source.metadata)
   const state: FastState = {
     manifest, ids, columns, results: fastResults(ids, columns),
-    rows: new Array(manifest.rows.length), pendingRows: new Map(), keys, suggestions: null,
+    rows: new Array(manifest.rows.length), pendingRows: new Map(), keys, suggestions: null, abandon,
   }
   fast = state
   queryRuntime = { index: runtime.index, ids, prepare: runtime.prepare, ready: runtime.ready }
@@ -420,7 +452,8 @@ async function loadCatalogue(state: FastState): Promise<void> {
   try {
     const shards = await Promise.all(state.manifest.sources.map(async source => {
       if (fast !== state) return []
-      const bytes = await fetchVerifiedAsset(`${INDEX_BASE}${source.file}`, source.sha256, source.bytes, fetchBytes)
+      const bytes = await fetchVerifiedAsset(`${INDEX_BASE}${source.file}`, source.sha256, source.bytes,
+        url => fetchBytes(url, state.abandon.signal))
       if (fast !== state) return []
       const data = JSON.parse(new TextDecoder().decode(bytes)) as SearchShardResponse
       if (!Array.isArray(data?.entities) || data.entities.length !== source.count) invalidFast()
@@ -444,7 +477,8 @@ async function loadCatalogue(state: FastState): Promise<void> {
       if (doc.id !== state.ids[index - 1]) invalidFast()
       const fields = fastFilterFields(state.columns, index - 1) as Record<string, unknown>
       for (const field of FAST_FILTER_FIELDS) {
-        if (fields[field] !== (doc as unknown as Record<string, unknown>)[field]) invalidFast()
+        // null is encoded as absent (see encodeFastColumns).
+        if (fields[field] !== ((doc as unknown as Record<string, unknown>)[field] ?? undefined)) invalidFast()
       }
     }, {
       budgetMs: INDEX_BUDGET_MS, checkEvery: INDEX_BUDGET_CHECK_EVERY,
@@ -469,12 +503,14 @@ function loadSuggestions(): void {
   const state = fast
   if (!state || state.suggestions || tokensReady.value || catalogueReady.value) return
   state.suggestions = (async () => {
-    const tokens = decodeSuggestionTokens(await fastJson(state.manifest.suggestions))
+    const tokens = decodeSuggestionTokens(await fastJson(state.manifest.suggestions, state.abandon.signal))
     if (fast !== state) return
     suggestionTokens = new Set(tokens)
     lastSuggestKey = null
     tokensReady.value = true
-  })().catch(() => { if (fast === state) void startFallback() })
+  // A failed list is not a failed search: suggestions then wait for the
+  // catalogue's words (`suggestionsReady` turns true with `catalogueReady`).
+  })().catch(() => {})
 }
 
 /** Whether `suggestFor` can answer now; when false, call `loadSuggestions`. */
@@ -510,7 +546,7 @@ async function ensureRows(list: readonly SearchEntity[]): Promise<void> {
       if (!work) {
         work = (async () => {
           if (fast !== state) return
-          const value = await fastJson(state.manifest.rows[chunk])
+          const value = await fastJson(state.manifest.rows[chunk], state.abandon.signal)
           state.rows[chunk] = decodeFastRows<SearchEntity & Record<string, unknown>>(value, state.ids, chunk, size)
           if (fast === state) rowsVersion.value++
           mark('rows')
@@ -527,6 +563,8 @@ async function ensureRows(list: readonly SearchEntity[]): Promise<void> {
 /** Drop the saved runtime (fast or not) and rebuild with the regular builder. */
 function startFallback(): Promise<void> {
   if (fallbackBuild) return fallbackBuild
+  // Stop the abandoned fast path's downloads (hinted partitions, rows, catalogue).
+  fast?.abandon.abort()
   queryRuntime = null
   fast = null
   skipSavedRuntime = true
@@ -571,7 +609,7 @@ async function loadSearchIndex(hint = ''): Promise<void> {
   const savedRuntime = (async () => {
     try {
       if (skipSavedRuntime) return null
-      const response = await fetch(`${API_BASE}search-runtime/index.json`, { signal: runtimeController.signal })
+      const response = await fetch(`${API_BASE}search-runtime/index.json`, { signal: runtimeController.signal, cache: 'no-cache' })
       return response.ok ? await response.json() : null
     } catch {
       return null
@@ -581,7 +619,7 @@ async function loadSearchIndex(hint = ''): Promise<void> {
   })()
 
   const sourceManifest = (async () => {
-    const manifestResponse = await fetch(`${API_BASE}api/v1/search-index/manifest.json`)
+    const manifestResponse = await fetch(`${API_BASE}api/v1/search-index/manifest.json`, { cache: 'no-cache' })
     if (!manifestResponse.ok) {
       throw new Error(`Failed to load search index: ${manifestResponse.status}`)
     }
@@ -938,29 +976,9 @@ function searchPartial(query: string, limit = 100): SearchEntity[] {
 let suggestionTokens: Set<string> | null = null
 
 function buildSuggestionTokens(): Set<string> {
-  const tokens = new Set<string>()
-  for (const entity of entities.value.values()) {
-    // `foldForSearch`, deliberately, not `indexableText`: a glued form is an
-    // index-matching device, never a name. Built from the glued set, the
-    // suggester offered "leilabadiau" (a surname glued to a country code) and
-    // "1limited" as things the reader might have meant.
-    const names = entity.primaryName
-      ? [entity.primaryName, ...entity.names]
-      : entity.names
-    for (const name of names) {
-      for (const token of foldForSearch(name)) {
-        // Length 3 and up. The floor is about the CANDIDATE, not the query, and
-        // an earlier version excluded length-3 tokens on the grounds that
-        // `suggestionBudget` returns 0 for a three-character QUERY — a different
-        // thing. A four-character query has a budget of 1 and can legitimately
-        // reach a three-character name, so excluding them meant `kimm` never
-        // suggested `kim` and `alii` never suggested `ali`. Below 3 the budget
-        // is 0 from either side, so nothing there can ever match.
-        if (token.length >= 3) tokens.add(token)
-      }
-    }
-  }
-  return tokens
+  // One implementation for the page and the build's suggestion asset; see
+  // `suggestionTokenList` (foldForSearch over names, never glued forms; length 3+).
+  return new Set(suggestionTokenList(entities.value.values()))
 }
 
 /**

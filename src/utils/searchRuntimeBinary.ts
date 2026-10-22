@@ -94,7 +94,8 @@ export async function decodeSearchRuntimeBinary(
     || !count(entityCount, SEARCH_BINARY_MAX_ENTITIES) || !count(registeredCount, entityCount)
     || (expectedPartition !== undefined && !count(expectedPartition, SEARCH_RUNTIME_PARTITIONS - 1))) invalid()
   // Keep validation and later lookups independent of caller mutation/detachment.
-  const owned = buffer.slice(0)
+  // A prevalidated buffer was transferred from the worker and belongs to the caller alone.
+  const owned = options.prevalidated ? buffer : buffer.slice(0)
   const bytes = new Uint8Array(owned)
   const view = new DataView(owned)
   for (let i = 0; i < MAGIC.length; i++) if (bytes[i] !== MAGIC.charCodeAt(i)) invalid()

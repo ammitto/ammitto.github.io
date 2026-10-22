@@ -631,6 +631,8 @@ onBeforeRouteLeave((to) => {
 })
 
 const hasMoreResults = computed(() => {
+  // Like the count: no "Load More (N more)" over a grid whose cards are still arriving.
+  if (cardsPending.value) return false
   return loadedCount.value < filteredEntities.value.length
 })
 
