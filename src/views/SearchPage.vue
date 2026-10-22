@@ -587,6 +587,10 @@ const paginatedEntities = computed(() => {
   // chunk arrives (see `finalSlice`). Show the loaded prefix only, so a card
   // never appears above one that is still missing and nothing moves.
   void rowsVersion.value
+  // The first page appears all at once, with the count, when its last row
+  // chunk lands: a partly loaded first page next to the placeholders would
+  // be half an answer. Pages after it ("Load More") still fill as a prefix.
+  if (cardsPending.value) return []
   const cards: ReturnType<typeof entityAdapter>[] = []
   for (const entity of finalSlice.value) {
     const loaded = rowFor(entity)
