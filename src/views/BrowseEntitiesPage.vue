@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter } from '@/utils/navigation'
 import EntityCard from '@/components/molecules/EntityCard.vue'
 import { useSanctionsData, type SanctionEntity } from '@/composables/useSanctionsData'
 import { entityTypes } from '@/config'
@@ -105,9 +105,9 @@ const entityAdapter = (entity: SanctionEntity) => {
   <div class="min-h-screen">
     <div class="container-wide py-12">
       <div class="flex items-center gap-2 mb-6">
-        <RouterLink to="/browse" class="text-light-muted dark:text-dark-muted hover:text-brand-link">
+        <a href="/browse" class="text-light-muted dark:text-dark-muted hover:text-brand-link">
           Browse
-        </RouterLink>
+        </a>
         <span class="text-light-muted dark:text-dark-muted">/</span>
         <span class="text-light-text dark:text-dark-text">Entities</span>
       </div>

@@ -37,6 +37,7 @@
   // Only the modules the tests import. Anything reachable from them is pulled
   // in automatically; unrelated application code is not compiled.
   "include": [
+    "src/utils/navigation.ts",
     "src/utils/searchRuntime.ts",
     "src/utils/searchFast.ts",
     "src/utils/searchAssetCache.ts",

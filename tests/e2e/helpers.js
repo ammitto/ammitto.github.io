@@ -74,13 +74,22 @@ export function collectPageErrors(page) {
 
 /**
  * Navigate and wait for the client-side render to settle. The pages are
- * prerendered by vite-ssg but hydrate and then fetch their data, so a
+ * prerendered by Astro but hydrate and then fetch their data, so a
  * `load` event alone proves nothing about what is on screen.
  */
 export async function gotoRendered(page, path) {
   const response = await page.goto(path, { waitUntil: 'domcontentloaded' })
   if (response) {
-    expect(response.status(), `${path} returned HTTP ${response.status()}`).toBeLessThan(400)
+    const pathname = new URL(path, 'https://www.ammitto.org').pathname
+    const detail = /^\/(entity|announcement|group|legal-instrument|document-type|organization)\/.+/.test(pathname)
+    const fallbackRoute = detail || pathname === '/no-such-page-exists'
+    if (response.status() === 404 && fallbackRoute) {
+      // Astro preview mirrors Pages: known fallback routes carry HTTP 404.
+      // Require our real dispatcher, then each caller verifies record content.
+      await expect(page.locator('[data-detail-fallback]').first()).toBeAttached()
+    } else {
+      expect(response.status(), `${path} returned HTTP ${response.status()}`).toBeLessThan(400)
+    }
   }
   await expect(page.locator('#app')).toBeVisible()
   // Best-effort settle, deliberately not an assertion. Against the full

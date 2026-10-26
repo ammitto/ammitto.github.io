@@ -6,7 +6,7 @@ image:https://img.shields.io/github/license/ammitto/ammitto.github.io.svg[Licens
 
 This is the Ammitto sanctions database website, located at https://www.ammitto.org.
 
-It is a https://vuejs.org[Vue.js 3] application built with https://vitejs.dev[Vite] and https://vite-ssg.com[Vite SSG] for static site generation.
+It uses https://astro.build[Astro 7] with https://vitejs.dev[Vite 8], https://tailwindcss.com[Tailwind CSS 4 via its Vite plugin], and https://vuejs.org[Vue 3 components and interactive islands].
 
 == Features
 
@@ -22,7 +22,7 @@ It is a https://vuejs.org[Vue.js 3] application built with https://vitejs.dev[Vi
 
 === Prerequisites
 
-* Node.js 20+
+* Node.js 22.23.4+ (matching CI)
 * npm
 
 === Getting Started
@@ -41,6 +41,24 @@ npm run build
 # Preview production build
 npm run preview
 ----
+
+=== Pages and Vue islands
+
+Astro renders static routes and shared layouts. Vue islands retain search,
+filters, ontology interaction, and data-driven page behavior; navigation between
+pages uses normal links. Tailwind 4 runs through `@tailwindcss/vite`.
+
+Record routes under `/entity/`, `/announcement/`, `/group/`,
+`/legal-instrument/`, `/document-type/` and `/organization/` retain the
+GitHub Pages fallback strategy: `404.html` dispatches the current URL to the
+appropriate Vue record component. Direct record links therefore render with
+HTTP 404 on Pages, as they did before migration. Unknown URLs render a real
+not-found page. These fallback URLs are excluded from the generated sitemap.
+This migration does not introduce a server or change hosting.
+
+`npm run build` generates the static site, search acceleration assets,
+sitemap, robots file and bounded service worker. `npm run preview` serves the
+production output; browser tests use that output, not the development server.
 
 === API data in development
 
@@ -66,6 +84,11 @@ Sample:: only `public/api/v1` is served; a missing file answers 404.
 Quit:: stop without starting the server.
 
 Set `AMMITTO_DEV_DATA=live` or `AMMITTO_DEV_DATA=sample` to skip the prompt.
+To review the current published dataset without local overrides, set
+`AMMITTO_DEV_DATA=live AMMITTO_DEV_REMOTE_ONLY=1`. This proxies every
+`/api/v1/` and `/search-runtime/` request to `www.ammitto.org`; upstream
+failures remain errors and never fall back to the committed sample.
+
 In live mode a request the published site leaves unanswered for 15 seconds
 gets a 504.
 When stdin is not a terminal and the variable is unset, only `public/api/v1` is served,
@@ -90,7 +113,8 @@ src/
 │   ├── SearchPage.vue       # Main search interface
 │   ├── OntologyBrowserPage.vue  # Schema explorer
 │   └── ...
-├── router/             # Vue Router configuration
+├── pages/              # Astro routes, including the detail fallback
+├── layouts/            # Shared Astro document layout
 └── assets/             # Static assets
 ----
 
@@ -212,7 +236,7 @@ The deployment workflow:
   API data. They are listed rather than discovered with `--scan`, so that
   the harmonized source set stays exactly the set
   `.github/harmonize-thresholds.json` was calibrated against
-. Builds the Vue.js application with Vite
+. Builds Astro pages and Vue islands, then generates search runtime assets
 . Deploys to GitHub Pages
 
 To trigger a deployment:

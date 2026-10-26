@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onBeforeUnmount, nextTick, defineAsyncComponent } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter } from '@/utils/navigation'
 import { useOntologyData, type HierarchyNode } from '@/composables/useOntologyData'
 import CodeBlock from '@/components/molecules/CodeBlock.vue'
 import { entityTypes } from '@/config'
@@ -206,7 +206,7 @@ function isExpanded(nodeName: string): boolean {
 
         <!-- Left panel: Class Hierarchy -->
         <div class="min-w-0 lg:col-span-1">
-          <div class="bg-light-surface dark:bg-dark-surface rounded-lg shadow-sm p-4">
+          <div class="bg-light-surface dark:bg-dark-surface rounded-lg shadow-xs p-4">
             <h2 class="text-lg font-semibold text-light-text dark:text-dark-text mb-4">
               Class Hierarchy
             </h2>
@@ -237,7 +237,7 @@ function isExpanded(nodeName: string): boolean {
               <template v-for="child in hierarchy.children" :key="child.name">
                 <div class="hierarchy-node">
                   <div
-                    class="hierarchy-row flex items-center gap-2 p-2 rounded hover:bg-light-bg dark:hover:bg-dark-border"
+                    class="hierarchy-row flex items-center gap-2 p-2 rounded-sm hover:bg-light-bg dark:hover:bg-dark-border"
                     :class="{ 'bg-blue-50 dark:bg-blue-900/20': selectedClass === child.name }"
                   >
                     <!--
@@ -277,7 +277,7 @@ function isExpanded(nodeName: string): boolean {
                       -->
                       <span
                         aria-hidden="true"
-                        class="tone-ink bg-current inline-block w-2 h-2 rounded-full flex-shrink-0"
+                        class="tone-ink bg-current inline-block w-2 h-2 rounded-full shrink-0"
                         :style="inkToneVars(child.color || getTypeColor(child.code || ''))"
                       />
                       <span class="hierarchy-label font-medium text-light-text dark:text-dark-text">{{ child.label }}</span>
@@ -295,7 +295,7 @@ function isExpanded(nodeName: string): boolean {
                       class="hierarchy-node"
                     >
                       <div
-                        class="hierarchy-row flex items-center gap-2 p-2 rounded hover:bg-light-bg dark:hover:bg-dark-border"
+                        class="hierarchy-row flex items-center gap-2 p-2 rounded-sm hover:bg-light-bg dark:hover:bg-dark-border"
                         :class="{ 'bg-blue-50 dark:bg-blue-900/20': selectedClass === subChild.name }"
                       >
                         <button
@@ -308,7 +308,7 @@ function isExpanded(nodeName: string): boolean {
                           <span
                             aria-hidden="true"
                             :style="inkToneVars(subChild.color || getTypeColor(subChild.code || ''))"
-                            class="tone-ink bg-current inline-block w-2 h-2 rounded-full flex-shrink-0"
+                            class="tone-ink bg-current inline-block w-2 h-2 rounded-full shrink-0"
                           />
                           <span class="hierarchy-label text-light-text dark:text-dark-text">{{ subChild.label }}</span>
                           <span v-if="hasCount(subChild)" class="text-xs text-light-muted dark:text-dark-muted">
@@ -326,7 +326,7 @@ function isExpanded(nodeName: string): boolean {
 
         <!-- Right panel: Details -->
         <div class="min-w-0 lg:col-span-2">
-          <div class="bg-light-surface dark:bg-dark-surface rounded-lg shadow-sm">
+          <div class="bg-light-surface dark:bg-dark-surface rounded-lg shadow-xs">
             <!-- Tabs -->
             <div class="border-b border-light-border dark:border-dark-border">
               <nav class="flex -mb-px" role="tablist" aria-label="Ontology reference">
@@ -402,7 +402,7 @@ function isExpanded(nodeName: string): boolean {
                   <div
                     v-for="prop in selectedClassProperties"
                     :key="prop['@id']"
-                    class="flex items-center gap-2 p-2 bg-light-bg dark:bg-dark-bg rounded"
+                    class="flex items-center gap-2 p-2 bg-light-bg dark:bg-dark-bg rounded-sm"
                   >
                     <span class="font-medium text-light-text dark:text-dark-text">
                       {{ prop.label }}
@@ -410,7 +410,7 @@ function isExpanded(nodeName: string): boolean {
                     <span class="text-xs text-light-muted dark:text-dark-muted">
                       ({{ prop.range?.split('/').pop() || prop.range }})
                     </span>
-                    <span v-if="prop.isArray" class="text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-1 rounded">
+                    <span v-if="prop.isArray" class="text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-1 rounded-sm">
                       array
                     </span>
                   </div>

@@ -123,11 +123,11 @@ const configOptions = [
   <div class="docs-page min-h-screen">
     <div class="container-wide py-12">
       <nav aria-label="Developer documentation" class="mb-7 flex flex-wrap gap-x-5 gap-y-2 text-sm">
-        <RouterLink to="/api" class="text-brand-link underline underline-offset-4">API</RouterLink>
-        <RouterLink to="/schema" class="text-brand-link underline underline-offset-4">Data schema</RouterLink>
-        <RouterLink to="/ontology" class="text-brand-link underline underline-offset-4">Ontology</RouterLink>
-        <RouterLink to="/ruby" aria-current="page" class="text-brand-link underline underline-offset-4">Ruby gem</RouterLink>
-        <RouterLink to="/download" class="text-brand-link underline underline-offset-4">Downloads</RouterLink>
+        <a href="/api" class="text-brand-link underline underline-offset-4">API</a>
+        <a href="/schema" class="text-brand-link underline underline-offset-4">Data schema</a>
+        <a href="/ontology" class="text-brand-link underline underline-offset-4">Ontology</a>
+        <a href="/ruby" aria-current="page" class="text-brand-link underline underline-offset-4">Ruby gem</a>
+        <a href="/download" class="text-brand-link underline underline-offset-4">Downloads</a>
       </nav>
       <h1 class="text-4xl font-bold mb-4 text-light-text dark:text-dark-text">
         Ruby Gem

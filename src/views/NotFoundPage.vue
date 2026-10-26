@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { useHead } from '@unhead/vue'
-import { useRoute } from 'vue-router'
+import { useRoute } from '@/utils/navigation'
 
 /**
  * Reached two ways, and they look identical to the visitor.
@@ -19,10 +18,6 @@ import { useRoute } from 'vue-router'
  */
 const route = useRoute()
 
-useHead({
-  title: 'Page not found - Ammitto',
-  meta: [{ name: 'robots', content: 'noindex' }],
-})
 </script>
 
 <template>
@@ -47,24 +42,24 @@ useHead({
 
         <ul class="space-y-2">
           <li>
-            <RouterLink to="/search" class="text-brand-link hover:underline">
+            <a href="/search" class="text-brand-link hover:underline">
               Search the sanctions data
-            </RouterLink>
+            </a>
           </li>
           <li>
-            <RouterLink to="/browse" class="text-brand-link hover:underline">
+            <a href="/browse" class="text-brand-link hover:underline">
               Browse by entities, sanctions, groups and more
-            </RouterLink>
+            </a>
           </li>
           <li>
-            <RouterLink to="/sources" class="text-brand-link hover:underline">
+            <a href="/sources" class="text-brand-link hover:underline">
               See every source we publish
-            </RouterLink>
+            </a>
           </li>
           <li>
-            <RouterLink to="/api" class="text-brand-link hover:underline">
+            <a href="/api" class="text-brand-link hover:underline">
               Use the API directly
-            </RouterLink>
+            </a>
           </li>
         </ul>
       </div>

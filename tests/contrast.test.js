@@ -642,10 +642,11 @@ test('text over the hero gradient still clears AA', () => {
     fileURLToPath(new URL('../src/components/organisms/HeroSection.vue', import.meta.url)),
     'utf8',
   )
-  const overlay = /class="absolute inset-0 (bg-gradient-to-\w+[^"]*)"/.exec(hero)
+  // Tailwind 4 names the same directional gradient `bg-linear-to-*`.
+  const overlay = /class="absolute inset-0 (bg-(?:gradient|linear)-to-\w+[^"]*)"/.exec(hero)
   assert.ok(
     overlay,
-    'the hero overlay is no longer an `absolute inset-0 bg-gradient-*` element. If the gradient ' +
+    'the hero overlay is no longer an `absolute inset-0 bg-linear-*` element. If the gradient ' +
       'is gone this test has nothing left to measure and should go with it; if it merely moved, ' +
       'point this at it.',
   )

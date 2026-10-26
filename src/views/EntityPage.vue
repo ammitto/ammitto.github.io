@@ -2,9 +2,8 @@
 import { computed, watch, reactive, ref, onUnmounted } from 'vue'
 import { createLatestLoadGuard } from '@/utils/latestLoad'
 import { mapWithPool } from '@/utils/entryFetchPool'
-import { searchReturnPath, readSearchReturn } from '@/utils/searchReturn.js'
-import { useHead } from '@unhead/vue'
-import { useRoute } from 'vue-router'
+import { searchReturnPath, readSearchReturn, requestSearchReturn } from '@/utils/searchReturn.js'
+import { useRoute } from '@/utils/navigation'
 import Badge from '@/components/atoms/Badge.vue'
 import { useEntityData } from '@/composables/useEntityData'
 import SourceDocuments from '@/components/molecules/SourceDocuments.vue'
@@ -122,6 +121,11 @@ const entityId = computed(() => route.params.id as string)
 
 const returnPath = computed(() => searchReturnPath(entityId.value))
 const hasSearchReturn = computed(() => !!readSearchReturn(entityId.value))
+function prepareSearchReturn(event: MouseEvent) {
+  if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+    requestSearchReturn(entityId.value)
+  }
+}
 watch(entityId, id => { if (id) void loadEntity(id) }, { immediate: true })
 
 // Only use a language tag explicitly supplied by the source. A writing
@@ -134,7 +138,11 @@ const primaryNameLanguage = computed(() => {
   const primary = entity.value?.names?.find(name => name.full_name === primaryNameOf(entity.value?.names))
   return languageTag(primary?.language || primary?.lang)
 })
-useHead(() => ({ title: entity.value ? `${primaryNameOf(entity.value.names) ?? 'Entity'} — Ammitto` : 'Entity record — Ammitto' }))
+watch(entity, (record) => {
+  if (typeof document !== 'undefined') document.title = record
+    ? `${primaryNameOf(record.names) ?? 'Entity'} — Ammitto`
+    : 'Entity record — Ammitto'
+}, { immediate: true })
 
 // `getEntityNodePath` is the call `loadFullEntity` makes to fetch this
 // record, so the link and the fetch cannot describe different paths.
@@ -260,15 +268,16 @@ const namesByScript = computed(() => {
 <template>
   <div class="min-h-screen">
     <div class="container-wide py-8">
-      <RouterLink
-        :to="returnPath"
+      <a
+        :href="returnPath"
+        @click="prepareSearchReturn"
         class="inline-flex items-center gap-2 text-light-muted dark:text-dark-muted hover:text-brand-link mb-6"
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
         </svg>
         {{ hasSearchReturn ? 'Back to results' : 'Search records' }}
-      </RouterLink>
+      </a>
 
       <div v-if="entityLoading" class="glass-card p-8 text-center">
         <div class="w-8 h-8 border-2 border-brand-primary border-t-transparent rounded-full animate-spin mx-auto" />
@@ -476,13 +485,13 @@ const namesByScript = computed(() => {
               <dt class="text-sm text-light-muted dark:text-dark-muted mb-2">Legal Basis</dt>
               <dd class="space-y-1">
                 <template v-for="basis in legalBases" :key="basis.id">
-                  <RouterLink
+                  <a
                     v-if="basis.route"
-                    :to="basis.route"
+                    :href="basis.route"
                     class="block text-brand-link hover:underline"
                   >
                     {{ basis.label }}
-                  </RouterLink>
+                  </a>
                   <span v-else class="block font-mono text-sm text-light-text dark:text-dark-text">
                     {{ basis.label }}
                   </span>
@@ -555,14 +564,14 @@ const namesByScript = computed(() => {
               <dd class="space-y-1">
                 <!-- break-all: the label is a full IRI with no space in it,
                      which pushed the page 15px past a 320px viewport. -->
-                <RouterLink
+                <a
                   v-for="groupId in groupIds"
                   :key="groupId"
-                  :to="`/group/${extractIdFromIri(groupId)}`"
+                  :href="`/group/${extractIdFromIri(groupId)}`"
                   class="block break-all text-brand-link hover:underline font-mono text-sm"
                 >
                   {{ groupId }}
-                </RouterLink>
+                </a>
               </dd>
             </div>
             <div v-if="entries.length > 0">
@@ -594,12 +603,12 @@ const namesByScript = computed(() => {
                 <div v-if="announcement.document_type">
                   <dt class="text-light-muted dark:text-dark-muted inline">Type: </dt>
                   <dd class="inline">
-                    <RouterLink
-                      :to="`/document-type/${announcement.document_type}`"
+                    <a
+                      :href="`/document-type/${announcement.document_type}`"
                       class="text-brand-link hover:underline"
                     >
                       {{ getDocumentTypeName(announcement.document_type) }}
-                    </RouterLink>
+                    </a>
                   </dd>
                 </div>
                 <div v-if="announcement.publish_date">
@@ -609,48 +618,48 @@ const namesByScript = computed(() => {
                 <div v-if="announcement.authority">
                   <dt class="text-light-muted dark:text-dark-muted inline">Authority: </dt>
                   <dd class="inline">
-                    <RouterLink
-                      :to="`/organization/${announcement.authority}`"
+                    <a
+                      :href="`/organization/${announcement.authority}`"
                       class="text-brand-link hover:underline"
                     >
                       {{ getOrganizationName(announcement.authority) }}
-                    </RouterLink>
+                    </a>
                   </dd>
                 </div>
                 <div v-if="announcement.signatory && announcement.signatory !== announcement.authority">
                   <dt class="text-light-muted dark:text-dark-muted inline">Signatory: </dt>
                   <dd class="inline">
-                    <RouterLink
-                      :to="`/organization/${announcement.signatory}`"
+                    <a
+                      :href="`/organization/${announcement.signatory}`"
                       class="text-brand-link hover:underline"
                     >
                       {{ getOrganizationName(announcement.signatory) }}
-                    </RouterLink>
+                    </a>
                   </dd>
                 </div>
                 <div v-if="announcement.publisher && announcement.publisher !== announcement.authority && announcement.publisher !== announcement.signatory">
                   <dt class="text-light-muted dark:text-dark-muted inline">Publisher: </dt>
                   <dd class="inline">
-                    <RouterLink
-                      :to="`/organization/${announcement.publisher}`"
+                    <a
+                      :href="`/organization/${announcement.publisher}`"
                       class="text-brand-link hover:underline"
                     >
                       {{ getOrganizationName(announcement.publisher) }}
-                    </RouterLink>
+                    </a>
                   </dd>
                 </div>
               </dl>
               <div class="flex flex-wrap gap-4 mt-3">
-                <RouterLink
+                <a
                   v-if="groupIds.length > 0"
-                  :to="`/announcement/${extractIdFromIri(groupIds[0])}`"
+                  :href="`/announcement/${extractIdFromIri(groupIds[0])}`"
                   class="inline-flex items-center gap-1 text-brand-link hover:underline text-sm"
                 >
                   View Full Announcement & All Entities
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
                   </svg>
-                </RouterLink>
+                </a>
                 <a
                   v-if="safeExternalUrl(announcement.url)"
                   :href="safeExternalUrl(announcement.url) as string"

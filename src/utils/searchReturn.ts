@@ -9,8 +9,10 @@ export interface SearchReturnContext {
 }
 
 const KEY = 'ammitto.search-return.v1'
+const REQUEST_KEY = 'ammitto.search-return-request.v1'
 const MAX_AGE = 24 * 60 * 60 * 1000
 let fallback: SearchReturnContext | null = null
+let fallbackRequest: string | null = null
 
 export function validSearchReturn(value: unknown, now = Date.now()): SearchReturnContext | null {
   if (!value || typeof value !== 'object') return null
@@ -49,4 +51,26 @@ export function readSearchReturn(entityRef?: string): SearchReturnContext | null
 
 export function searchReturnPath(entityRef: string): string {
   return readSearchReturn(entityRef)?.path ?? '/search'
+}
+
+/** A native Back to results link creates a fresh history entry. Carry its
+ * explicit restoration intent across the document navigation, once only. */
+export function requestSearchReturn(entityRef: string): void {
+  const context = readSearchReturn(entityRef)
+  if (!context) return
+  fallbackRequest = context.path
+  if (typeof window === 'undefined') return
+  try { window.sessionStorage.setItem(REQUEST_KEY, context.path) } catch { /* Storage may be unavailable. */ }
+}
+
+export function consumeSearchReturnRequest(path: string): boolean {
+  let requested = fallbackRequest
+  fallbackRequest = null
+  if (typeof window !== 'undefined') {
+    try {
+      requested = window.sessionStorage.getItem(REQUEST_KEY) || requested
+      window.sessionStorage.removeItem(REQUEST_KEY)
+    } catch { /* Retain the in-memory request. */ }
+  }
+  return requested === path
 }

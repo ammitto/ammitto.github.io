@@ -46,7 +46,7 @@ const CONSUMERS = [
     requires: [
       'v-for="basis in legalBases"',
       'v-if="basis.route"',
-      ':to="basis.route"',
+      ':href="basis.route"',
       '{{ basis.label }}',
     ],
   },

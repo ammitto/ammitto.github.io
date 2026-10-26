@@ -23,10 +23,11 @@ test('a slower old detail response cannot overwrite a newer route', async ({ pag
   await expect(page.locator('#app')).toBeVisible()
   await oldRequestSeen
 
-  await page.evaluate(async (destination) => {
-    const app = document.querySelector('#app')?.__vue_app__
-    if (!app) throw new Error('Vue application instance is unavailable')
-    await app.config.globalProperties.$router.push(destination)
+  // Exercise the public history event while retaining the pending request.
+  // A document navigation cancels it and cannot prove the stale-response guard.
+  await page.evaluate((destination) => {
+    history.pushState({}, '', destination)
+    window.dispatchEvent(new PopStateEvent('popstate'))
   }, '/group/cn/15')
 
   const heading = page.locator('h1')

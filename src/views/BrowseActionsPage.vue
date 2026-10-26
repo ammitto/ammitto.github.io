@@ -13,9 +13,9 @@ onMounted(() => {
   <div class="min-h-screen">
     <div class="container-wide py-12">
       <div class="flex items-center gap-2 mb-6">
-        <RouterLink to="/browse" class="text-light-muted dark:text-dark-muted hover:text-brand-link">
+        <a href="/browse" class="text-light-muted dark:text-dark-muted hover:text-brand-link">
           Browse
-        </RouterLink>
+        </a>
         <span class="text-light-muted dark:text-dark-muted">/</span>
         <span class="text-light-text dark:text-dark-text">Actions</span>
       </div>
@@ -38,8 +38,8 @@ onMounted(() => {
       </div>
 
       <div class="grid md:grid-cols-2 gap-6">
-        <RouterLink
-          to="/search"
+        <a
+          href="/search"
           class="glass-card p-6 hover:border-brand-primary/50 transition-all group"
         >
           <h2 class="font-semibold text-lg mb-2 text-light-text dark:text-dark-text group-hover:text-brand-link transition-colors">
@@ -48,10 +48,10 @@ onMounted(() => {
           <p class="text-light-muted dark:text-dark-muted text-sm">
             Search for specific entities across all data sources.
           </p>
-        </RouterLink>
+        </a>
 
-        <RouterLink
-          to="/sources"
+        <a
+          href="/sources"
           class="glass-card p-6 hover:border-brand-primary/50 transition-all group"
         >
           <h2 class="font-semibold text-lg mb-2 text-light-text dark:text-dark-text group-hover:text-brand-link transition-colors">
@@ -60,7 +60,7 @@ onMounted(() => {
           <p class="text-light-muted dark:text-dark-muted text-sm">
             Find official source links and publication information.
           </p>
-        </RouterLink>
+        </a>
       </div>
     </div>
   </div>

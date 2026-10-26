@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { ref, nextTick, onMounted, onUnmounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute } from '@/utils/navigation'
 import Logo from '@/components/atoms/Logo.vue'
 import ThemeToggle from '@/components/atoms/ThemeToggle.vue'
 
-const route = useRoute()
+const props = defineProps<{ pathname?: string }>()
+const route = useRoute(props.pathname)
 const mobileMenuOpen = ref(false)
 const menuButton = ref<HTMLButtonElement>()
 const mobileNavigation = ref<HTMLElement>()
@@ -78,10 +79,10 @@ onUnmounted(() => {
         <Logo />
 
         <nav ref="desktopNavigation" aria-label="Main navigation" class="hidden min-w-0 lg:flex flex-wrap items-center justify-center gap-x-4 xl:gap-x-6 gap-y-0">
-          <RouterLink
+          <a
             v-for="item in navItems"
             :key="item.path"
-            :to="item.path"
+            :href="item.path"
             class="site-nav-link text-sm font-medium"
             :aria-current="isActive(item) ? (route.path === item.path ? 'page' : 'location') : undefined"
             :class="isActive(item)
@@ -89,7 +90,7 @@ onUnmounted(() => {
               : 'text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text'"
           >
             {{ item.name }}
-          </RouterLink>
+          </a>
         </nav>
 
         <div class="flex items-center gap-2">
@@ -119,11 +120,11 @@ onUnmounted(() => {
         class="lg:hidden max-h-[calc(100dvh-4rem-1px)] overflow-y-auto py-3 border-t border-light-border dark:border-dark-border"
       >
         <div class="flex flex-col gap-1">
-          <RouterLink
+          <a
             v-for="item in navItems"
             :key="item.path"
-            :to="item.path"
-            class="min-h-11 px-3 py-2.5 rounded text-sm font-medium"
+            :href="item.path"
+            class="min-h-11 px-3 py-2.5 rounded-sm text-sm font-medium"
             :aria-current="isActive(item) ? (route.path === item.path ? 'page' : 'location') : undefined"
             :class="isActive(item)
               ? 'bg-brand-primary/10 text-brand-link'
@@ -131,7 +132,7 @@ onUnmounted(() => {
             @click="navigateFromMenu"
           >
             {{ item.name }}
-          </RouterLink>
+          </a>
         </div>
       </nav>
     </div>

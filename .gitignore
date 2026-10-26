@@ -30,3 +30,6 @@ playwright-report
 # stale build artifacts. tsconfig.node.json now sends them here instead.
 node_modules/.tmp
 
+
+# Astro generated types and cache
+.astro/

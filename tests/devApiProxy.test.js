@@ -155,3 +155,16 @@ test('the live origin must be a bare https origin', () => {
     assert.throws(() => resolveLiveOrigin(bad), /AMMITTO_DEV_LIVE_ORIGIN/, bad)
   }
 })
+
+
+test('remote-only mode bypasses an existing local sample and keeps upstream errors', async () => {
+  const up = await listen((req, res) => {
+    assert.equal(req.url, '/api/v1/stats.json')
+    res.writeHead(503, { 'content-type': 'application/json' })
+    res.end('{"upstream":"unavailable"}')
+  })
+  const port = await devServer({ live: true, preferLocal: false, origin: `http://127.0.0.1:${up}` })
+  const response = await get(port, '/api/v1/stats.json')
+  assert.equal(response.status, 503)
+  assert.equal(response.body, '{"upstream":"unavailable"}')
+})

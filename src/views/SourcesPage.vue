@@ -110,7 +110,7 @@ onMounted(() => {
       -->
       <div class="mb-5 flex flex-wrap items-baseline justify-between gap-3">
         <h2 class="text-2xl font-semibold text-light-text dark:text-dark-text">Source catalogue</h2>
-        <RouterLink to="/download" class="text-sm text-brand-link underline underline-offset-4">Download published data</RouterLink>
+        <a href="/download" class="text-sm text-brand-link underline underline-offset-4">Download published data</a>
       </div>
       <p class="mb-6 max-w-3xl text-sm text-light-muted dark:text-dark-muted">The catalogue also retains sources whose data is not yet published. Each source is labelled with its current availability.</p>
       <div class="grid md:grid-cols-2 gap-5">

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, shallowRef, computed, onMounted, onBeforeUnmount, watch, nextTick, toRaw } from 'vue'
-import { useRoute, useRouter, onBeforeRouteLeave, type LocationQueryValue } from 'vue-router'
+import { useRoute, useRouter, onBeforeRouteLeave, type LocationQueryValue } from '@/utils/navigation'
 import SearchInput from '@/components/atoms/SearchInput.vue'
 import VirtualEntityGrid from '@/components/organisms/VirtualEntityGrid.vue'
 import SearchFilters from '@/components/organisms/SearchFilters.vue'
@@ -19,7 +19,7 @@ import {
 import { searchRowToCard } from '@/utils/birthAdapters'
 import { countOf } from '@/utils/indexMetadata'
 import { appendNewMatches } from '@/utils/progressiveResults'
-import { readSearchReturn, storeSearchReturn } from '@/utils/searchReturn'
+import { readSearchReturn, storeSearchReturn, consumeSearchReturnRequest } from '@/utils/searchReturn'
 
 // Initialize scroll animations
 useScrollAnimation()
@@ -614,7 +614,8 @@ watch([isLoaded, loading], async ([loaded, busy]) => {
   returnRestored = true
   const context = readSearchReturn()
   const history = window.history.state
-  const fromRecord = [history?.back, history?.forward].some((path) => typeof path === 'string' && path.startsWith('/entity/'))
+  const explicitlyRequested = consumeSearchReturnRequest(route.fullPath)
+  const fromRecord = Boolean(history?.ammittoSearchReturn) || explicitlyRequested
   if (!context || context.path !== route.fullPath || !fromRecord) return
   loadedCount.value = context.loadedCount
   await ensureRows(filteredEntities.value.slice(0, context.loadedCount))
@@ -624,6 +625,7 @@ watch([isLoaded, loading], async ([loaded, busy]) => {
 
 onBeforeRouteLeave((to) => {
   if (to.name !== 'entity' || typeof window === 'undefined') return
+  window.history.replaceState({ ...window.history.state, ammittoSearchReturn: true }, '')
   const entityRef = String(to.params.id ?? '')
   const cards = document.querySelectorAll<HTMLElement>('[data-entity-ref]')
   const card = [...cards].find((element) => element.dataset.entityRef === entityRef)
@@ -890,7 +892,7 @@ function focusAfterBarEmptied() {
       <div v-else class="flex flex-col lg:flex-row gap-8">
         <!-- Filters Sidebar -->
         <!-- Below `lg` the same panel opens in the drawer instead (see the end). -->
-        <aside ref="sidebar" class="hidden lg:block lg:w-72 flex-shrink-0">
+        <aside ref="sidebar" class="hidden lg:block lg:w-72 shrink-0">
           <div class="sticky top-24 max-h-[calc(100dvh-7rem)] overflow-y-auto overscroll-contain pr-2">
             <SearchFilters
               :filters="filters"
@@ -1047,8 +1049,8 @@ function focusAfterBarEmptied() {
             >
               <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3 mb-2">
                 <div class="sm:flex-1 min-w-0">
-                  <div class="h-5 w-3/4 my-1 rounded bg-light-border dark:bg-dark-border" />
-                  <div class="h-3.5 w-1/2 mt-2 rounded bg-light-border dark:bg-dark-border" />
+                  <div class="h-5 w-3/4 my-1 rounded-sm bg-light-border dark:bg-dark-border" />
+                  <div class="h-3.5 w-1/2 mt-2 rounded-sm bg-light-border dark:bg-dark-border" />
                 </div>
                 <!-- Mirrors the result card: badges under the name below `sm`. -->
                 <div class="flex gap-1 min-w-0 sm:flex-col sm:items-end sm:w-1/5">

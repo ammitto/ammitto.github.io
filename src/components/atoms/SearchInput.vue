@@ -99,7 +99,7 @@ defineExpose({ focus })
       :aria-label="label"
       :class="[
         'w-full min-h-11 rounded-xl border bg-white dark:bg-dark-surface border-light-border dark:border-dark-border',
-        'focus:border-brand-link focus:ring-2 focus:ring-brand-link focus:outline-none',
+        'focus:border-brand-link focus:ring-2 focus:ring-brand-link focus:outline-hidden',
         'transition-colors text-light-text dark:text-dark-text',
         'placeholder:text-light-muted dark:placeholder:text-dark-muted',
         sizeClasses,
@@ -115,7 +115,7 @@ defineExpose({ focus })
     <button
       v-if="hasText"
       type="button"
-      class="absolute top-1/2 -translate-y-1/2 right-1 w-11 h-11 inline-flex items-center justify-center rounded-lg text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+      class="absolute top-1/2 -translate-y-1/2 right-1 w-11 h-11 inline-flex items-center justify-center rounded-lg text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-primary"
       aria-label="Clear search"
       data-testid="search-clear"
       @click="clear"

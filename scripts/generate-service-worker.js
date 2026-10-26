@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { readFileSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -17,16 +17,29 @@ const TYPES = {
   gif: ['image/gif'],
   svg: ['image/svg+xml'],
 }
-const HASHED_ASSET = /^.+-[A-Za-z0-9_-]{8,}\.(js|css|woff2?|png|jpe?g|webp|avif|gif|svg)$/
+const HASHED_ASSET = /^.+[-.][A-Za-z0-9_-]{8,}\.(js|css|woff2?|png|jpe?g|webp|avif|gif|svg)$/
 const sha256 = (value) => createHash('sha256').update(value).digest('hex')
 
 /** Only emitted, hashed /assets files enter the cache's finite allowlist. */
 export function generateServiceWorker(dist) {
-  // Vite's manifest distinguishes bundled output from public/ files, whose
-  // human-written names can resemble hashes (for example ammitto-logo_full.svg).
-  const manifest = JSON.parse(readFileSync(join(dist, '.vite/manifest.json'), 'utf8'))
-  const emitted = [...new Set(Object.values(manifest).flatMap((entry) =>
-    [entry.file, ...(entry.css || []), ...(entry.assets || [])]))].sort()
+  // Captured client-bundle provenance distinguishes emitted output from
+  // public files whose names can resemble hashes. Legacy Vite fixtures retain
+  // their original manifest path; Astro removes that path after its build.
+  const astroManifest = join(dist, 'ammitto-static-assets.json')
+  const capturedAstro = existsSync(astroManifest)
+  let emitted
+  if (capturedAstro) {
+    const manifest = JSON.parse(readFileSync(astroManifest, 'utf8'))
+    if (manifest.version !== 1 || !Array.isArray(manifest.files)
+        || manifest.files.some(file => typeof file !== 'string' || !/^assets\/[^/]+$/.test(file))) {
+      throw new Error('Invalid captured Astro client asset manifest')
+    }
+    emitted = [...new Set(manifest.files)].sort()
+  } else {
+    const manifest = JSON.parse(readFileSync(join(dist, '.vite/manifest.json'), 'utf8'))
+    emitted = [...new Set(Object.values(manifest).flatMap((entry) =>
+      [entry.file, ...(entry.css || []), ...(entry.assets || [])]))].sort()
+  }
   const assets = []
   let bytes = 0
   for (const file of emitted) {
@@ -35,7 +48,13 @@ export function generateServiceWorker(dist) {
     const match = HASHED_ASSET.exec(name)
     if (!match) continue
     const path = join(dist, file)
-    const stat = statSync(path)
+    let stat
+    try { stat = statSync(path) } catch (error) {
+      // Astro may inline an emitted client script during HTML generation.
+      // It retains provenance but is no longer a fetchable cache candidate.
+      if (capturedAstro && error.code === 'ENOENT') continue
+      throw error
+    }
     if (!stat.isFile() || stat.size > CACHE_LIMITS.assetBytes) continue
     if (assets.length >= CACHE_LIMITS.entries || bytes + stat.size > CACHE_LIMITS.totalBytes) continue
     const body = readFileSync(path)

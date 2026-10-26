@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter } from '@/utils/navigation'
 import SearchInput from '@/components/atoms/SearchInput.vue'
 import Badge from '@/components/atoms/Badge.vue'
 import { siteConfig, featuredSources } from '@/config'
@@ -75,7 +75,7 @@ onMounted(async () => {
     to point at, that allowance would extend to the whole page.
   -->
   <section class="hero-section relative py-20 overflow-hidden">
-    <div class="absolute inset-0 bg-gradient-to-br from-brand-primary/5 via-transparent to-brand-primary/10" />
+    <div class="absolute inset-0 bg-linear-to-br from-brand-primary/5 via-transparent to-brand-primary/10" />
 
     <div class="container-wide relative">
       <div class="max-w-3xl mx-auto text-center">

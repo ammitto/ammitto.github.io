@@ -10,8 +10,10 @@ test('production registration caches only built static assets and never serves A
   await page.reload()
   await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true)
 
-  const asset = await page.locator('script[type="module"][src]').first().getAttribute('src')
-  expect(asset).toMatch(/^\/assets\/.+-[\w-]+\.js$/)
+  // Astro may inline the document script. Hydrated Vue islands retain an
+  // explicit built component URL that is eligible for the same bounded cache.
+  const asset = await page.locator('astro-island[component-url]').first().getAttribute('component-url')
+  expect(asset).toMatch(/^\/assets\/.+[-.][\w-]+\.js$/)
   await page.evaluate((url) => fetch(url).then((response) => response.text()), asset)
   await expect.poll(() => page.evaluate(async (url) => {
     const names = (await caches.keys()).filter((name) => /^ammitto-static-v1-[a-f0-9]{64}$/.test(name))

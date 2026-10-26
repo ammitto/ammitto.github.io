@@ -71,11 +71,11 @@ defineProps<{
           :download="doc.label"
           class="inline-grid max-w-full grid-cols-[auto_minmax(0,1fr)]
                  sm:grid-cols-[auto_minmax(0,1fr)_auto]
-                 items-center gap-x-2 gap-y-0.5 rounded border
+                 items-center gap-x-2 gap-y-0.5 rounded-sm border
                  border-light-border dark:border-dark-border px-3 py-1.5
                  text-sm text-light-text dark:text-dark-text
                  hover:bg-light-border/40 dark:hover:bg-dark-border/40
-                 focus-visible:outline-none focus-visible:ring-2
+                 focus-visible:outline-hidden focus-visible:ring-2
                  focus-visible:ring-brand-link focus-visible:ring-offset-1
                  focus-visible:ring-offset-light-bg
                  dark:focus-visible:ring-offset-dark-bg"

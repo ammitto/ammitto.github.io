@@ -1,0 +1,12 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro'
+import DetailFallback from '@/components/DetailFallback.vue'
+---
+<BaseLayout title="Record lookup" noindex>
+  <div data-detail-fallback>
+    <DetailFallback client:only="vue">
+      <p slot="fallback" class="container-wide py-12" role="status">Loading record…</p>
+    </DetailFallback>
+    <noscript><p class="container-wide py-12">JavaScript is required to look up this record. <a href="/search">Search sanctions records</a>.</p></noscript>
+  </div>
+</BaseLayout>

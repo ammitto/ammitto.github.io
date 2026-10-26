@@ -23,12 +23,12 @@ test('the download page exposes both complete formats and source aggregates', ()
 })
 
 test('the route and homepage both point to the download page', () => {
-  const router = read('src/router/index.ts')
+  const pages = read('src/pages/download.astro')
   const home = read('src/views/HomePage.vue')
   const header = read('src/components/organisms/TheHeader.vue')
 
-  assert.match(router, /path:\s*'\/download'/)
-  assert.match(home, /<RouterLink to="\/download"/)
+  assert.match(pages, /DownloadPage/)
+  assert.match(home, /<a href="\/download"/)
   assert.match(header, /name:\s*'Download',\s*path:\s*'\/download'/)
 })
 
@@ -37,6 +37,6 @@ test('the homepage links the existing download claim itself', () => {
 
   assert.match(
     home,
-    /<RouterLink to="\/download"[^>]*>download the data directly<\/RouterLink>\./i,
+    /<a href="\/download"[^>]*>download the data directly<\/a>\./i,
   )
 })

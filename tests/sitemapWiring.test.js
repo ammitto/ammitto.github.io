@@ -29,7 +29,7 @@ import { dirname, join } from 'node:path'
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
 const read = (rel) => readFileSync(join(repoRoot, rel), 'utf8')
 
-const CONFIG = 'vite.config.ts'
+const CONFIG = 'scripts/finalize-astro-build.mjs'
 
 /** Strip comments, so prose describing the rule cannot satisfy it. */
 const code = (source) =>

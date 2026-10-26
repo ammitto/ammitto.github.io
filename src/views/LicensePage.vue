@@ -1,12 +1,5 @@
 <script setup lang="ts">
-import { useHead } from '@unhead/vue'
 
-useHead({
-  title: 'License - Ammitto',
-  meta: [
-    { name: 'description', content: 'Ammitto is truly free and open - no commercial licensing restrictions, no hidden fees, no vendor lock-in.' },
-  ],
-})
 </script>
 
 <template>

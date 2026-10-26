@@ -1,4 +1,5 @@
-import type { RouteRecordRaw } from 'vue-router'
+// Route catalogue retained for route-coverage checks; Astro owns page routing.
+type RouteRecordRaw = { path: string; name: string; component: unknown }
 
 // Views
 import HomePage from '@/views/HomePage.vue'

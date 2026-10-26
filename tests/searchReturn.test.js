@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { validSearchReturn } from '../.test-build/utils/searchReturn.js'
+import { validSearchReturn, storeSearchReturn, requestSearchReturn, consumeSearchReturnRequest } from '../.test-build/utils/searchReturn.js'
 
 const now = Date.parse('2026-10-16T12:00:00Z')
 const context = { path: '/search?q=General&source=cn', loadedCount: 100, scrollY: 5500,
@@ -20,4 +20,25 @@ test('obsolete, future and malformed reading positions are ignored', () => {
     { loadedCount: 50.5 }, { entityRef: '' }]) {
     assert.equal(validSearchReturn({ ...context, ...patch }, now), null, JSON.stringify(patch))
   }
+})
+
+test('explicit native return is recorded for the selected record and consumed once', () => {
+  const values = new Map()
+  globalThis.window = { sessionStorage: {
+    setItem(key, value) { values.set(key, value) },
+    getItem(key) { return values.get(key) ?? null },
+    removeItem(key) { values.delete(key) },
+  } }
+  try {
+    storeSearchReturn(context)
+    assert.equal(consumeSearchReturnRequest(context.path), false, 'ordinary search navigation does not restore')
+    requestSearchReturn('cn/a-different-record')
+    assert.equal(consumeSearchReturnRequest(context.path), false)
+    requestSearchReturn(context.entityRef)
+    assert.equal(consumeSearchReturnRequest(context.path), true)
+    assert.equal(consumeSearchReturnRequest(context.path), false)
+    requestSearchReturn(context.entityRef)
+    assert.equal(consumeSearchReturnRequest('/search'), false, 'a different filter URL does not restore')
+    assert.equal(consumeSearchReturnRequest(context.path), false, 'unmatched intent cannot leak into a later visit')
+  } finally { delete globalThis.window }
 })

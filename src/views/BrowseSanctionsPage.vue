@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { navigationHref } from '@/utils/navigation'
 import { onMounted } from 'vue'
 import { useSanctionsData } from '@/composables/useSanctionsData'
 import { sources } from '@/config'
@@ -15,9 +16,9 @@ onMounted(() => {
   <div class="min-h-screen">
     <div class="container-wide py-12">
       <div class="flex items-center gap-2 mb-6">
-        <RouterLink to="/browse" class="text-light-muted dark:text-dark-muted hover:text-brand-link">
+        <a href="/browse" class="text-light-muted dark:text-dark-muted hover:text-brand-link">
           Browse
-        </RouterLink>
+        </a>
         <span class="text-light-muted dark:text-dark-muted">/</span>
         <span class="text-light-text dark:text-dark-text">Sanctions</span>
       </div>
@@ -42,9 +43,9 @@ onMounted(() => {
         <p class="text-light-muted dark:text-dark-muted mb-4">
           Total entries: {{ stats?.total_entries?.toLocaleString() || '—' }}
         </p>
-        <RouterLink to="/search" class="btn-primary">
+        <a href="/search" class="btn-primary">
           Search Sanctions
-        </RouterLink>
+        </a>
       </div>
 
       <h2 class="text-2xl font-semibold mb-5 text-light-text dark:text-dark-text">Source coverage</h2>
@@ -82,13 +83,13 @@ onMounted(() => {
             </div>
           </div>
 
-          <RouterLink
+          <a
             v-if="stats?.sources?.[source.code]"
-            :to="{ name: 'search', query: { source: source.code } }"
+            :href="navigationHref({ name: 'search', query: { source: source.code } })"
             class="text-brand-link underline underline-offset-4 text-sm font-medium"
           >
             View entities →
-          </RouterLink>
+          </a>
           <p v-else class="text-sm text-light-muted dark:text-dark-muted">{{ stats ? 'Not yet published in this dataset.' : 'Publication information is not available yet.' }}</p>
         </div>
       </div>

@@ -20,7 +20,7 @@ async function tabTo(page, selector) {
 test('search does not load the graph chunk; opening the ontology loads it on demand', async ({ page }) => {
   const graphRequests = []
   page.on('request', request => {
-    if (/\/OntologyGraph-[^/]+\.(js|css)(?:\?|$)/.test(request.url())) graphRequests.push(request.url())
+    if (/\/OntologyGraph[-.][^/]+\.(js|css)(?:\?|$)/.test(request.url())) graphRequests.push(request.url())
   })
   await gotoRendered(page, '/search')
   expect(graphRequests).toEqual([])

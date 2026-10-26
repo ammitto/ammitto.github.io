@@ -1,0 +1,68 @@
+---
+import TheHeader from '../components/organisms/TheHeader.vue'
+import TheFooter from '../components/organisms/TheFooter.vue'
+import { siteConfig } from '../config'
+import '../assets/styles/main.css'
+interface Props { title?: string; description?: string; noindex?: boolean }
+const { title = siteConfig.name, description = siteConfig.description, noindex = false } = Astro.props
+const canonical = new URL(Astro.url.pathname, siteConfig.url)
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title === siteConfig.name ? title : `${title} · Ammitto`}</title>
+    <meta name="description" content={description} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical.href} />
+    <link rel="canonical" href={canonical.href} />
+    {noindex && <meta name="robots" content="noindex" />}
+    <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="shortcut icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <script is:inline>
+      (() => {
+        let savedTheme;
+        try { savedTheme = localStorage.getItem('theme'); } catch {}
+        if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
+  </head>
+  <body class="bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text antialiased">
+    <a href="#main-content" class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50">Skip to content</a>
+    <div id="app" class="min-h-screen flex flex-col">
+      <TheHeader pathname={Astro.url.pathname} client:load />
+      <main id="main-content" tabindex="-1" class="flex-1 focus:outline-none"><slot /></main>
+      <TheFooter />
+    </div>
+    <script>
+      import { registerServiceWorker } from '../utils/registerServiceWorker'
+      if (import.meta.env.PROD) registerServiceWorker(import.meta.env.BASE_URL)
+      // Transfer keyboard focus across native header navigation, as the SPA
+      // did after route changes. Direct loads and browser Back keep their focus.
+      const focusKey = 'ammitto.navigation-focus'
+      try {
+        const destination = sessionStorage.getItem(focusKey)
+        sessionStorage.removeItem(focusKey)
+        if (destination === location.pathname + location.search) {
+          document.getElementById('main-content')?.focus({ preventScroll: true })
+        }
+      } catch { /* Navigation still works when storage is unavailable. */ }
+      document.addEventListener('click', (event) => {
+        if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+        const anchor = (event.target as Element | null)?.closest<HTMLAnchorElement>('header a[href]')
+        if (!anchor || anchor.target || anchor.hasAttribute('download')) return
+        const destination = new URL(anchor.href, location.href)
+        if (destination.origin !== location.origin || destination.hash) return
+        try { sessionStorage.setItem(focusKey, destination.pathname + destination.search) } catch {}
+      })
+
+    </script>
+  </body>
+</html>

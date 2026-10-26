@@ -203,6 +203,32 @@ test('generator uses only hashed static assets and content versions change with 
   } finally { rmSync(dist, { recursive: true }) }
 })
 
+test('generator admits Astro dot-hash output only when the build manifest names it', () => {
+  const dist = mkdtempSync(join(tmpdir(), 'ammitto-astro-worker-'))
+  try {
+    mkdirSync(join(dist, 'assets'))
+    writeFileSync(join(dist, 'assets/SearchPage.Dc123456.js'), BODY)
+    writeFileSync(join(dist, 'assets/public-lookalike.Dc123456.js'), BODY)
+    writeManifest(dist, ['SearchPage.Dc123456.js'])
+    const result = generateServiceWorker(dist)
+    assert.deepEqual(result.assets.map(([path]) => path), ['/assets/SearchPage.Dc123456.js'])
+  } finally { rmSync(dist, { recursive: true }) }
+})
+
+test('Astro captured client manifest supplies provenance after Vite manifest cleanup', () => {
+  const dist = mkdtempSync(join(tmpdir(), 'ammitto-astro-manifest-'))
+  try {
+    mkdirSync(join(dist, 'assets'))
+    writeFileSync(join(dist, 'assets/SearchPage.Dc123456.js'), BODY)
+    writeFileSync(join(dist, 'assets/public-lookalike.Dc123456.js'), BODY)
+    const path = join(dist, 'ammitto-static-assets.json')
+    writeFileSync(path, JSON.stringify({ version: 1, files: ['assets/SearchPage.Dc123456.js', 'assets/inlined.Dc123456.js'] }))
+    assert.deepEqual(generateServiceWorker(dist).assets.map(([path]) => path), ['/assets/SearchPage.Dc123456.js'])
+    writeFileSync(path, JSON.stringify({ version: 1, files: ['assets/../secret.js'] }))
+    assert.throws(() => generateServiceWorker(dist), /Invalid captured Astro client asset manifest/)
+  } finally { rmSync(dist, { recursive: true }) }
+})
+
 test('generator imposes entry, per-file and aggregate byte limits before shipping its manifest', () => {
   const dist = mkdtempSync(join(tmpdir(), 'ammitto-worker-bound-test-'))
   try {
@@ -252,6 +278,6 @@ test('registration is SSR safe, secure-client only, delayed until load, and neve
   assert.equal(calls[0][1].updateViaCache, 'none')
   evaluate({ window, navigator, document: { readyState: 'complete' } })()
   assert.equal(calls.length, 2)
-  const main = readFileSync(new URL('../src/main.ts', import.meta.url), 'utf8')
-  assert.match(main, /if \(isClient && import\.meta\.env\.PROD\) registerServiceWorker\(import\.meta\.env\.BASE_URL\)/)
+  const layout = readFileSync(new URL('../src/layouts/BaseLayout.astro', import.meta.url), 'utf8')
+  assert.match(layout, /registerServiceWorker\(/)
 })

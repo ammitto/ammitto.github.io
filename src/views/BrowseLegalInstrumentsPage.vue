@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { formatCivilDate } from '@/utils/civilDate.js'
 import { onMounted, onUnmounted, ref, computed } from 'vue'
-import { useRoute, useRouter, RouterLink } from 'vue-router'
+import { useRoute, useRouter } from '@/utils/navigation'
 import Badge from '@/components/atoms/Badge.vue'
 import SourceFilter from '@/components/SourceFilter.vue'
 import { getLanguageName } from '@/utils/language'
@@ -163,15 +163,15 @@ onMounted(async () => {
   <div class="min-h-screen">
     <div class="container-wide py-8">
       <!-- Back link -->
-      <RouterLink
-        to="/browse"
+      <a
+        href="/browse"
         class="inline-flex items-center gap-2 text-light-muted dark:text-dark-muted hover:text-brand-link mb-6"
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
         </svg>
         Back to Browse
-      </RouterLink>
+      </a>
 
       <div class="flex items-start justify-between gap-4 mb-6">
         <div>
@@ -233,11 +233,11 @@ onMounted(async () => {
 
       <!-- Instruments list -->
       <div v-else class="space-y-4">
-        <RouterLink
+        <a
           v-for="instrument in filteredInstruments"
           :key="instrument['@id']"
-          :to="`/legal-instrument/${getInstrumentRef(instrument['@id'])}`"
-          class="block min-w-0 bg-white dark:bg-dark-card rounded-lg shadow-sm border border-light-border dark:border-dark-border p-6 hover:border-brand-primary/50 transition-all"
+          :href="`/legal-instrument/${getInstrumentRef(instrument['@id'])}`"
+          class="block min-w-0 bg-white dark:bg-dark-card rounded-lg shadow-xs border border-light-border dark:border-dark-border p-6 hover:border-brand-primary/50 transition-all"
         >
           <div class="flex items-start justify-between gap-4">
             <div class="flex-1">
@@ -262,7 +262,7 @@ onMounted(async () => {
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
             </svg>
           </div>
-        </RouterLink>
+        </a>
       </div>
     </div>
   </div>

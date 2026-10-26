@@ -1,8 +1,29 @@
+@import 'tailwindcss';
 @import './animations.css';
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Tailwind 4 is compiled by @tailwindcss/vite. Keep the existing theme as
+ * the source of truth for runtime RGB palette variables and opacity variants.
+ * JavaScript configuration is opt-in in v4, so load it explicitly. */
+@config '../../../tailwind.config.js';
+@source '../../';
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Preserve the v3 defaults used by existing controls and decorative borders.
+ * Put these in base so explicit utilities still take precedence. */
+@layer base {
+  *, ::before, ::after, ::backdrop, ::file-selector-button {
+    border-color: var(--color-gray-200, #e5e7eb);
+  }
+
+  input::placeholder, textarea::placeholder {
+    color: #9ca3af;
+    opacity: 1;
+  }
+
+  button:not(:disabled), [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+}
 
 :root {
   /* Brand colors */
@@ -62,7 +83,7 @@ html {
 }
 
 /*
- * Theme colors are applied by the Tailwind utilities on <body> in index.html
+ * Theme colors are applied by the Tailwind utilities on the Astro layout body
  * (bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text); the
  * palette is defined in tailwind.config.js from the variables above.
  */
