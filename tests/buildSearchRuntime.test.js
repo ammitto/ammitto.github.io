@@ -203,9 +203,9 @@ for (const [name, mutate] of Object.entries({
   })
 })
 
-test('build command generates the runtime after the real Vite build', async () => {
+test('build command generates the runtime after the real Astro build', async () => {
   const packageJson = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
-  assert.match(packageJson.scripts.build, /vite-ssg build && node scripts\/build-search-runtime\.mjs dist$/)
+  assert.match(packageJson.scripts.build, /astro build && node scripts\/build-search-runtime\.mjs dist && node scripts\/finalize-astro-build\.mjs dist$/)
 })
 
 test('null filter values encode as absent; other non-string values ship without fast assets, loudly', async () => {

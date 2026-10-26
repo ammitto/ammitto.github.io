@@ -45,7 +45,11 @@ async function serve(page, nodes, before = async () => undefined) {
   })
 }
 async function navigate(page, path) {
-  await page.evaluate(path => document.querySelector('#app').__vue_app__.config.globalProperties.$router.push(path), path)
+  // Keep the old request alive to exercise the stale-response guard.
+  await page.evaluate(path => {
+    history.pushState({}, '', path)
+    window.dispatchEvent(new PopStateEvent('popstate'))
+  }, path)
 }
 async function settleResponse(page, response) {
   await response.finished()

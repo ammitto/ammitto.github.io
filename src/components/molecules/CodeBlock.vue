@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 const props = defineProps<{
   code: string
   language?: string
   title?: string
 }>()
+
+const hydrated = ref(false)
+onMounted(() => { hydrated.value = true })
 
 const copyState = ref<'idle' | 'copying' | 'copied' | 'failed'>('idle')
 const codeElement = ref<HTMLElement | null>(null)
@@ -64,7 +67,7 @@ function selectCode() {
         type="button"
         @click="copyCode"
         :aria-label="`Copy ${snippetName}`"
-        :disabled="copyState === 'copying'"
+        :disabled="!hydrated || copyState === 'copying'"
         class="min-h-10 shrink-0 px-2 text-sm text-brand-link underline underline-offset-4 transition-colors"
       >
         Copy

@@ -23,17 +23,18 @@ async function loaded(page, path = '/search') {
   await page.goto(path)
   await expect(page.getByTestId('search-count')).toContainText('175')
 }
-const routerPush = (page, path) => page.evaluate(path => document.querySelector('#app').__vue_app__.config.globalProperties.$router.push(path), path)
 
-test('same-path navigation and history update query, filters and results together', async ({ page }) => {
+test('search controls, page navigation and history restore query, filters and results together', async ({ page }) => {
   const errors = collectPageErrors(page)
   await setup(page)
   await loaded(page)
-  await routerPush(page, '/search?q=Workflow%20042&type=person')
+  await page.getByRole('searchbox', { name: 'Search sanctions data' }).fill('Workflow 042')
+  await page.locator('aside').getByRole('button', { name: /Person/ }).first().click()
+  await expect(page).toHaveURL(/[?&]type=person(?:&|$)/)
   await expect(page.getByRole('searchbox', { name: 'Search sanctions data' })).toHaveValue('Workflow 042')
   await expect(page.getByTestId('search-results').locator('> a')).toHaveCount(1)
   await expect(page.getByTestId('search-results')).toContainText('Workflow 042')
-  await routerPush(page, '/search')
+  await page.getByRole('link', { name: 'Search', exact: true }).first().click()
   await expect(page.getByRole('searchbox', { name: 'Search sanctions data' })).toHaveValue('')
   await expect(page.getByTestId('search-results').locator('> a')).toHaveCount(50)
   await page.goBack()

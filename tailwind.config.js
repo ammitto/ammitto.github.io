@@ -1,8 +1,9 @@
+// Loaded explicitly by main.css's @config directive under Tailwind 4.
+// Retain this single theme definition: contrast tests inspect these same tokens.
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
-    "./index.html",
-    "./src/**/*.{vue,js,ts,jsx,tsx}",
+    "./src/**/*.{astro,vue,js,ts,jsx,tsx}",
   ],
   darkMode: 'class',
   theme: {

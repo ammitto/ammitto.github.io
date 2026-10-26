@@ -250,10 +250,10 @@ onMounted(async () => {
     <div class="container-wide py-12">
       <header class="mb-10">
         <nav aria-label="Developer documentation" class="mb-7 flex flex-wrap gap-x-5 gap-y-2 text-sm text-brand-link">
-          <RouterLink to="/api" class="underline underline-offset-4">API documentation</RouterLink>
-          <RouterLink to="/schema" class="underline underline-offset-4">Data schema</RouterLink>
-          <RouterLink to="/ontology" class="underline underline-offset-4">Ontology</RouterLink>
-          <RouterLink to="/ruby" class="underline underline-offset-4">Ruby gem</RouterLink>
+          <a href="/api" class="underline underline-offset-4">API documentation</a>
+          <a href="/schema" class="underline underline-offset-4">Data schema</a>
+          <a href="/ontology" class="underline underline-offset-4">Ontology</a>
+          <a href="/ruby" class="underline underline-offset-4">Ruby gem</a>
         </nav>
         <h1 class="text-4xl font-bold mb-4 text-light-text dark:text-dark-text">
           Download the data
@@ -326,9 +326,9 @@ onMounted(async () => {
                 v-if="sizeFor(file)"
                 :href="file.href"
                 :download="file.filename"
-                class="mt-auto inline-flex flex-wrap items-center gap-2 rounded border
+                class="mt-auto inline-flex flex-wrap items-center gap-2 rounded-sm border
                        border-light-border dark:border-dark-border px-4 py-2
-                       text-brand-link hover:underline focus-visible:outline-none
+                       text-brand-link hover:underline focus-visible:outline-hidden
                        focus-visible:ring-2 focus-visible:ring-brand-link
                        focus-visible:ring-offset-2 focus-visible:ring-offset-light-bg
                        dark:focus-visible:ring-offset-dark-bg"
@@ -400,9 +400,9 @@ onMounted(async () => {
                 v-if="sizeFor(file)"
                 :href="file.href"
                 :download="file.filename"
-                class="mt-auto inline-flex flex-wrap items-center gap-2 rounded border
+                class="mt-auto inline-flex flex-wrap items-center gap-2 rounded-sm border
                        border-light-border dark:border-dark-border px-4 py-2
-                       text-brand-link hover:underline focus-visible:outline-none
+                       text-brand-link hover:underline focus-visible:outline-hidden
                        focus-visible:ring-2 focus-visible:ring-brand-link
                        focus-visible:ring-offset-2 focus-visible:ring-offset-light-bg
                        dark:focus-visible:ring-offset-dark-bg"

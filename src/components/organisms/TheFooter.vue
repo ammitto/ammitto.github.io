@@ -51,44 +51,44 @@ const currentYear = new Date().getFullYear()
           <h4 class="font-semibold mb-4 text-light-text dark:text-dark-text">Links</h4>
           <ul class="space-y-2">
             <li>
-              <RouterLink
-                to="/about"
+              <a
+                href="/about"
                 class="text-sm text-light-muted dark:text-dark-muted hover:text-brand-link transition-colors"
               >
                 About
-              </RouterLink>
+              </a>
             </li>
             <li>
-              <RouterLink
-                to="/license"
+              <a
+                href="/license"
                 class="text-sm text-light-muted dark:text-dark-muted hover:text-brand-link transition-colors"
               >
                 License
-              </RouterLink>
+              </a>
             </li>
             <li>
-              <RouterLink
-                to="/api"
+              <a
+                href="/api"
                 class="text-sm text-light-muted dark:text-dark-muted hover:text-brand-link transition-colors"
               >
                 API Documentation
-              </RouterLink>
+              </a>
             </li>
             <li>
-              <RouterLink
-                to="/download"
+              <a
+                href="/download"
                 class="text-sm text-light-muted dark:text-dark-muted hover:text-brand-link transition-colors"
               >
                 Download Data
-              </RouterLink>
+              </a>
             </li>
             <li>
-              <RouterLink
-                to="/ontology"
+              <a
+                href="/ontology"
                 class="text-sm text-light-muted dark:text-dark-muted hover:text-brand-link transition-colors"
               >
                 Ontology
-              </RouterLink>
+              </a>
             </li>
           </ul>
         </div>

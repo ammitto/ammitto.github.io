@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { formatCivilDate } from '@/utils/civilDate.js'
 import { ref, computed, reactive, watch, onUnmounted } from 'vue'
-import { useRoute, RouterLink } from 'vue-router'
+import { useRoute } from '@/utils/navigation'
 import Badge from '@/components/atoms/Badge.vue'
 import EntityCard from '@/components/molecules/EntityCard.vue'
 import SourceDocuments from '@/components/molecules/SourceDocuments.vue'
@@ -316,15 +316,15 @@ const documents = computed(() => {
   <div class="min-h-screen">
     <div class="container-wide py-8">
       <!-- Back link -->
-      <RouterLink
-        to="/browse"
+      <a
+        href="/browse"
         class="inline-flex items-center gap-2 text-light-muted dark:text-dark-muted hover:text-brand-link mb-6"
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
         </svg>
         Back to Browse
-      </RouterLink>
+      </a>
 
       <div v-if="loading" class="glass-card p-8 text-center">
         <div class="w-8 h-8 border-2 border-brand-primary border-t-transparent rounded-full animate-spin mx-auto" />
@@ -372,45 +372,45 @@ const documents = computed(() => {
             <div v-if="announcement?.announcement?.document_type">
               <dt class="text-light-muted dark:text-dark-muted">Document Type</dt>
               <dd class="font-medium">
-                <RouterLink
-                  :to="`/document-type/${announcement.announcement.document_type}`"
+                <a
+                  :href="`/document-type/${announcement.announcement.document_type}`"
                   class="text-brand-link hover:underline"
                 >
                   {{ getDocumentTypeName(announcement.announcement.document_type) }}
-                </RouterLink>
+                </a>
               </dd>
             </div>
             <div v-if="announcement?.announcement?.authority">
               <dt class="text-light-muted dark:text-dark-muted">Authority</dt>
               <dd class="font-medium">
-                <RouterLink
-                  :to="`/organization/${announcement.announcement.authority}`"
+                <a
+                  :href="`/organization/${announcement.announcement.authority}`"
                   class="text-brand-link hover:underline"
                 >
                   {{ getOrganizationName(announcement.announcement.authority) }}
-                </RouterLink>
+                </a>
               </dd>
             </div>
             <div v-if="announcement?.announcement?.signatory && announcement.announcement.signatory !== announcement.announcement.authority">
               <dt class="text-light-muted dark:text-dark-muted">Signatory</dt>
               <dd class="font-medium">
-                <RouterLink
-                  :to="`/organization/${announcement.announcement.signatory}`"
+                <a
+                  :href="`/organization/${announcement.announcement.signatory}`"
                   class="text-brand-link hover:underline"
                 >
                   {{ getOrganizationName(announcement.announcement.signatory) }}
-                </RouterLink>
+                </a>
               </dd>
             </div>
             <div v-if="announcement?.announcement?.publisher && announcement.announcement.publisher !== announcement.announcement.authority && announcement.announcement.publisher !== announcement.announcement.signatory">
               <dt class="text-light-muted dark:text-dark-muted">Publisher</dt>
               <dd class="font-medium">
-                <RouterLink
-                  :to="`/organization/${announcement.announcement.publisher}`"
+                <a
+                  :href="`/organization/${announcement.announcement.publisher}`"
                   class="text-brand-link hover:underline"
                 >
                   {{ getOrganizationName(announcement.announcement.publisher) }}
-                </RouterLink>
+                </a>
               </dd>
             </div>
           </dl>
@@ -471,13 +471,13 @@ const documents = computed(() => {
             >
               <div class="flex items-start justify-between gap-2">
                 <div class="flex-1">
-                  <RouterLink
+                  <a
                     v-if="citation.legal_instrument_id && !citation.legal_instrument_id.includes('/unknown')"
-                    :to="`/legal-instrument/${citation.legal_instrument_id.split('/').slice(-2).join('/')}`"
+                    :href="`/legal-instrument/${citation.legal_instrument_id.split('/').slice(-2).join('/')}`"
                     class="font-medium text-brand-link hover:underline"
                   >
                     {{ getLegalInstrumentName(citation.legal_instrument_id) }}
-                  </RouterLink>
+                  </a>
                   <span v-else class="font-medium text-light-muted dark:text-dark-muted italic">
                     {{ getLegalInstrumentName(citation.legal_instrument_id || '') }}
                   </span>

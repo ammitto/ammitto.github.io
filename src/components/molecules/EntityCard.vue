@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { RouterLink } from 'vue-router'
+
 import Badge from '@/components/atoms/Badge.vue'
 import { sources, entityTypes } from '@/config'
 
@@ -34,7 +34,7 @@ const typeInfo = computed(() => entityTypes.find(t => t.code === props.entity.en
     It was an <article> carrying a @click handler: nothing focusable, no
     role for assistive technology to announce, and no Enter activation, so
     the primary way a visitor opens a search result was reachable by mouse
-    alone. Routing through RouterLink instead of router.push also restores
+    alone. Using a native anchor also preserves
     what a handler cannot fake — middle-click and ctrl-click open a new
     tab, the context menu offers copy-link-address, and vite-ssg emits a
     real href for crawlers.
@@ -52,12 +52,12 @@ const typeInfo = computed(() => entityTypes.find(t => t.code === props.entity.en
     min-w-0 lets this grid item shrink inside its track. Names and aliases
     wrap in full, including unbroken identifiers and multilingual text.
   -->
-  <RouterLink
-    :to="`/entity/${entity.ref}`"
+  <a
+    :href="`/entity/${entity.ref}`"
     :data-entity-ref="entity.ref"
     :aria-labelledby="titleId"
     :aria-describedby="factsId"
-    class="glass-card block min-w-0 p-4 hover:border-brand-primary/50 transition-all group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+    class="glass-card block min-w-0 p-4 hover:border-brand-primary/50 transition-all group focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-primary"
   >
     <!--
       Below `sm` the type and source badges go under the name instead of
@@ -102,5 +102,5 @@ const typeInfo = computed(() => entityTypes.find(t => t.code === props.entity.en
         Born: {{ entity.birthDate }}
       </Badge>
     </div>
-  </RouterLink>
+  </a>
 </template>

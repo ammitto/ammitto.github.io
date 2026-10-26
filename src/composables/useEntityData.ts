@@ -1,6 +1,6 @@
 import { ref, computed, onUnmounted } from 'vue'
 import { createLatestLoadGuard } from '@/utils/latestLoad'
-import { useRoute } from 'vue-router'
+import { useRoute } from '@/utils/navigation'
 import { useSearchIndex } from './useSearchIndex'
 import { normalizeNode, toNodeIri } from '@/utils/normalizeNode'
 import { mapWithPool } from '@/utils/entryFetchPool'

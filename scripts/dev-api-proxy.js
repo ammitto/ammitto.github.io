@@ -2,8 +2,9 @@
  * The dev server's handler for /api/v1/, kept out of vite.config.ts so the
  * unit tests can drive it with real sockets and no Vite.
  *
- * A file that exists in public/api/v1 is left to Vite's public-dir serving,
- * so a local file always wins. A missing one is fetched from the published
+ * By default, a file that exists in public/api/v1 is left to Vite's public-dir
+ * serving, so local overrides win. Explicit remote-only review disables that
+ * preference and proxies even paths present in the committed sample. A missing one is fetched from the published
  * site in live mode, and is a plain 404 in sample mode; without this, Vite's
  * SPA fallback answers it with index.html, which the app then fails to parse
  * as JSON far from the cause. The check is per request rather than proxying
@@ -80,12 +81,13 @@ export function forwardableHeaders(headers) {
  * @param {object} options
  * @param {string} options.apiRoot      absolute path of public/api/v1
  * @param {boolean} options.live
+ * @param {boolean} [options.preferLocal] retain local overrides unless explicitly disabled
  * @param {string} [options.origin]     already validated by resolveLiveOrigin
  * @param {number} [options.idleMs]
  * @param {typeof https.request} [options.request]  injectable for the tests
  */
 export function createApiHandler({
-  apiRoot, live, origin = SITE_ORIGIN, idleMs = UPSTREAM_IDLE_MS, request = https.request,
+  apiRoot, live, preferLocal = true, origin = SITE_ORIGIN, idleMs = UPSTREAM_IDLE_MS, request = https.request,
 }) {
   return (req, res, next) => {
     let rest;
@@ -98,7 +100,7 @@ export function createApiHandler({
     }
     const local = path.resolve(apiRoot, `.${rest}`);
     const inside = local === apiRoot || local.startsWith(apiRoot + path.sep);
-    if (inside && fs.existsSync(local) && fs.statSync(local).isFile()) return next();
+    if (preferLocal && inside && fs.existsSync(local) && fs.statSync(local).isFile()) return next();
 
     if (!live || !inside) {
       res.statusCode = 404;
@@ -116,6 +118,11 @@ export function createApiHandler({
         headers: {
           accept: req.headers.accept ?? '*/*',
           'accept-encoding': req.headers['accept-encoding'] ?? 'identity',
+          // Preserve byte-range verification and fresh manifest revalidation.
+          // Credentials, cookies and unrelated browser headers stay local.
+          ...Object.fromEntries([
+            'range', 'if-range', 'if-none-match', 'if-modified-since', 'cache-control', 'pragma',
+          ].filter(name => req.headers[name] !== undefined).map(name => [name, req.headers[name]])),
         },
         timeout: idleMs,
       },

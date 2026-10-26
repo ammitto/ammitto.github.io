@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { navigationHref } from '@/utils/navigation'
 import { ref, onMounted } from 'vue'
 import HeroSection from '@/components/organisms/HeroSection.vue'
 import FeatureCard from '@/components/molecules/FeatureCard.vue'
@@ -114,10 +115,10 @@ const features = [
           {{ entityCount.toLocaleString() }} entities</span>.
         </p>
         <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <RouterLink
+          <a
             v-for="source in featuredSources"
             :key="source.code"
-            :to="{ name: 'search', query: { source: source.code } }"
+            :href="navigationHref({ name: 'search', query: { source: source.code } })"
             class="glass-card p-4 hover:border-brand-primary/50 transition-all text-center group"
           >
             <div
@@ -132,15 +133,15 @@ const features = [
             <p class="text-sm text-light-muted dark:text-dark-muted mt-1">
               {{ source.authority }}
             </p>
-          </RouterLink>
+          </a>
         </div>
         <div class="text-center mt-8">
-          <RouterLink
-            to="/sources"
+          <a
+            href="/sources"
             class="text-brand-link hover:underline font-medium"
           >
             View all sources →
-          </RouterLink>
+          </a>
         </div>
       </div>
     </section>
@@ -153,19 +154,19 @@ const features = [
           </h2>
           <p class="text-light-muted dark:text-dark-muted mb-8">
             Access our API or
-            <RouterLink to="/download" class="text-brand-link underline underline-offset-4">download the data directly</RouterLink>.
+            <a href="/download" class="text-brand-link underline underline-offset-4">download the data directly</a>.
             No API key required.
           </p>
           <div class="flex flex-wrap justify-center gap-4">
-            <RouterLink to="/api" class="btn-primary">
+            <a href="/api" class="btn-primary">
               API Documentation
-            </RouterLink>
-            <RouterLink to="/download" class="btn-secondary">
+            </a>
+            <a href="/download" class="btn-secondary">
               Download Data
-            </RouterLink>
-            <RouterLink to="/search" class="btn-secondary">
+            </a>
+            <a href="/search" class="btn-secondary">
               Search Database
-            </RouterLink>
+            </a>
           </div>
         </div>
       </div>

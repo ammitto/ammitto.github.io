@@ -4,7 +4,7 @@
  * Five views built these paths inline, each with its own copy of the
  * `api/v1/node/<kind>/` prefix, and each interpolating a route parameter
  * straight into it. Every route that reaches them is declared catch-all
- * (`:id(.*)` in `router/index.ts`), so the parameter is whatever the
+ * (the detail dispatcher retains the full identifier path), so the parameter is whatever the
  * visitor put in the address bar: it can carry slashes, dot segments, a
  * `?` or a `#`. Interpolated raw, `../../x` walks out of `api/v1/node/`
  * and a `?` turns the rest of the path into a query string, so the link

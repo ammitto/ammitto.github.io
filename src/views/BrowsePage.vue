@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { navigationHref } from '@/utils/navigation'
 import { computed, onMounted } from 'vue'
 import { sources } from '@/config'
 import { pillToneVars, tileToneVars } from '@/config/palette'
@@ -122,10 +123,10 @@ const dataObjects = [
 
       <!-- Primary Browse Options -->
       <div class="grid md:grid-cols-3 gap-6 mb-12">
-        <RouterLink
+        <a
           v-for="option in browseOptions"
           :key="option.link"
-          :to="option.link"
+          :href="option.link"
           class="glass-card p-6 hover:border-brand-primary/50 transition-all group"
         >
           <div
@@ -140,7 +141,7 @@ const dataObjects = [
           <p class="text-light-muted dark:text-dark-muted text-sm">
             {{ option.description }}
           </p>
-        </RouterLink>
+        </a>
       </div>
 
       <!-- Data Objects Section -->
@@ -149,10 +150,10 @@ const dataObjects = [
           Legal & Group Data
         </h2>
         <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          <RouterLink
+          <a
             v-for="obj in dataObjects"
             :key="obj.link"
-            :to="obj.link"
+            :href="obj.link"
             class="glass-card p-6 hover:border-brand-primary/50 transition-all group"
           >
             <div class="flex items-start justify-between mb-4">
@@ -175,7 +176,7 @@ const dataObjects = [
             <p class="text-light-muted dark:text-dark-muted text-sm">
               {{ obj.description }}
             </p>
-          </RouterLink>
+          </a>
         </div>
       </section>
 
@@ -185,10 +186,10 @@ const dataObjects = [
           Browse by Source
         </h2>
         <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <RouterLink
+          <a
             v-for="source in sources"
             :key="source.code"
-            :to="{ name: 'search', query: { source: source.code } }"
+            :href="navigationHref({ name: 'search', query: { source: source.code } })"
             class="glass-card p-4 hover:border-brand-primary/50 transition-all group"
           >
             <div
@@ -200,7 +201,7 @@ const dataObjects = [
             <h3 class="font-semibold text-light-text dark:text-dark-text group-hover:text-brand-link transition-colors">
               {{ source.name }}
             </h3>
-          </RouterLink>
+          </a>
         </div>
       </section>
 
@@ -210,12 +211,12 @@ const dataObjects = [
           Quick Links
         </h2>
         <div class="flex flex-wrap gap-4">
-          <RouterLink to="/search" class="btn-primary">
+          <a href="/search" class="btn-primary">
             Search All Data
-          </RouterLink>
-          <RouterLink to="/api" class="btn-secondary">
+          </a>
+          <a href="/api" class="btn-secondary">
             API Documentation
-          </RouterLink>
+          </a>
         </div>
       </section>
     </div>

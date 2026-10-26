@@ -21,7 +21,7 @@ const WIDE_PHONE = { width: 412, height: 915 }
 const FILTERED = '/search?q=smith&type=person&type=organization'
 
 async function hydrated(page) {
-  await page.waitForFunction(() => Boolean(document.querySelector('#app')?.__vue_app__))
+  await page.waitForFunction(() => document.querySelector('astro-island') && !document.querySelector('astro-island[ssr]'))
 }
 
 const bar = (page) => page.getByTestId('applied-filters-bar')
@@ -166,7 +166,7 @@ test.describe('clearing on the phone search page', () => {
     await filtersButton(page, 2).click()
     await expect(page.getByRole('dialog', { name: 'Filters' })).toBeVisible()
     await page.evaluate(() =>
-      document.querySelector('#app').__vue_app__.config.globalProperties.$router.push('/about'))
+      window.location.assign('/about'))
     await expect(page).toHaveURL(/\/about$/)
     await expect(page.getByRole('dialog')).toHaveCount(0)
     expect(await page.evaluate(() => ({

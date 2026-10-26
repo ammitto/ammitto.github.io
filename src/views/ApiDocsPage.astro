@@ -1,4 +1,4 @@
-<script setup lang="ts">
+---
 import CodeBlock from '@/components/molecules/CodeBlock.vue'
 import { pillToneVars, METHOD_SEED } from '@/config/palette'
 import activeEntriesQuery from '../../public/queries/active-cn-entries.rq?raw'
@@ -277,17 +277,15 @@ for n in data['@graph']:
         if name.get('fullName'):
             print(name['fullName'])`,
 }
-</script>
-
-<template>
-  <div class="docs-page min-h-screen">
+---
+<div class="docs-page min-h-screen">
     <div class="container-wide py-12">
       <nav aria-label="Developer documentation" class="mb-7 flex flex-wrap gap-x-5 gap-y-2 text-sm">
-        <RouterLink to="/api" aria-current="page" class="text-brand-link underline underline-offset-4">API</RouterLink>
-        <RouterLink to="/schema" class="text-brand-link underline underline-offset-4">Data schema</RouterLink>
-        <RouterLink to="/ontology" class="text-brand-link underline underline-offset-4">Ontology</RouterLink>
-        <RouterLink to="/ruby" class="text-brand-link underline underline-offset-4">Ruby gem</RouterLink>
-        <RouterLink to="/download" class="text-brand-link underline underline-offset-4">Downloads</RouterLink>
+        <a href="/api" aria-current="page" class="text-brand-link underline underline-offset-4">API</a>
+        <a href="/schema" class="text-brand-link underline underline-offset-4">Data schema</a>
+        <a href="/ontology" class="text-brand-link underline underline-offset-4">Ontology</a>
+        <a href="/ruby" class="text-brand-link underline underline-offset-4">Ruby gem</a>
+        <a href="/download" class="text-brand-link underline underline-offset-4">Downloads</a>
       </nav>
       <h1 class="text-4xl font-bold mb-4 text-light-text dark:text-dark-text">
         API Documentation
@@ -296,10 +294,10 @@ for n in data['@graph']:
         Download sanctions data as static, read-only files. No API key required. Search and filtering run in your client; these URLs do not accept search or pagination parameters.
       </p>
       <p class="text-light-muted dark:text-dark-muted mb-8">
-        Prefer a direct file download?
-        <RouterLink to="/download" class="text-brand-link underline">
-          Download the published datasets
-        </RouterLink>.
+        Prefer a direct file download?{' '}
+        <a href="/download" class="text-brand-link underline">
+          {' '}Download the published datasets{' '}
+        </a>.
       </p>
 
       <nav aria-label="On this page" class="mb-10 border-y border-light-border dark:border-dark-border py-4">
@@ -318,8 +316,8 @@ for n in data['@graph']:
         <h2 id="base-url" class="text-2xl font-semibold mb-4 text-light-text dark:text-dark-text">
           Base URL
         </h2>
-        <CodeBlock
-          :code="baseUrl"
+        <CodeBlock client:load
+          code={baseUrl}
           title="Base URL"
         />
       </section>
@@ -327,7 +325,7 @@ for n in data['@graph']:
       <section class="mb-12" aria-labelledby="contract-heading">
         <h2 id="contract-heading" class="text-2xl font-semibold mb-4 text-light-text dark:text-dark-text">OpenAPI contract</h2>
         <p class="text-light-muted dark:text-dark-muted">
-          <a :href="`${publicBase}openapi.json`" download class="text-brand-link underline">Download OpenAPI 3.1 (JSON)</a>
+          <a href={`${publicBase}openapi.json`} download class="text-brand-link underline">Download OpenAPI 3.1 (JSON)</a>{' '}
           for the static file API. File suffixes are required. Available identifiers come from the catalogue and collection indexes;
           legal instruments use <code>node/legal-instrument/</code>. Snapshot values below are illustrative excerpts, not live totals.
         </p>
@@ -338,7 +336,7 @@ for n in data['@graph']:
           Endpoints
         </h2>
         <div class="space-y-6">
-          <div v-for="endpoint in endpoints" :key="endpoint.path" class="glass-card p-6">
+          {endpoints.map((endpoint) => (<div   class="glass-card p-6">
             <!-- flex-wrap + break-all: endpoint paths are unbreakable strings
                  and pushed the page past a 320px viewport. -->
             <div class="flex flex-wrap items-center gap-3 mb-3">
@@ -346,29 +344,29 @@ for n in data['@graph']:
                    in light and 3.73:1 in dark. The method chip now takes the
                    same per-theme tone derivation as the badges. -->
               <span
-                class="tone-pill px-2 py-1 rounded text-xs font-bold"
-                :style="pillToneVars(METHOD_SEED)"
+                class="tone-pill px-2 py-1 rounded-sm text-xs font-bold"
+                style={pillToneVars(METHOD_SEED)}
               >
-                {{ endpoint.method }}
+                {endpoint.method}
               </span>
-              <code class="font-mono break-all text-light-text dark:text-dark-text">{{ endpoint.path }}</code>
+              <code class="font-mono break-all text-light-text dark:text-dark-text">{endpoint.path}</code>
             </div>
             <p class="text-light-muted dark:text-dark-muted mb-4">
-              {{ endpoint.description }}
+              {endpoint.description}
             </p>
-            <CodeBlock
-              :code="endpoint.example"
+            <CodeBlock client:load
+              code={endpoint.example}
               language="bash"
-              :title="`Request: ${endpoint.path}`"
+              title={`Request: ${endpoint.path}`}
             />
             <div class="mt-4">
-              <CodeBlock
-                :code="endpoint.response"
+              <CodeBlock client:load
+                code={endpoint.response}
                 language="json"
-                :title="`Response excerpt: ${endpoint.path} (values vary by publication)`"
+                title={`Response excerpt: ${endpoint.path} (values vary by publication)`}
               />
             </div>
-          </div>
+          </div>))}
         </div>
       </section>
 
@@ -380,25 +378,25 @@ for n in data['@graph']:
         <div class="space-y-6">
           <div>
             <h3 class="text-lg font-medium mb-3 text-light-text dark:text-dark-text">JavaScript</h3>
-            <CodeBlock :code="codeExamples.javascript" title="JavaScript catalogue example" language="javascript" />
+            <CodeBlock client:load code={codeExamples.javascript} title="JavaScript catalogue example" language="javascript" />
           </div>
 
           <div>
             <h3 class="text-lg font-medium mb-3 text-light-text dark:text-dark-text">Search one source locally</h3>
-            <CodeBlock :code="codeExamples.search" title="Search one source locally" language="javascript" />
+            <CodeBlock client:load code={codeExamples.search} title="Search one source locally" language="javascript" />
           </div>
           <div>
             <h3 class="text-lg font-medium mb-3 text-light-text dark:text-dark-text">Follow a sanction-entry reference</h3>
-            <CodeBlock :code="codeExamples.entries" title="Follow a sanction-entry reference" language="javascript" />
+            <CodeBlock client:load code={codeExamples.entries} title="Follow a sanction-entry reference" language="javascript" />
           </div>
           <div>
             <h3 class="text-lg font-medium mb-3 text-light-text dark:text-dark-text">Ruby</h3>
-            <CodeBlock :code="codeExamples.ruby" title="Ruby client example" language="ruby" />
+            <CodeBlock client:load code={codeExamples.ruby} title="Ruby client example" language="ruby" />
           </div>
 
           <div>
             <h3 class="text-lg font-medium mb-3 text-light-text dark:text-dark-text">Python</h3>
-            <CodeBlock :code="codeExamples.python" title="Python client example" language="python" />
+            <CodeBlock client:load code={codeExamples.python} title="Python client example" language="python" />
           </div>
         </div>
       </section>
@@ -414,18 +412,18 @@ for n in data['@graph']:
         <p class="text-light-muted dark:text-dark-muted mb-4">
           With Ruby and the <code>rdf-turtle</code> and <code>sparql</code> gems already available, download a source and run the query locally:
         </p>
-        <CodeBlock :code="`curl --fail --location --compressed ${baseUrl}/sources/cn.ttl -o cn.ttl
+        <CodeBlock client:load code={`curl --fail --location --compressed ${baseUrl}/sources/cn.ttl -o cn.ttl
 curl --fail --location https://www.ammitto.org/queries/active-cn-entries.rq -o active-cn-entries.rq
-sparql execute --dataset cn.ttl --format json active-cn-entries.rq`" title="Download and query CN data locally" language="bash" />
+sparql execute --dataset cn.ttl --format json active-cn-entries.rq`} title="Download and query CN data locally" language="bash" />
         <h3 class="text-lg font-medium my-4 text-light-text dark:text-dark-text">Active CN entries with primary names</h3>
-        <CodeBlock :code="activeEntriesQuery" title="Active CN entries with primary names" language="sparql" />
-        <a :href="`${publicBase}queries/active-cn-entries.rq`" download class="text-brand-link underline">Download active-entry query</a>
+        <CodeBlock client:load code={activeEntriesQuery} title="Active CN entries with primary names" language="sparql" />
+        <a href={`${publicBase}queries/active-cn-entries.rq`} download class="text-brand-link underline">Download active-entry query</a>
         <h3 class="text-lg font-medium my-4 text-light-text dark:text-dark-text">Count distinct entities by type</h3>
-        <CodeBlock :code="entitiesByTypeQuery" title="Count distinct entities by type" language="sparql" />
-        <a :href="`${publicBase}queries/entities-by-type.rq`" download class="text-brand-link underline">Download entity-count query</a>
+        <CodeBlock client:load code={entitiesByTypeQuery} title="Count distinct entities by type" language="sparql" />
+        <a href={`${publicBase}queries/entities-by-type.rq`} download class="text-brand-link underline">Download entity-count query</a>
         <p class="text-light-muted dark:text-dark-muted mt-4">
           Counts cover only the loaded dataset. For a store you operate, import Turtle into its default graph and use its query interface.
-          A named-graph import needs <code>GRAPH &lt;your-import-graph-iri&gt; { ... }</code> around the query patterns.
+          A named-graph import needs <code>GRAPH &lt;your-import-graph-iri&gt; &#123; ... &#125;</code> around the query patterns.
           Follow that store’s authentication and network setup instructions; the static API cannot execute SPARQL.
           See <a href="https://github.com/ammitto/ammitto.github.io/blob/main/docs/api.adoc" class="text-brand-link underline">the local and self-hosting guide</a> for details.
         </p>
@@ -441,9 +439,8 @@ sparql execute --dataset cn.ttl --format json active-cn-entries.rq`" title="Down
       </section>
     </div>
   </div>
-</template>
 
-<style scoped>
+<style>
 /* The global 5rem scroll padding clears the header; add room at the heading. */
 .docs-page h2[id] { scroll-margin-top: 1rem; }
 .docs-page nav [aria-current="page"] { font-weight: 700; }

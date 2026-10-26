@@ -30,8 +30,8 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const page = readFileSync(join(root, 'src/views/ApiDocsPage.vue'), 'utf8')
-const schemaPage = readFileSync(join(root, 'src/views/SchemaPage.vue'), 'utf8')
+const page = readFileSync(join(root, 'src/views/ApiDocsPage.astro'), 'utf8')
+const schemaPage = readFileSync(join(root, 'src/views/SchemaPage.astro'), 'utf8')
 
 // Both pages hand a reader a JSON-LD sample, and the identical two
 // untruths were in both: a schema.org context and a `Name` node type.
@@ -72,8 +72,8 @@ const jsonSamplesOf = (text, fileName) => {
 }
 
 const samplePages = [
-  ['ApiDocsPage.vue', jsonSamplesOf(page, 'ApiDocsPage.vue')],
-  ['SchemaPage.vue', jsonSamplesOf(schemaPage, 'SchemaPage.vue')],
+  ['ApiDocsPage.astro', jsonSamplesOf(page, 'ApiDocsPage.astro')],
+  ['SchemaPage.astro', jsonSamplesOf(schemaPage, 'SchemaPage.astro')],
 ]
 
 test('documents the canonical API host, not one that redirects', () => {

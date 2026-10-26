@@ -1,12 +1,5 @@
 <script setup lang="ts">
-import { useHead } from '@unhead/vue'
 
-useHead({
-  title: 'About - Ammitto',
-  meta: [
-    { name: 'description', content: 'Understanding Ammitto - our philosophy, name origin, and mission to democratize sanctions compliance data.' },
-  ],
-})
 
 </script>
 
@@ -24,17 +17,17 @@ useHead({
             can search names, compare identifying details and follow the source evidence.
           </p>
           <p>
-            Start with <RouterLink to="/search">Search</RouterLink> or
-            <RouterLink to="/browse">Browse data</RouterLink>. Developers can use the
-            <RouterLink to="/api">API</RouterLink>, <RouterLink to="/ruby">Ruby gem</RouterLink>
-            or <RouterLink to="/download">downloadable files</RouterLink>.
+            Start with <a href="/search">Search</a> or
+            <a href="/browse">Browse data</a>. Developers can use the
+            <a href="/api">API</a>, <a href="/ruby">Ruby gem</a>
+            or <a href="/download">downloadable files</a>.
             Questions and contributions are welcome in the
             <a href="https://github.com/ammitto/ammitto.github.io" target="_blank" rel="noopener noreferrer">GitHub repository<span class="sr-only"> (opens in a new tab)</span></a>.
           </p>
 
           <h2 id="coverage">Coverage and source dates</h2>
           <p>
-            The <RouterLink to="/sources">source catalogue</RouterLink> identifies the authorities
+            The <a href="/sources">source catalogue</a> identifies the authorities
             and lists covered by Ammitto, their published coverage and any data that is not yet available.
             Records retain their source context and available references.
           </p>
@@ -227,7 +220,7 @@ useHead({
 
           <p>
             Unlike many "open" data services, Ammitto is released under
-            <RouterLink to="/license" class="text-brand-link hover:underline">CC0 (Public Domain)</RouterLink>.
+            <a href="/license" class="text-brand-link hover:underline">CC0 (Public Domain)</a>.
             No attribution required. No commercial restrictions. No catch.
           </p>
 

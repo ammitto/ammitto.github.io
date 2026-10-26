@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { navigationHref } from '@/utils/navigation'
 import { computed } from 'vue'
 import { tileToneVars } from '@/config/palette'
 import { safeExternalUrl } from '@/utils/externalUrl'
@@ -42,7 +43,7 @@ const formattedCount = computed(() => {
 </script>
 
 <template>
-  <article class="glass-card p-6 hover:border-opacity-100 transition-all group flex flex-col min-w-0">
+  <article class="glass-card p-6 transition-all group flex flex-col min-w-0">
     <div class="flex items-start justify-between mb-4">
       <div class="flex items-center gap-3">
         <div
@@ -76,11 +77,11 @@ const formattedCount = computed(() => {
           </span>
         </div>
       </div>
-      <RouterLink
+      <a
         v-if="countsKnown && !pending"
-        :to="{ name: 'search', query: { source: sourceCode } }"
+        :href="navigationHref({ name: 'search', query: { source: sourceCode } })"
         class="text-brand-link underline underline-offset-4 text-sm font-semibold"
-      >Search records <span class="sr-only">from {{ name }}</span></RouterLink>
+      >Search records <span class="sr-only">from {{ name }}</span></a>
     </div>
     <a
         v-if="safeExternalUrl(url)"

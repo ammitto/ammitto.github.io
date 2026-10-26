@@ -2,9 +2,9 @@
 
 /**
  * `npm run dev` preflight: decide which API data the dev server serves, then
- * start Vite with that decision in AMMITTO_DEV_DATA.
+ * start Astro with that decision in AMMITTO_DEV_DATA.
  *
- * It launches Vite itself rather than running before it as a separate npm
+ * It launches Astro itself rather than running before it as a separate npm
  * step, because an environment variable set in one npm step does not reach
  * the next.
  */
@@ -118,12 +118,14 @@ async function main() {
     }
   }
 
-  console.log(`API data mode: ${mode}`);
+  console.log(`API data mode: ${mode}${process.env.AMMITTO_DEV_REMOTE_ONLY === '1' ? ' (remote-only; local snapshots bypassed)' : ''}`);
 
-  // vite's exports map hides bin/, but package.json is exported.
-  const vitePkg = createRequire(import.meta.url).resolve('vite/package.json');
-  const viteBin = path.join(path.dirname(vitePkg), 'bin/vite.js');
-  const child = spawn(process.execPath, [viteBin, ...process.argv.slice(2)], {
+  const astroPkg = createRequire(import.meta.url).resolve('astro/package.json');
+  const astroPackage = JSON.parse(fs.readFileSync(astroPkg, 'utf8'));
+  const astroEntry = typeof astroPackage.bin === 'string' ? astroPackage.bin : astroPackage.bin?.astro;
+  if (typeof astroEntry !== 'string') throw new Error('Installed Astro package has no CLI entrypoint');
+  const astroBin = path.resolve(path.dirname(astroPkg), astroEntry);
+  const child = spawn(process.execPath, [astroBin, 'dev', ...process.argv.slice(2)], {
     stdio: 'inherit',
     env: { ...process.env, [DEV_DATA_ENV]: mode },
   });

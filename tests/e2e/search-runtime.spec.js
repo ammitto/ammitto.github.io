@@ -46,7 +46,6 @@ async function setup(page, partResponse, options = {}) {
     await route.fulfill({ contentType: 'application/octet-stream', body: await readFile(join(directory, 'search-runtime', file)) })
   })
 }
-const routerPush = (page, path) => page.evaluate(path => document.querySelector('#app').__vue_app__.config.globalProperties.$router.push(path), path)
 
 test('blank browsing downloads no index parts; pending and revisited queries withhold verdicts', async ({ page }) => {
   const errors = collectPageErrors(page)
@@ -67,9 +66,9 @@ test('blank browsing downloads no index parts; pending and revisited queries wit
   await expect(page.getByTestId('search-results')).toContainText('Alpha')
   expect(requests).toBe(1)
 
-  await routerPush(page, '/about')
+  await page.getByRole('link', { name: 'About', exact: true }).first().click()
   gate = new Promise(resolve => { release = resolve })
-  await routerPush(page, '/search?q=Beta')
+  await page.goto('/search?q=Beta')
   await expect(page.getByTestId('query-progress')).toContainText('Beta')
   await expect(page.getByTestId('search-count')).toBeHidden()
   await expect(page.getByRole('heading', { name: 'No match found', exact: true })).toBeHidden()

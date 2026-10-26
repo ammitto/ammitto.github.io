@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, computed } from 'vue'
-import { RouterLink } from 'vue-router'
+
 import { mapWithPool, BROWSE_INDEX_CONCURRENCY } from '@/utils/entryFetchPool'
 import { fetchNodeOnce, hydrationOutcome } from '@/utils/indexHydration'
 import { safeExternalUrl } from '@/utils/externalUrl'
@@ -140,15 +140,15 @@ onMounted(async () => {
   <div class="min-h-screen">
     <div class="container-wide py-8">
       <!-- Back link -->
-      <RouterLink
-        to="/browse"
+      <a
+        href="/browse"
         class="inline-flex items-center gap-2 text-light-muted dark:text-dark-muted hover:text-brand-link mb-6"
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
         </svg>
         Back to Browse
-      </RouterLink>
+      </a>
 
       <div class="flex items-start justify-between gap-4 mb-6">
         <div>
@@ -213,7 +213,7 @@ onMounted(async () => {
             <article
               v-for="org in groupedOrganizations[type]"
               :key="org['@id']"
-              class="block min-w-0 bg-white dark:bg-dark-card rounded-lg shadow-sm border border-light-border dark:border-dark-border p-6 hover:border-brand-primary/50 transition-all"
+              class="block min-w-0 bg-white dark:bg-dark-card rounded-lg shadow-xs border border-light-border dark:border-dark-border p-6 hover:border-brand-primary/50 transition-all"
             >
               <div class="flex items-start gap-3">
                 <div aria-hidden="true" class="w-10 h-10 rounded-lg flex items-center justify-center text-xl bg-lime-100 dark:bg-lime-900/30 shrink-0">
@@ -221,7 +221,7 @@ onMounted(async () => {
                 </div>
                 <div class="flex-1 min-w-0">
                   <h3 class="font-semibold text-light-fg dark:text-dark-fg group-hover:text-brand-link transition-colors">
-                    <RouterLink :to="`/organization/${org.identifier}`" class="text-brand-link underline underline-offset-4">{{ getDisplayName(org) }}</RouterLink>
+                    <a :href="`/organization/${org.identifier}`" class="text-brand-link underline underline-offset-4">{{ getDisplayName(org) }}</a>
                   </h3>
                   <p v-if="getChineseName(org)" class="text-sm text-light-muted dark:text-dark-muted">
                     {{ getChineseName(org) }}

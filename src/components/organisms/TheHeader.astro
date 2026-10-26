@@ -1,0 +1,87 @@
+---
+import Logo from '../atoms/Logo.vue'
+import ThemeToggle from '../atoms/ThemeToggle.astro'
+interface Props { pathname?: string }
+const { pathname: inputPathname = Astro.url.pathname } = Astro.props
+const pathname = inputPathname.replace(/\/$/, '') || '/'
+const navItems = [
+  { name: 'Home', path: '/', sections: ['/'] },
+  { name: 'Search', path: '/search', sections: ['/search', '/entity/'] },
+  { name: 'Browse', path: '/browse', sections: ['/browse', '/announcement/', '/group/', '/legal-instrument/', '/document-type/', '/organization/'] },
+  { name: 'Ontology', path: '/ontology', sections: ['/ontology'] },
+  { name: 'API', path: '/api', sections: ['/api'] },
+  { name: 'Download', path: '/download', sections: ['/download'] },
+  { name: 'About', path: '/about', sections: ['/about'] },
+  { name: 'License', path: '/license', sections: ['/license'] },
+]
+const isActive = (item: typeof navItems[0]) => item.sections.some(section =>
+  section === '/' ? pathname === '/' : section.endsWith('/') ? pathname.startsWith(section) : pathname === section || pathname.startsWith(section + '/'))
+---
+<header class="site-header sticky top-0 z-50 bg-light-bg/80 dark:bg-dark-bg/80 backdrop-blur-lg border-b border-light-border dark:border-dark-border">
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    <div class="container-wide">
+      <div class="flex min-h-16 items-center justify-between gap-4">
+        <Logo />
+        <nav data-desktop-navigation aria-label="Main navigation" class="hidden min-w-0 lg:flex flex-wrap items-center justify-center gap-x-4 xl:gap-x-6 gap-y-0">
+          {navItems.map(item => (<a data-nav-path={item.path} data-sections={JSON.stringify(item.sections)}
+            href={item.path}
+            aria-current={isActive(item) ? (pathname === item.path ? 'page' : 'location') : undefined}
+            class:list={["site-nav-link text-sm font-medium",isActive(item)
+              ? 'text-brand-link'
+              : 'text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text']}
+          >
+            {item.name}
+          </a>))}
+        </nav>
+        <div class="flex items-center gap-2">
+          <ThemeToggle />
+          <button
+            data-menu-toggle
+            type="button"
+            class="lg:hidden min-h-11 min-w-11 p-2 rounded-lg hover:bg-light-surface dark:hover:bg-dark-surface transition-colors"
+            aria-label="Main menu"
+            aria-controls="mobile-navigation"
+            aria-expanded={false}
+          >
+            <svg aria-hidden="true" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path data-menu-icon stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+        </div>
+      </div>
+      <nav
+        hidden
+        id="mobile-navigation"
+        data-mobile-navigation
+        aria-label="Mobile navigation"
+        class="lg:hidden max-h-[calc(100dvh-4rem-1px)] overflow-y-auto py-3 border-t border-light-border dark:border-dark-border"
+      >
+        <div class="flex flex-col gap-1">
+          {navItems.map(item => (<a data-nav-path={item.path} data-sections={JSON.stringify(item.sections)}
+            href={item.path}
+            aria-current={isActive(item) ? (pathname === item.path ? 'page' : 'location') : undefined}
+            class:list={["min-h-11 px-3 py-2.5 rounded-sm text-sm font-medium",isActive(item)
+              ? 'bg-brand-primary/10 text-brand-link'
+              : 'hover:bg-light-surface dark:hover:bg-dark-surface text-light-muted dark:text-dark-muted']}
+          >
+            {item.name}
+          </a>))}
+        </div>
+      </nav>
+    </div>
+  </header>
+<script>
+  import { installHeader } from '../../utils/header'
+  installHeader()
+</script>
+<style>
+.site-nav-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 4rem;
+}
+.site-nav-link[aria-current] {
+  text-decoration: underline;
+  text-underline-offset: 0.3em;
+}
+</style>

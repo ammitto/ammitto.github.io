@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { formatCivilDate } from '@/utils/civilDate.js'
 import { ref, computed, watch, onUnmounted } from 'vue'
-import { useRoute, RouterLink } from 'vue-router'
+import { useRoute } from '@/utils/navigation'
 import Badge from '@/components/atoms/Badge.vue'
 import SourceDocuments from '@/components/molecules/SourceDocuments.vue'
 import { getLanguageName } from '@/utils/language'
@@ -279,15 +279,15 @@ const documents = computed(() => {
   <div class="min-h-screen">
     <div class="container-wide py-8">
       <!-- Back link -->
-      <RouterLink
-        to="/browse"
+      <a
+        href="/browse"
         class="inline-flex items-center gap-2 text-light-muted dark:text-dark-muted hover:text-brand-link mb-6"
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
         </svg>
         Back to Browse
-      </RouterLink>
+      </a>
 
       <!-- Loading state -->
       <div v-if="loading" class="flex items-center justify-center py-12">
@@ -304,7 +304,7 @@ const documents = computed(() => {
       <!-- Instrument content -->
       <div v-else-if="instrument" class="space-y-6">
         <!-- Header -->
-        <div class="bg-white dark:bg-dark-card rounded-lg shadow-sm border border-light-border dark:border-dark-border p-6">
+        <div class="bg-white dark:bg-dark-card rounded-lg shadow-xs border border-light-border dark:border-dark-border p-6">
           <!-- flex-wrap + min-w-0: the "View Official Document" button below is
                shrink-0, so on a 320px screen the title and the button could not
                share one row and the header pushed the page 59px wide. -->
@@ -337,7 +337,7 @@ const documents = computed(() => {
         </div>
 
         <!-- Metadata -->
-        <div class="bg-white dark:bg-dark-card rounded-lg shadow-sm border border-light-border dark:border-dark-border p-6">
+        <div class="bg-white dark:bg-dark-card rounded-lg shadow-xs border border-light-border dark:border-dark-border p-6">
           <h2 class="text-lg font-semibold text-light-fg dark:text-dark-fg mb-4">Details</h2>
           <dl class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div v-if="instrument.documentId">
@@ -364,7 +364,7 @@ const documents = computed(() => {
         </div>
 
         <!-- Articles cited -->
-        <div v-if="instrument.articles?.length" class="bg-white dark:bg-dark-card rounded-lg shadow-sm border border-light-border dark:border-dark-border p-6">
+        <div v-if="instrument.articles?.length" class="bg-white dark:bg-dark-card rounded-lg shadow-xs border border-light-border dark:border-dark-border p-6">
           <h2 class="text-lg font-semibold text-light-fg dark:text-dark-fg mb-4">Articles Cited</h2>
           <div class="flex flex-wrap gap-2">
             <Badge
@@ -378,7 +378,7 @@ const documents = computed(() => {
         </div>
 
         <!-- Legal Content -->
-        <div v-if="instrument.content?.length" class="bg-white dark:bg-dark-card rounded-lg shadow-sm border border-light-border dark:border-dark-border p-6">
+        <div v-if="instrument.content?.length" class="bg-white dark:bg-dark-card rounded-lg shadow-xs border border-light-border dark:border-dark-border p-6">
           <h2 class="text-lg font-semibold text-light-fg dark:text-dark-fg mb-6">Legal Text</h2>
 
           <div class="space-y-6 prose prose-sm dark:prose-invert max-w-none">
@@ -433,9 +433,9 @@ const documents = computed(() => {
         </div>
 
         <!-- Identifier -->
-        <div class="bg-white dark:bg-dark-card rounded-lg shadow-sm border border-light-border dark:border-dark-border p-6">
+        <div class="bg-white dark:bg-dark-card rounded-lg shadow-xs border border-light-border dark:border-dark-border p-6">
           <h2 class="text-lg font-semibold text-light-fg dark:text-dark-fg mb-4">Identifier</h2>
-          <code class="block p-4 bg-light-bg dark:bg-dark-bg rounded text-sm text-light-muted dark:text-dark-muted break-all">
+          <code class="block p-4 bg-light-bg dark:bg-dark-bg rounded-sm text-sm text-light-muted dark:text-dark-muted break-all">
             {{ instrument['@id'] }}
           </code>
         </div>
@@ -448,7 +448,7 @@ const documents = computed(() => {
         </div>
 
         <!-- Related Sanction Groups -->
-        <div v-if="relatedGroups.length > 0" class="bg-white dark:bg-dark-card rounded-lg shadow-sm border border-light-border dark:border-dark-border p-6">
+        <div v-if="relatedGroups.length > 0" class="bg-white dark:bg-dark-card rounded-lg shadow-xs border border-light-border dark:border-dark-border p-6">
           <h2 class="text-lg font-semibold text-light-fg dark:text-dark-fg mb-4">
             Related Sanction Groups ({{ relatedGroups.length }})
           </h2>
@@ -460,12 +460,12 @@ const documents = computed(() => {
             >
               <div class="flex items-center justify-between">
                 <div>
-                  <RouterLink
-                    :to="`/group/${getGroupRef(group.id)}`"
+                  <a
+                    :href="`/group/${getGroupRef(group.id)}`"
                     class="text-brand-link hover:underline font-medium"
                   >
                     {{ group.announcement_title || getGroupRef(group.id) }}
-                  </RouterLink>
+                  </a>
                   <p v-if="group.announcement_title" class="text-xs text-light-muted dark:text-dark-muted mt-1 font-mono">
                     {{ getGroupRef(group.id) }}
                   </p>

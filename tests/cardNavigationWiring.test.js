@@ -31,31 +31,14 @@ const flatten = (source) => source.replace(/\s+/g, ' ')
 
 const CARD = 'src/components/molecules/EntityCard.vue'
 
-test('the entity card navigates through a router link', () => {
+test('the entity card is a native anchor with its complete entity path', () => {
   const source = read(CARD)
-
-  // Either quote style. What has to hold is that RouterLink is imported as a
-  // named binding from vue-router; a formatter normalising quotes does not
-  // change that, and failing on it would spend a review round on nothing.
-  // The named-binding shape stays pinned: the braces, and `\bRouterLink\b`
-  // inside them, are what a revert to `useRouter` removes.
-  assert.match(
-    source,
-    /^\s*import\s+\{[^}]*\bRouterLink\b[^}]*\}\s+from\s+['"]vue-router['"]/m,
-    `${CARD} must import RouterLink from 'vue-router'`,
-  )
-
-  assert.match(
-    source,
-    /<RouterLink\b/,
-    `${CARD} must render a RouterLink as the card`,
-  )
-
-  // The interpolated path, not a params object: a ref such as `uk/aqd0087`
-  // has to keep its slash as a separator rather than become %2F.
+  assert.match(source, /<a\b/)
+  assert.doesNotMatch(source, /from\s+['"]vue-router['"]/)
+  // Keep the slash in refs such as uk/aqd0087 as a path separator.
   assert.ok(
-    flatten(source).includes(':to="`/entity/${entity.ref}`"'),
-    `${CARD} must link to the entity's own path`,
+    flatten(source).includes(':href="`/entity/${entity.ref}`"'),
+    `${CARD} must expose the entity path as a native href`,
   )
 })
 
@@ -96,7 +79,7 @@ test('the focused card is visible to the person focusing it', () => {
   // its own. Dropping the ring while keeping `outline-none` would leave a
   // keyboard user tabbing through the grid with nothing to look at, and no
   // test would notice.
-  if (/focus-visible:outline-none/.test(source)) {
+  if (/focus-visible:outline-(?:none|hidden)/.test(source)) {
     assert.match(
       source,
       /focus-visible:ring-2/,

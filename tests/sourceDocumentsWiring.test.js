@@ -164,10 +164,10 @@ test('the chip carries no decorative glyph', () => {
 
 test('the link says that it downloads and shows its focus ring only for keyboard focus', () => {
   assert.match(markup, />\s*Download\s*<\/span>/)
-  assert.match(markup, /focus-visible:outline-none/)
+  assert.match(markup, /focus-visible:outline-hidden/)
   assert.match(markup, /focus-visible:ring-2/)
   assert.match(markup, /focus-visible:ring-brand-link/)
-  assert.ok(!/(?<!-)focus:outline-none/.test(markup), 'no focus ring on pointer focus')
+  assert.ok(!/(?<!-)focus:outline-(?:none|hidden)/.test(markup), 'no focus ring on pointer focus')
 })
 
 test('the download note gets its own readable row on a narrow screen', () => {

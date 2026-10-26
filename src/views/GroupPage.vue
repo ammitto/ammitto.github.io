@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { formatCivilDate } from '@/utils/civilDate.js'
 import { ref, computed, watch, onUnmounted } from 'vue'
-import { useRoute, RouterLink } from 'vue-router'
+import { useRoute } from '@/utils/navigation'
 import Badge from '@/components/atoms/Badge.vue'
 import EntityCard from '@/components/molecules/EntityCard.vue'
 import SourceDocuments from '@/components/molecules/SourceDocuments.vue'
@@ -203,15 +203,15 @@ const documents = computed(() => {
   <div class="min-h-screen">
     <div class="container-wide py-8">
       <!-- Back link -->
-      <RouterLink
-        to="/browse/groups"
+      <a
+        href="/browse/groups"
         class="inline-flex items-center gap-2 text-light-muted dark:text-dark-muted hover:text-brand-link mb-6"
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
         </svg>
         Back to Groups
-      </RouterLink>
+      </a>
 
       <div v-if="loading" class="glass-card p-8 text-center">
         <div class="w-8 h-8 border-2 border-brand-primary border-t-transparent rounded-full animate-spin mx-auto" />
@@ -255,12 +255,12 @@ const documents = computed(() => {
             <div v-if="group.announcement_id">
               <dt class="text-light-muted dark:text-dark-muted">Announcement</dt>
               <dd>
-                <RouterLink
-                  :to="`/announcement/${getAnnouncementRef(group.announcement_id)}`"
+                <a
+                  :href="`/announcement/${getAnnouncementRef(group.announcement_id)}`"
                   class="text-brand-link hover:underline"
                 >
                   View Details
-                </RouterLink>
+                </a>
               </dd>
             </div>
           </dl>

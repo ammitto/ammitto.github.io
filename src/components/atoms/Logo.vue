@@ -3,8 +3,8 @@
 </script>
 
 <template>
-  <RouterLink
-    to="/"
+  <a
+    href="/"
     aria-label="Ammitto home"
     class="inline-flex shrink-0 items-center logo-link"
   >
@@ -15,7 +15,7 @@
       height="40"
       class="h-10 w-auto logo-img"
     />
-  </RouterLink>
+  </a>
 </template>
 
 <style scoped>

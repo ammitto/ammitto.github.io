@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { formatCivilDate } from '@/utils/civilDate.js'
 import { ref, computed, watch, onUnmounted } from 'vue'
-import { useRoute, RouterLink } from 'vue-router'
+import { useRoute } from '@/utils/navigation'
 import SourceDocuments from '@/components/molecules/SourceDocuments.vue'
 import {
   documentTypeSummaryUrl,
@@ -200,15 +200,15 @@ const documents = computed(() => {
   <div class="min-h-screen">
     <div class="container-wide py-8">
       <!-- Back link -->
-      <RouterLink
-        to="/browse/document-types"
+      <a
+        href="/browse/document-types"
         class="inline-flex items-center gap-2 text-light-muted dark:text-dark-muted hover:text-brand-link mb-6"
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
         </svg>
         Back to Document Types
-      </RouterLink>
+      </a>
 
       <!-- Loading state -->
       <div v-if="loading" class="flex items-center justify-center py-12">
@@ -224,7 +224,7 @@ const documents = computed(() => {
       <!-- Document type content -->
       <div v-else-if="documentType" class="space-y-6">
         <!-- Header -->
-        <div class="bg-white dark:bg-dark-card rounded-lg shadow-sm border border-light-border dark:border-dark-border p-6">
+        <div class="bg-white dark:bg-dark-card rounded-lg shadow-xs border border-light-border dark:border-dark-border p-6">
           <div class="flex items-start gap-4">
             <div class="w-16 h-16 rounded-lg flex items-center justify-center text-3xl bg-orange-100 dark:bg-orange-900/30 shrink-0">
               📄
@@ -244,15 +244,15 @@ const documents = computed(() => {
         </div>
 
         <!-- Legal Instruments -->
-        <div v-if="relatedInstruments.length > 0" class="bg-white dark:bg-dark-card rounded-lg shadow-sm border border-light-border dark:border-dark-border p-6">
+        <div v-if="relatedInstruments.length > 0" class="bg-white dark:bg-dark-card rounded-lg shadow-xs border border-light-border dark:border-dark-border p-6">
           <h2 class="text-lg font-semibold text-light-fg dark:text-dark-fg mb-4">
             Legal Instruments ({{ relatedInstruments.length }})
           </h2>
           <div class="space-y-3">
-            <RouterLink
+            <a
               v-for="instrument in relatedInstruments"
               :key="instrument['@id']"
-              :to="`/legal-instrument/${getInstrumentRef(instrument['@id'])}`"
+              :href="`/legal-instrument/${getInstrumentRef(instrument['@id'])}`"
               class="block p-4 bg-light-bg dark:bg-dark-bg rounded-lg border border-light-border dark:border-dark-border hover:border-brand-primary/50 transition-all"
             >
               <div class="flex items-start justify-between gap-4">
@@ -269,20 +269,20 @@ const documents = computed(() => {
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                 </svg>
               </div>
-            </RouterLink>
+            </a>
           </div>
         </div>
 
         <!-- Announcements -->
-        <div v-if="uniqueAnnouncements.length > 0" class="bg-white dark:bg-dark-card rounded-lg shadow-sm border border-light-border dark:border-dark-border p-6">
+        <div v-if="uniqueAnnouncements.length > 0" class="bg-white dark:bg-dark-card rounded-lg shadow-xs border border-light-border dark:border-dark-border p-6">
           <h2 class="text-lg font-semibold text-light-fg dark:text-dark-fg mb-4">
             Announcements ({{ uniqueAnnouncements.length }})
           </h2>
           <div class="space-y-3">
-            <RouterLink
+            <a
               v-for="announcement in uniqueAnnouncements"
               :key="announcement.document_id"
-              :to="announcement.group_id ? `/announcement/${getGroupRef(announcement.group_id)}` : '#'"
+              :href="announcement.group_id ? `/announcement/${getGroupRef(announcement.group_id)}` : '#'"
               :class="announcement.group_id ? 'cursor-pointer hover:border-brand-primary/50' : 'cursor-default'"
               class="block p-4 bg-light-bg dark:bg-dark-bg rounded-lg border border-light-border dark:border-dark-border transition-all"
             >
@@ -303,29 +303,29 @@ const documents = computed(() => {
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                 </svg>
               </div>
-            </RouterLink>
+            </a>
           </div>
         </div>
 
         <!-- Summary unavailable: never claim "no documents" when the list
              could not be read at all. -->
-        <div v-if="summaryUnavailable" class="bg-white dark:bg-dark-card rounded-lg shadow-sm border border-light-border dark:border-dark-border p-6 text-center">
+        <div v-if="summaryUnavailable" class="bg-white dark:bg-dark-card rounded-lg shadow-xs border border-light-border dark:border-dark-border p-6 text-center">
           <p class="text-light-muted dark:text-dark-muted">
             Document lists are unavailable for this document type right now.
           </p>
         </div>
 
         <!-- Empty state -->
-        <div v-else-if="uniqueAnnouncements.length === 0 && relatedInstruments.length === 0" class="bg-white dark:bg-dark-card rounded-lg shadow-sm border border-light-border dark:border-dark-border p-6 text-center">
+        <div v-else-if="uniqueAnnouncements.length === 0 && relatedInstruments.length === 0" class="bg-white dark:bg-dark-card rounded-lg shadow-xs border border-light-border dark:border-dark-border p-6 text-center">
           <p class="text-light-muted dark:text-dark-muted">
             No documents found with this document type.
           </p>
         </div>
 
         <!-- Identifier -->
-        <div class="bg-white dark:bg-dark-card rounded-lg shadow-sm border border-light-border dark:border-dark-border p-6">
+        <div class="bg-white dark:bg-dark-card rounded-lg shadow-xs border border-light-border dark:border-dark-border p-6">
           <h2 class="text-lg font-semibold text-light-fg dark:text-dark-fg mb-4">Identifier</h2>
-          <code class="block p-4 bg-light-bg dark:bg-dark-bg rounded text-sm text-light-muted dark:text-dark-muted break-all">
+          <code class="block p-4 bg-light-bg dark:bg-dark-bg rounded-sm text-sm text-light-muted dark:text-dark-muted break-all">
             {{ documentType['@id'] }}
           </code>
         </div>

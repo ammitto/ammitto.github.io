@@ -22,10 +22,13 @@ export default defineConfig({
   // single flaky page load from blocking a deployment. Locally, zero, so a
   // flake is visible while it is being written.
   retries: process.env.CI ? 1 : 0,
-  workers: process.env.CI ? 2 : undefined,
+  // Bound CPU-intensive SVG and keyboard checks locally as well as in CI.
+  // Four Chromium workers on the shared 8-core host caused three 30s
+  // timeouts during the migration check; callers may override explicitly.
+  workers: 2,
   reporter: process.env.CI ? [['github'], ['list']] : 'list',
   use: {
-    baseURL: process.env.E2E_BASE_URL || 'http://127.0.0.1:4173',
+    baseURL: process.env.E2E_BASE_URL || 'http://127.0.0.1:4175',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
@@ -38,7 +41,7 @@ export default defineConfig({
   webServer: process.env.E2E_BASE_URL
     ? undefined
     : {
-        // --host 127.0.0.1 is load-bearing, not tidiness. `vite preview`
+        // --host 127.0.0.1 is load-bearing, not tidiness. `astro preview`
         // defaults to host `localhost`, and Node resolves that name through
         // the system resolver: IPv4 first on this workstation, IPv6 first on
         // a GitHub runner. There the server binds to ::1 only, while the url
@@ -46,9 +49,12 @@ export default defineConfig({
         // dies at the timeout without executing a single test — passing
         // locally and failing in CI on both the small and the full dataset.
         // Binding explicitly removes the resolver from the question.
-        command: 'npx vite preview --host 127.0.0.1 --port 4173 --strictPort',
-        url: 'http://127.0.0.1:4173/',
-        reuseExistingServer: !process.env.CI,
+        // Astro 7 auto-backgrounds when launched by an agent. Playwright must
+        // own a foreground process, so opt out of the managed-server lock.
+        command: 'npm run preview -- --ignore-lock --host 127.0.0.1 --port 4175',
+        url: 'http://127.0.0.1:4175/',
+        // Never silently test a developer's live-data dev server instead of dist.
+        reuseExistingServer: false,
         timeout: 120000,
         // Without this the server's own stderr is swallowed, so a startup
         // failure surfaces only as "timed out waiting" with no cause. The

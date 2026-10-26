@@ -591,7 +591,7 @@ test.describe('search partial results while the index builds', () => {
 
     // Tag the first card's element, and hold the entity object its component
     // was given: an unchanged card keeps both across an append.
-    // Found through the root vnode (`#app._vnode`), which a production build
+    // Found through the search island's root vnode, which a production build
     // keeps; the per-element component handles are development-only. `_vnode`
     // is a Vue internal: if a Vue release changes it the probe finds nothing
     // and the "probe found the first card" check below fails, never passes empty.
@@ -608,7 +608,7 @@ test.describe('search partial results while the index builds', () => {
         }
         return undefined
       }
-      return walk(document.querySelector('#app')._vnode)
+      return walk(document.querySelector('[data-testid="search-results"]').closest('astro-island')._vnode)
     }
     await page.evaluate((fn) => {
       const a = document.querySelector('[data-testid="search-results"] > a')

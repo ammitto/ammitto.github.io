@@ -130,7 +130,7 @@ onBeforeUnmount(() => { if (svg.value) select(svg.value).on('.zoom', null) })
 </script>
 
 <template>
-  <section class="ontology-graph mb-6 rounded-lg bg-light-surface dark:bg-dark-surface shadow-sm p-4" aria-labelledby="ontology-graph-title">
+  <section class="ontology-graph mb-6 rounded-lg bg-light-surface dark:bg-dark-surface shadow-xs p-4" aria-labelledby="ontology-graph-title">
     <div class="relative flex items-start justify-between gap-3">
       <div>
         <h2 id="ontology-graph-title" class="text-lg font-semibold text-light-text dark:text-dark-text">Class relationships</h2>
