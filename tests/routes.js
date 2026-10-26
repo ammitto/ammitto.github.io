@@ -1,11 +1,9 @@
 /**
  * The routes the browser tests visit.
  *
- * Shared, not duplicated: `tests/contrast.test.js` parses
- * `src/router/index.ts` and fails if any route the router declares is missing
- * from this file. A new page therefore cannot be added without also being
- * swept for horizontal overflow — the failure mode that made this list worth
- * having in the first place.
+ * Astro's build hook checks its actual prerendered paths against STATIC_ROUTES.
+ * tests/contrast.test.js checks detail fixtures against the runtime families.
+ * A new page or detail family therefore requires browser coverage.
  *
  * `id` values are real records from the CN snapshot committed under
  * `public/api/v1`, so the detail routes render actual content rather than a
@@ -39,34 +37,26 @@ export const STATIC_ROUTES = [
 ]
 
 /**
- * Parameterised routes, keyed by the router path they instantiate, with a
- * sample id drawn from the committed snapshot.
+ * Detail and not-found fixtures, with identifiers from the committed snapshot.
  */
 export const PARAM_ROUTES = [
-  // The catch-all. `routerPath` is the pattern the router declares; `path`
-  // is a URL that matches nothing else, which is the only way to reach it.
-  // It is here rather than in STATIC_ROUTES because the two differ: every
-  // other entry visits the path it declares.
+  // This URL is intentionally outside every static page and detail family.
   {
-    routerPath: '/:pathMatch(.*)*',
     path: '/no-such-page-exists',
     contains: 'Page not found',
   },
-  { routerPath: '/entity/:id(.*)', path: '/entity/cn/1-general-dynamics', contains: 'General Dynamics' },
+  { path: '/entity/cn/1-general-dynamics', contains: 'General Dynamics' },
   {
-    routerPath: '/organization/:id(.*)',
     path: '/organization/cn/state-council',
     contains: 'State Council',
   },
-  { routerPath: '/group/:id(.*)', path: '/group/cn/14', contains: 'Announcement' },
-  { routerPath: '/announcement/:id(.*)', path: '/announcement/cn/14', contains: 'Announcement' },
+  { path: '/group/cn/14', contains: 'Announcement' },
+  { path: '/announcement/cn/14', contains: 'Announcement' },
   {
-    routerPath: '/legal-instrument/:id(.*)',
     path: '/legal-instrument/cn/npc-export-control-law',
     contains: 'Export Control Law',
   },
   {
-    routerPath: '/document-type/:id(.*)',
     path: '/document-type/cn/ministry-of-commerce-order',
     contains: 'Ministry of Commerce',
   },

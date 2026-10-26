@@ -25,7 +25,7 @@ test('the download page exposes both complete formats and source aggregates', ()
 test('the route and homepage both point to the download page', () => {
   const pages = read('src/pages/download.astro')
   const home = read('src/views/HomePage.vue')
-  const header = read('src/components/organisms/TheHeader.vue')
+  const header = read('src/components/organisms/TheHeader.astro')
 
   assert.match(pages, /DownloadPage/)
   assert.match(home, /<a href="\/download"/)

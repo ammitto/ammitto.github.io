@@ -7,7 +7,7 @@ require_relative 'publication-catalogue'
 
 root = File.expand_path('..', __dir__)
 spec = JSON.parse(File.read(File.join(root, 'public/openapi.json')))
-page = File.read(File.join(root, 'src/views/ApiDocsPage.vue'))
+page = File.read(File.join(root, 'src/views/ApiDocsPage.astro'))
 sample_text = page.match(/response: `(\{.*?\n\})`/m)&.captures&.first
 raise 'API catalogue sample missing' unless sample_text
 

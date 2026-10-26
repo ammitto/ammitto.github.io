@@ -1,14 +1,13 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, watch } from 'vue'
+import { computed, defineAsyncComponent, watch, type AsyncComponentLoader } from 'vue'
+import DetailLoading from './DetailLoading.vue'
+import DetailLoadError from './DetailLoadError.vue'
+import { DETAIL_ROUTE_TITLES, type DetailRouteName } from '../utils/detailRoutes.js'
 import { useRoute } from '../utils/navigation'
 const route = useRoute()
-const titles: Record<string, string> = {
-  entity: 'Entity record', announcement: 'Official announcement', group: 'Sanctioned entities',
-  'legal-instrument': 'Legal instrument', 'document-type': 'Document type', organization: 'Issuing body',
-}
 watch(() => route.path, () => {
   if (typeof document === 'undefined') return
-  const title = titles[route.name] || 'Page not found'
+  const title = DETAIL_ROUTE_TITLES[route.name as DetailRouteName] || 'Page not found'
   const canonical = new URL(route.path, 'https://www.ammitto.org').href
   document.title = `${title} · Ammitto`
   document.querySelector('link[rel="canonical"]')?.setAttribute('href', canonical)
@@ -16,15 +15,22 @@ watch(() => route.path, () => {
   document.querySelector('meta[property="og:title"]')?.setAttribute('content', title)
 }, { immediate: true })
 
-const pages = {
-  entity: defineAsyncComponent(() => import('../views/EntityPage.vue')),
-  announcement: defineAsyncComponent(() => import('../views/AnnouncementPage.vue')),
-  group: defineAsyncComponent(() => import('../views/GroupPage.vue')),
-  'legal-instrument': defineAsyncComponent(() => import('../views/LegalInstrumentPage.vue')),
-  'document-type': defineAsyncComponent(() => import('../views/DocumentTypePage.vue')),
-  organization: defineAsyncComponent(() => import('../views/OrganizationPage.vue')),
+function loadDetail(loader: AsyncComponentLoader) {
+  return defineAsyncComponent({
+    loader, loadingComponent: DetailLoading, errorComponent: DetailLoadError,
+    delay: 0, timeout: 15_000,
+  })
 }
-const notFound = defineAsyncComponent(() => import('../views/NotFoundPage.vue'))
+
+const pages = {
+  entity: loadDetail(() => import('../views/EntityPage.vue')),
+  announcement: loadDetail(() => import('../views/AnnouncementPage.vue')),
+  group: loadDetail(() => import('../views/GroupPage.vue')),
+  'legal-instrument': loadDetail(() => import('../views/LegalInstrumentPage.vue')),
+  'document-type': loadDetail(() => import('../views/DocumentTypePage.vue')),
+  organization: loadDetail(() => import('../views/OrganizationPage.vue')),
+} satisfies Record<DetailRouteName, ReturnType<typeof loadDetail>>
+const notFound = loadDetail(() => import('../views/NotFoundPage.vue'))
 const page = computed(() => pages[route.name as keyof typeof pages] || notFound)
 </script>
 

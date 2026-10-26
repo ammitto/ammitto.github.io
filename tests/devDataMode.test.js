@@ -42,7 +42,7 @@ test('the index files the browse pages load are required', () => {
 const walk = (dir) => readdirSync(dir).flatMap((name) => {
   const full = join(dir, name)
   if (statSync(full).isDirectory()) return walk(full)
-  return /\.(ts|vue)$/.test(name) ? [full] : []
+  return /\.(ts|vue|astro)$/.test(name) ? [full] : []
 })
 const stripComments = (source) => source
   .replace(/\/\*[\s\S]*?\*\//g, ' ')

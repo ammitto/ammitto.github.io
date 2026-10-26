@@ -10,9 +10,12 @@ test('production registration caches only built static assets and never serves A
   await page.reload()
   await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true)
 
-  // Astro may inline the document script. Hydrated Vue islands retain an
-  // explicit built component URL that is eligible for the same bounded cache.
-  const asset = await page.locator('astro-island[component-url]').first().getAttribute('component-url')
+  // Static pages need no Vue island or external script. Select a real emitted
+  // asset from the production worker's bounded allowlist, then test it on wire.
+  const workerSource = readFileSync(resolve('dist/service-worker.js'), 'utf8')
+  const manifest = /const ASSETS = new Map\((\[[^\n]+\])\)/.exec(workerSource)
+  expect(manifest).toBeTruthy()
+  const asset = JSON.parse(manifest[1]).find(([path]) => path.endsWith('.js'))?.[0]
   expect(asset).toMatch(/^\/assets\/.+[-.][\w-]+\.js$/)
   await page.evaluate((url) => fetch(url).then((response) => response.text()), asset)
   await expect.poll(() => page.evaluate(async (url) => {

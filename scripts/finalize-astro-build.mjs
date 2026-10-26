@@ -1,28 +1,22 @@
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
-import { dirname, join, relative, resolve, sep } from 'node:path'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { generateServiceWorker } from './generate-service-worker.js'
+import { STATIC_ROUTE_MANIFEST } from './verify-astro-routes.mjs'
 
 const SITE_ORIGIN = 'https://www.ammitto.org'
 
-/** Only pages actually emitted by Astro belong in the sitemap. */
+/** Use Astro's actual outputs; a filesystem crawl can mistake API HTML for pages. */
 export function prerenderedRoutes(dist) {
-  const out = []
-  function walk(dir) {
-    for (const name of readdirSync(dir)) {
-      const full = join(dir, name)
-      if (statSync(full).isDirectory()) {
-        if (['assets', 'api', 'schemas', '.vite', 'search-runtime'].includes(name)) continue
-        walk(full)
-        continue
-      }
-      if (!name.endsWith('.html') || name === '404.html') continue
-      const rel = relative(dist, full).split(sep).join('/')
-      out.push(rel === 'index.html' ? '/' : `/${rel.replace(/(?:\/index)?\.html$/, '')}`)
-    }
+  const manifest = JSON.parse(readFileSync(resolve(dist, STATIC_ROUTE_MANIFEST), 'utf8'))
+  if (manifest.version !== 1 || !Array.isArray(manifest.routes) || !manifest.routes.length ||
+      manifest.routes.some(path => typeof path !== 'string' || !path.startsWith('/') ||
+        path.startsWith('//') || !path.endsWith('/') || /[?#]/.test(path))) {
+    throw new Error('Invalid Astro static route manifest')
   }
-  walk(dist)
-  return out.sort()
+  const routes = [...new Set(manifest.routes)].filter(path => path !== '/404/').sort()
+  if (!routes.includes('/')) throw new Error('Astro static route manifest is missing the homepage')
+  return routes
 }
 
 export function verifyDetailFallback(dist) {

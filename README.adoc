@@ -44,7 +44,10 @@ npm run preview
 
 === Pages and Vue islands
 
-Astro renders static routes and shared layouts. Vue islands retain search,
+Astro renders static routes as directory indexes and owns shared layouts/navigation.
+Both slash and non-slash links resolve; canonical static URLs and sitemap entries
+use trailing slashes. Documentation is static HTML with independently hydrated
+copy controls; the content itself is never hydrated. Vue islands retain search,
 filters, ontology interaction, and data-driven page behavior; navigation between
 pages uses normal links. Tailwind 4 runs through `@tailwindcss/vite`.
 

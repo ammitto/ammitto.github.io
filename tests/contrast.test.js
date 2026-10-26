@@ -51,7 +51,8 @@ import {
   tileToneVars,
 } from '../.test-build/config/palette.js'
 import { entityTypes, sources, statuses } from '../.test-build/config/index.js'
-import { ALL_ROUTES, PARAM_ROUTES, STATIC_ROUTES } from './routes.js'
+import { ALL_ROUTES, PARAM_ROUTES } from './routes.js'
+import { DETAIL_ROUTE_TITLES } from '../.test-build/utils/detailRoutes.js'
 // The real config object Tailwind is handed at build time, not a copy of its
 // values: the utilities it generates are what the browser paints.
 import tailwindConfig from '../tailwind.config.js'
@@ -564,11 +565,11 @@ test('no text utility fades a tested colour below AA', () => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       const full = `${dir}/${entry.name}`
       if (entry.isDirectory()) walk(full)
-      else if (entry.name.endsWith('.vue')) files.push(full)
+      else if (/\.(vue|astro)$/.test(entry.name)) files.push(full)
     }
   }
   walk(root)
-  assert.ok(files.length > 20, `only ${files.length} .vue files found — the walk is broken`)
+  assert.ok(files.length > 20, `only ${files.length} component files found — the walk is broken`)
 
   for (const file of files) {
     for (const { where, ratio } of scanOpacityUtilities(fs.readFileSync(file, 'utf8'), file)) {
@@ -814,21 +815,12 @@ test('the glass-card composites in main.css match the tested card surfaces', () 
  * 7. The browser sweep must not silently lose a page
  * ------------------------------------------------------------------ */
 
-test('the browser test route list covers every route the router declares', () => {
-  const router = fs.readFileSync(fileURLToPath(new URL('../src/router/index.ts', import.meta.url)), 'utf8')
-  const declared = [...router.matchAll(/path:\s*'([^']+)'/g)].map((m) => m[1])
-  assert.ok(declared.length > 10, `only ${declared.length} routes parsed from the router`)
-
-  const covered = new Set([
-    ...STATIC_ROUTES.map((r) => r.path),
-    ...PARAM_ROUTES.map((r) => r.routerPath),
-  ])
-  const missing = declared.filter((p) => !covered.has(p))
-  assert.deepEqual(
-    missing,
-    [],
-    `routes declared in src/router/index.ts but never visited by tests/e2e: ${missing.join(', ')}`,
-  )
+test('the browser fixtures cover the detail families and require visible content', () => {
+  for (const name of Object.keys(DETAIL_ROUTE_TITLES)) {
+    assert.ok(PARAM_ROUTES.some(route => route.path.startsWith(`/${name}/`)),
+      `Missing browser fixture for detail family ${name}`)
+  }
+  assert.ok(PARAM_ROUTES.some(route => route.path === '/no-such-page-exists'))
 
   for (const route of ALL_ROUTES) {
     assert.ok(route.path.startsWith('/'), `route path must be absolute: ${route.path}`)
@@ -863,11 +855,11 @@ test('no template declares a colour in an inline style attribute', () => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       const full = `${dir}/${entry.name}`
       if (entry.isDirectory()) walk(full)
-      else if (entry.name.endsWith('.vue')) files.push(full)
+      else if (/\.(vue|astro)$/.test(entry.name)) files.push(full)
     }
   }
   walk(root)
-  assert.ok(files.length > 20, `only ${files.length} .vue files found — the walk is broken`)
+  assert.ok(files.length > 20, `only ${files.length} component files found — the walk is broken`)
 
   const COLOUR_KEY =
     /(^|[^-\w])(color|backgroundColor|background-color|borderColor|border-color|fill|stroke|background)\s*:/
@@ -875,10 +867,10 @@ test('no template declares a colour in an inline style attribute', () => {
   for (const file of files) {
     const text = fs.readFileSync(file, 'utf8')
     // Every `:style="..."` / `style="..."` binding, including multi-line ones.
-    for (const match of text.matchAll(/:?style=(["'])([\s\S]*?)\1/g)) {
+    for (const match of text.matchAll(/:?style=(["'])([\s\S]*?)\1|style=\{([\s\S]*?)\}/g)) {
       // Quotes around a key ({ 'background-color': ... }) are stripped so a
       // quoted, kebab-cased, or multi-line spelling is not a way past this.
-      const body = match[2].replace(/['"`]/g, '')
+      const body = (match[2] ?? match[3]).replace(/['"`]/g, '')
       const line = text.slice(0, match.index).split('\n').length
       if (COLOUR_KEY.test(body)) {
         offenders.push(`${file}:${line}: inline style sets a colour: ${body.replace(/\s+/g, ' ')}`)
@@ -898,8 +890,8 @@ test('no template declares a colour in an inline style attribute', () => {
 })
 
 test('the browser specs use the shared route inventory', () => {
-  // The route-coverage test above only proves the inventory matches the
-  // router. It would stay green while the browser suite quietly visited some
+  // The build integration proves the inventory matches Astro's built pages.
+  // It would stay green while the browser suite quietly visited some
   // other, shorter list — so the specs are checked for actually importing it.
   const dir = fileURLToPath(new URL('./e2e', import.meta.url))
   const specs = fs.readdirSync(dir).filter((f) => f.endsWith('.spec.js'))

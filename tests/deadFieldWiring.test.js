@@ -114,7 +114,7 @@ const REMOVED_READS = [
     ],
   },
   {
-    file: 'src/views/SchemaPage.vue',
+    file: 'src/views/SchemaPage.astro',
     forbidden: [
       // The schema page is the site telling API consumers what a node
       // carries. Documenting a field the producer never emits is the
@@ -194,7 +194,7 @@ const ADDRESS_BEARING = {
 
 for (const [type, declaresAddresses] of Object.entries(ADDRESS_BEARING)) {
   test(`the schema page ${declaresAddresses ? 'documents' : 'does not document'} addresses on ${type}`, () => {
-    const fields = fieldsFor(read('src/views/SchemaPage.vue'), type)
+    const fields = fieldsFor(read('src/views/SchemaPage.astro'), type)
 
     assert.equal(
       /\baddresses\b/.test(fields),

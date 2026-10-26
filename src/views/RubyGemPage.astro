@@ -1,4 +1,4 @@
-<script setup lang="ts">
+---
 import CodeBlock from '@/components/molecules/CodeBlock.vue'
 
 // Every call below was executed against the gem before being written
@@ -117,10 +117,8 @@ const configOptions = [
   { name: 'read_timeout', description: 'Read timeout in seconds', default: '30' },
   { name: 'verbose', description: 'Log what the client is doing', default: 'false' },
 ]
-</script>
-
-<template>
-  <div class="docs-page min-h-screen">
+---
+<div class="docs-page min-h-screen">
     <div class="container-wide py-12">
       <nav aria-label="Developer documentation" class="mb-7 flex flex-wrap gap-x-5 gap-y-2 text-sm">
         <a href="/api" class="text-brand-link underline underline-offset-4">API</a>
@@ -153,8 +151,8 @@ const configOptions = [
         <h2 id="installation" class="text-2xl font-semibold mb-4 text-light-text dark:text-dark-text">
           Installation
         </h2>
-        <CodeBlock
-          :code="installCode"
+        <CodeBlock client:load
+          code={installCode}
           language="ruby"
           title="Gemfile"
         />
@@ -164,8 +162,8 @@ const configOptions = [
         <h2 id="basic-usage" class="text-2xl font-semibold mb-4 text-light-text dark:text-dark-text">
           Basic Usage
         </h2>
-        <CodeBlock
-          :code="usageCode"
+        <CodeBlock client:load
+          code={usageCode}
           language="ruby"
           title="Basic Usage"
         />
@@ -175,8 +173,8 @@ const configOptions = [
         <h2 id="rails-integration" class="text-2xl font-semibold mb-4 text-light-text dark:text-dark-text">
           Rails Integration
         </h2>
-        <CodeBlock
-          :code="railsCode"
+        <CodeBlock client:load
+          code={railsCode}
           language="ruby"
           title="Rails Configuration"
         />
@@ -197,16 +195,16 @@ const configOptions = [
                 </tr>
               </thead>
               <tbody class="text-light-muted dark:text-dark-muted">
-                <tr
-                  v-for="(entry, i) in apiReference"
-                  :key="entry.call"
-                  :class="i < apiReference.length - 1
-                    ? 'border-b border-light-border dark:border-dark-border' : ''"
+                {apiReference.map((entry, i) => (<tr
+
+
+                  class={i < apiReference.length - 1
+                    ? 'border-b border-light-border dark:border-dark-border' : ''}
                 >
-                  <td class="p-4 font-mono text-sm whitespace-nowrap">{{ entry.call }}</td>
-                  <td class="p-4 font-mono text-sm">{{ entry.params }}</td>
-                  <td class="p-4">{{ entry.description }}</td>
-                </tr>
+                  <td class="p-4 font-mono text-sm whitespace-nowrap">{entry.call}</td>
+                  <td class="p-4 font-mono text-sm">{entry.params}</td>
+                  <td class="p-4">{entry.description}</td>
+                </tr>))}
               </tbody>
             </table>
           </div>
@@ -235,15 +233,15 @@ const configOptions = [
                 </tr>
               </thead>
               <tbody class="text-light-muted dark:text-dark-muted">
-                <tr
-                  v-for="(m, i) in resultSetMethods"
-                  :key="m.call"
-                  :class="i < resultSetMethods.length - 1
-                    ? 'border-b border-light-border dark:border-dark-border' : ''"
+                {resultSetMethods.map((m, i) => (<tr
+
+
+                  class={i < resultSetMethods.length - 1
+                    ? 'border-b border-light-border dark:border-dark-border' : ''}
                 >
-                  <td class="p-4 font-mono text-sm">{{ m.call }}</td>
-                  <td class="p-4">{{ m.description }}</td>
-                </tr>
+                  <td class="p-4 font-mono text-sm">{m.call}</td>
+                  <td class="p-4">{m.description}</td>
+                </tr>))}
               </tbody>
             </table>
           </div>
@@ -265,16 +263,16 @@ const configOptions = [
                 </tr>
               </thead>
               <tbody class="text-light-muted dark:text-dark-muted">
-                <tr
-                  v-for="(opt, i) in configOptions"
-                  :key="opt.name"
-                  :class="i < configOptions.length - 1
-                    ? 'border-b border-light-border dark:border-dark-border' : ''"
+                {configOptions.map((opt, i) => (<tr
+
+
+                  class={i < configOptions.length - 1
+                    ? 'border-b border-light-border dark:border-dark-border' : ''}
                 >
-                  <td class="p-4 font-mono text-sm">{{ opt.name }}</td>
-                  <td class="p-4">{{ opt.description }}</td>
-                  <td class="p-4 font-mono text-sm">{{ opt.default }}</td>
-                </tr>
+                  <td class="p-4 font-mono text-sm">{opt.name}</td>
+                  <td class="p-4">{opt.description}</td>
+                  <td class="p-4 font-mono text-sm">{opt.default}</td>
+                </tr>))}
               </tbody>
             </table>
           </div>
@@ -282,9 +280,8 @@ const configOptions = [
       </section>
     </div>
   </div>
-</template>
 
-<style scoped>
+<style>
 /* The global 5rem scroll padding clears the header; add room at the heading. */
 .docs-page h2[id] { scroll-margin-top: 1rem; }
 .docs-page nav [aria-current="page"] { font-weight: 700; }

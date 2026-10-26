@@ -7,7 +7,7 @@
  * thing being asserted is what a URL comes out as.
  *
  * Every route reaching these builders is declared catch-all in
- * `router/index.ts` (`:id(.*)`), so the identifier is whatever the
+ * the detail dispatcher, so the identifier is whatever the
  * visitor typed. The rejection cases below are that fact, written down.
  */
 import test from 'node:test'

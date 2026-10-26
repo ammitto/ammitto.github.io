@@ -118,6 +118,11 @@ export function createApiHandler({
         headers: {
           accept: req.headers.accept ?? '*/*',
           'accept-encoding': req.headers['accept-encoding'] ?? 'identity',
+          // Preserve byte-range verification and fresh manifest revalidation.
+          // Credentials, cookies and unrelated browser headers stay local.
+          ...Object.fromEntries([
+            'range', 'if-range', 'if-none-match', 'if-modified-since', 'cache-control', 'pragma',
+          ].filter(name => req.headers[name] !== undefined).map(name => [name, req.headers[name]])),
         },
         timeout: idleMs,
       },

@@ -1,4 +1,5 @@
 import { onBeforeUnmount, onMounted, reactive } from 'vue'
+import { DETAIL_ROUTE_TITLES } from './detailRoutes.js'
 
 /** URL state for independently hydrated Vue islands. Astro owns page routing. */
 export type LocationQueryValue = string | null
@@ -12,7 +13,7 @@ const routePaths: Record<string, string> = {
   download: '/download', about: '/about', ruby: '/ruby', schema: '/schema',
   sources: '/sources', license: '/license',
 }
-const detailNames = new Set(['entity', 'announcement', 'group', 'legal-instrument', 'document-type', 'organization'])
+const detailNames = new Set(Object.keys(DETAIL_ROUTE_TITLES))
 const BASE = 'https://www.ammitto.org'
 
 function readRoute(address: string): Route {

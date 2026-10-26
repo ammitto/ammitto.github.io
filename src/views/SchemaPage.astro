@@ -1,4 +1,4 @@
-<script setup lang="ts">
+---
 import CodeBlock from '@/components/molecules/CodeBlock.vue'
 
 // Every @type and field below was read off published nodes, not written
@@ -102,10 +102,8 @@ const entityTypeDescriptions = [
     fields: 'names, remarks',
   },
 ]
-</script>
-
-<template>
-  <div class="docs-page min-h-screen">
+---
+<div class="docs-page min-h-screen">
     <div class="container-wide py-12">
       <nav aria-label="Developer documentation" class="mb-7 flex flex-wrap gap-x-5 gap-y-2 text-sm">
         <a href="/api" class="text-brand-link underline underline-offset-4">API</a>
@@ -136,21 +134,21 @@ const entityTypeDescriptions = [
           Entity Types
         </h2>
         <div class="grid md:grid-cols-2 gap-4">
-          <div
-            v-for="type in entityTypeDescriptions"
-            :key="type.type"
+          {entityTypeDescriptions.map((type) => (<div
+
+
             class="glass-card p-4"
           >
             <h3 class="font-semibold text-light-text dark:text-dark-text">
-              {{ type.type }}
+              {type.type}
             </h3>
             <p class="text-sm text-light-muted dark:text-dark-muted mt-2">
-              {{ type.description }}
+              {type.description}
             </p>
             <div class="mt-3 text-xs font-mono text-light-muted dark:text-dark-muted">
-              Fields: {{ type.fields }}
+              Fields: {type.fields}
             </div>
-          </div>
+          </div>))}
         </div>
       </section>
 
@@ -158,8 +156,8 @@ const entityTypeDescriptions = [
         <h2 id="full-schema" class="text-2xl font-semibold mb-4 text-light-text dark:text-dark-text">
           Full Schema
         </h2>
-        <CodeBlock
-          :code="entitySchema"
+        <CodeBlock client:load
+          code={entitySchema}
           language="json"
           title="Entity Schema"
         />
@@ -253,9 +251,8 @@ const entityTypeDescriptions = [
       </section>
     </div>
   </div>
-</template>
 
-<style scoped>
+<style>
 /* The global 5rem scroll padding clears the header; add room at the heading. */
 .docs-page h2[id] { scroll-margin-top: 1rem; }
 .docs-page nav [aria-current="page"] { font-weight: 700; }

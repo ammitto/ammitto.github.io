@@ -174,7 +174,7 @@ test('the schema page documents the published fields', () => {
   // published field is the same untruth as documenting one that is never
   // emitted, which is what deadFieldWiring.test.js bans in the other
   // direction.
-  const source = read('src/views/SchemaPage.vue')
+  const source = read('src/views/SchemaPage.astro')
   for (const field of ['gender', 'title', 'position', 'imoNumber']) {
     assert.ok(source.includes(field), `SchemaPage must name the published ${field} field`)
   }

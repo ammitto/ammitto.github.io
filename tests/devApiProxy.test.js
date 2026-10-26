@@ -36,9 +36,9 @@ async function devServer(options) {
   })
 }
 
-function get(port, path, { abortAfterMs } = {}) {
+function get(port, path, { abortAfterMs, headers = {} } = {}) {
   return new Promise((resolve, reject) => {
-    const req = http.get({ host: '127.0.0.1', port, path }, (res) => {
+    const req = http.get({ host: '127.0.0.1', port, path, headers }, (res) => {
       let body = ''
       res.setEncoding('utf8')
       res.on('data', (c) => { body += c })
@@ -167,4 +167,30 @@ test('remote-only mode bypasses an existing local sample and keeps upstream erro
   const response = await get(port, '/api/v1/stats.json')
   assert.equal(response.status, 503)
   assert.equal(response.body, '{"upstream":"unavailable"}')
+})
+
+
+test('live review preserves range and revalidation headers without forwarding credentials', async () => {
+  let seen
+  const up = await listen((req, res) => {
+    seen = req.headers
+    res.writeHead(206, { 'content-type': 'application/json', 'content-range': 'bytes 0-0/100' })
+    res.end('{')
+  })
+  const port = await devServer({ live: true, preferLocal: false, origin: `http://127.0.0.1:${up}` })
+  const response = await get(port, '/api/v1/stats.json', { headers: {
+    range: 'bytes=0-0', 'if-range': '"generation-one"',
+    'cache-control': 'no-cache', pragma: 'no-cache',
+    'if-none-match': '"older-generation"', 'if-modified-since': 'Wed, 21 Oct 2026 10:00:00 GMT',
+    cookie: 'local=private', authorization: 'Bearer local-only',
+  } })
+  assert.equal(response.status, 206)
+  assert.equal(response.body, '{')
+  for (const [name, value] of Object.entries({
+    range: 'bytes=0-0', 'if-range': '"generation-one"',
+    'cache-control': 'no-cache', pragma: 'no-cache',
+    'if-none-match': '"older-generation"', 'if-modified-since': 'Wed, 21 Oct 2026 10:00:00 GMT',
+  })) assert.equal(seen[name], value, name)
+  assert.equal(seen.cookie, undefined)
+  assert.equal(seen.authorization, undefined)
 })

@@ -28,7 +28,7 @@ export default defineConfig({
   workers: 2,
   reporter: process.env.CI ? [['github'], ['list']] : 'list',
   use: {
-    baseURL: process.env.E2E_BASE_URL || 'http://127.0.0.1:4173',
+    baseURL: process.env.E2E_BASE_URL || 'http://127.0.0.1:4175',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
@@ -51,9 +51,10 @@ export default defineConfig({
         // Binding explicitly removes the resolver from the question.
         // Astro 7 auto-backgrounds when launched by an agent. Playwright must
         // own a foreground process, so opt out of the managed-server lock.
-        command: 'npm run preview -- --ignore-lock --host 127.0.0.1 --port 4173',
-        url: 'http://127.0.0.1:4173/',
-        reuseExistingServer: !process.env.CI,
+        command: 'npm run preview -- --ignore-lock --host 127.0.0.1 --port 4175',
+        url: 'http://127.0.0.1:4175/',
+        // Never silently test a developer's live-data dev server instead of dist.
+        reuseExistingServer: false,
         timeout: 120000,
         // Without this the server's own stderr is swallowed, so a startup
         // failure surfaces only as "timed out waiting" with no cause. The

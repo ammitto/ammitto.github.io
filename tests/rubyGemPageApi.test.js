@@ -32,7 +32,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const page = readFileSync(join(root, 'src/views/RubyGemPage.vue'), 'utf8')
+const page = readFileSync(join(root, 'src/views/RubyGemPage.astro'), 'utf8')
 
 // The samples, not the prose: the comment at the top of the page names
 // the wrong calls on purpose, to say what was wrong and why.

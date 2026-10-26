@@ -86,7 +86,7 @@ test('the prerendered /search HTML states no zero count', async ({ browser, requ
   const response = await request.get('/search')
   expect(response.ok()).toBeTruthy()
   const served = await response.text()
-  const built = readFileSync(new URL('../../dist/search.html', import.meta.url), 'utf8')
+  const built = readFileSync(new URL('../../dist/search/index.html', import.meta.url), 'utf8')
   expect(served).toBe(built)
 
   // What a crawler or a no-JS reader gets: the page with no script run.

@@ -1,11 +1,12 @@
 ---
-import TheHeader from '../components/organisms/TheHeader.vue'
+import TheHeader from '../components/organisms/TheHeader.astro'
 import TheFooter from '../components/organisms/TheFooter.vue'
 import { siteConfig } from '../config'
 import '../assets/styles/main.css'
 interface Props { title?: string; description?: string; noindex?: boolean }
 const { title = siteConfig.name, description = siteConfig.description, noindex = false } = Astro.props
-const canonical = new URL(Astro.url.pathname, siteConfig.url)
+const canonicalPath = Astro.url.pathname === '/' ? '/' : `${Astro.url.pathname.replace(/\/$/, '')}/`
+const canonical = new URL(canonicalPath, siteConfig.url)
 ---
 <!doctype html>
 <html lang="en">
@@ -35,33 +36,16 @@ const canonical = new URL(Astro.url.pathname, siteConfig.url)
     </script>
   </head>
   <body class="bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text antialiased">
-    <a href="#main-content" class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50">Skip to content</a>
     <div id="app" class="min-h-screen flex flex-col">
-      <TheHeader pathname={Astro.url.pathname} client:load />
+      <TheHeader pathname={Astro.url.pathname} />
       <main id="main-content" tabindex="-1" class="flex-1 focus:outline-none"><slot /></main>
       <TheFooter />
     </div>
     <script>
       import { registerServiceWorker } from '../utils/registerServiceWorker'
+      import { installPageFocus } from '../utils/pageFocus'
       if (import.meta.env.PROD) registerServiceWorker(import.meta.env.BASE_URL)
-      // Transfer keyboard focus across native header navigation, as the SPA
-      // did after route changes. Direct loads and browser Back keep their focus.
-      const focusKey = 'ammitto.navigation-focus'
-      try {
-        const destination = sessionStorage.getItem(focusKey)
-        sessionStorage.removeItem(focusKey)
-        if (destination === location.pathname + location.search) {
-          document.getElementById('main-content')?.focus({ preventScroll: true })
-        }
-      } catch { /* Navigation still works when storage is unavailable. */ }
-      document.addEventListener('click', (event) => {
-        if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
-        const anchor = (event.target as Element | null)?.closest<HTMLAnchorElement>('header a[href]')
-        if (!anchor || anchor.target || anchor.hasAttribute('download')) return
-        const destination = new URL(anchor.href, location.href)
-        if (destination.origin !== location.origin || destination.hash) return
-        try { sessionStorage.setItem(focusKey, destination.pathname + destination.search) } catch {}
-      })
+      installPageFocus()
 
     </script>
   </body>

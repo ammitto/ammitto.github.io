@@ -42,7 +42,8 @@ test('the sitemap uses Astro directory routes and excludes fallback and API data
       mkdirSync(join(path, '..'), { recursive: true })
       writeFileSync(path, '<html></html>')
     }
-    assert.deepEqual(prerenderedRoutes(dist), ['/', '/search'])
+    writeFileSync(join(dist, 'ammitto-static-routes.json'), JSON.stringify({ version: 1, routes: ['/', '/api/', '/search/'] }))
+    assert.deepEqual(prerenderedRoutes(dist), ['/', '/api/', '/search/'])
   })
 })
 
